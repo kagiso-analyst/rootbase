@@ -1,8 +1,306 @@
-export default function Page() {
+'use client'
+
+import { useState } from 'react'
+import { Plus, Leaf, Calendar, MapPin } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import Link from 'next/link'
+import type { Crop, CropStatus } from '@/types/crops'
+
+const STATUS_COLOURS: Record<CropStatus, string> = {
+  planned:   'bg-blue-100 text-blue-700',
+  active:    'bg-green-100 text-green-700',
+  harvested: 'bg-purple-100 text-purple-700',
+  failed:    'bg-red-100 text-red-700',
+}
+
+const COMMON_CROPS = [
+  'Maize', 'Wheat', 'Soya', 'Sunflower', 'Tomatoes', 'Potatoes',
+  'Onions', 'Cabbage', 'Spinach', 'Butternut', 'Peppers', 'Beans',
+  'Peas', 'Carrots', 'Beetroot', 'Lettuce', 'Broccoli', 'Cauliflower',
+  'Sweet Corn', 'Pumpkin', 'Cucumber', 'Cotton', 'Sugarcane',
+  'Groundnuts', 'Lucerne', 'Barley', 'Sorghum', 'Other'
+]
+
+function daysToHarvest(expectedDate: string): number {
+  const today = new Date()
+  const harvest = new Date(expectedDate)
+  return Math.ceil((harvest.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function progressPercent(plantingDate: string, expectedDate: string): number {
+  const start = new Date(plantingDate).getTime()
+  const end = new Date(expectedDate).getTime()
+  const now = Date.now()
+  const percent = ((now - start) / (end - start)) * 100
+  return Math.min(Math.max(Math.round(percent), 0), 100)
+}
+
+export default function CropsPage() {
+  const [crops, setCrops] = useState<Crop[]>([])
+  const [open, setOpen] = useState(false)
+  const [cropName, setCropName] = useState('')
+  const [variety, setVariety] = useState('')
+  const [fieldName, setFieldName] = useState('')
+  const [season, setSeason] = useState('')
+  const [plantingDate, setPlantingDate] = useState('')
+  const [expectedHarvestDate, setExpectedHarvestDate] = useState('')
+  const [areaPlantedHa, setAreaPlantedHa] = useState('')
+  const [status, setStatus] = useState<CropStatus>('active')
+  const [notes, setNotes] = useState('')
+
+  function handleAdd() {
+    if (!cropName || !plantingDate || !expectedHarvestDate) return
+
+    const newCrop: Crop = {
+      id: crypto.randomUUID(),
+      cropName,
+      variety,
+      fieldName,
+      season,
+      plantingDate,
+      expectedHarvestDate,
+      areaPlantedHa: parseFloat(areaPlantedHa) || 0,
+      status,
+      notes,
+      createdAt: new Date().toISOString(),
+    }
+
+    setCrops(prev => [newCrop, ...prev])
+    setCropName('')
+    setVariety('')
+    setFieldName('')
+    setSeason('')
+    setPlantingDate('')
+    setExpectedHarvestDate('')
+    setAreaPlantedHa('')
+    setStatus('active')
+    setNotes('')
+    setOpen(false)
+  }
+
+  const activeCrops = crops.filter(c => c.status === 'active').length
+  const plannedCrops = crops.filter(c => c.status === 'planned').length
+  const harvestedCrops = crops.filter(c => c.status === 'harvested').length
+
   return (
-    <div>
-      <h1>Crops</h1>
-      <p>Your farm journal is coming soon.</p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1B4332]">Crops</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            {activeCrops} active · {plannedCrops} planned · {harvestedCrops} harvested
+          </p>
+        </div>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger>
+            <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+              <Plus size={16} className="mr-2" /> Add Crop
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Add New Crop</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+
+              <div className="space-y-2">
+                <Label>Crop</Label>
+                <Select value={cropName} onValueChange={(val) => setCropName(val ?? '')}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select crop" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COMMON_CROPS.map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Variety <span className="text-gray-400">(optional)</span></Label>
+                <Input
+                  placeholder="e.g. Star 9001, PAN 6479"
+                  value={variety}
+                  onChange={(e) => setVariety((e.target as HTMLInputElement).value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Field / Block</Label>
+                  <Input
+                    placeholder="e.g. Field A"
+                    value={fieldName}
+                    onChange={(e) => setFieldName((e.target as HTMLInputElement).value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Season</Label>
+                  <Input
+                    placeholder="e.g. 2025/26"
+                    value={season}
+                    onChange={(e) => setSeason((e.target as HTMLInputElement).value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Planting Date</Label>
+                  <Input
+                    type="date"
+                    value={plantingDate}
+                    onChange={(e) => setPlantingDate((e.target as HTMLInputElement).value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Expected Harvest</Label>
+                  <Input
+                    type="date"
+                    value={expectedHarvestDate}
+                    onChange={(e) => setExpectedHarvestDate((e.target as HTMLInputElement).value)}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Area (hectares)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0.0"
+                    value={areaPlantedHa}
+                    onChange={(e) => setAreaPlantedHa((e.target as HTMLInputElement).value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={status} onValueChange={(val) => setStatus((val ?? 'active') as CropStatus)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="planned">Planned</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="harvested">Harvested</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes <span className="text-gray-400">(optional)</span></Label>
+                <Input
+                  placeholder="Any additional notes..."
+                  value={notes}
+                  onChange={(e) => setNotes((e.target as HTMLInputElement).value)}
+                />
+              </div>
+
+              <Button
+                className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+                onClick={handleAdd}
+                disabled={!cropName || !plantingDate || !expectedHarvestDate}
+              >
+                Save Crop
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {crops.length === 0 ? (
+        <Card className="shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <Leaf size={40} className="mb-3 opacity-30" />
+            <p className="text-sm font-medium">No crops recorded yet</p>
+            <p className="text-xs mt-1">Click "Add Crop" to record your first planting</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {crops.map((crop) => {
+            const days = daysToHarvest(crop.expectedHarvestDate)
+            const progress = progressPercent(crop.plantingDate, crop.expectedHarvestDate)
+
+            return (
+              <Link key={crop.id} href={`/crops/${crop.id}`}>
+                <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-[#D8F3DC] flex items-center justify-center">
+                          <Leaf size={15} className="text-[#2D6A4F]" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-sm font-semibold text-gray-800">
+                            {crop.cropName}
+                          </CardTitle>
+                          {crop.variety && (
+                            <p className="text-xs text-gray-400">{crop.variety}</p>
+                          )}
+                        </div>
+                      </div>
+                      <Badge className={`text-xs ${STATUS_COLOURS[crop.status]}`}>
+                        {crop.status}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {crop.fieldName && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <MapPin size={12} /> {crop.fieldName}
+                        {crop.areaPlantedHa > 0 && ` · ${crop.areaPlantedHa} ha`}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <Calendar size={12} /> Planted {crop.plantingDate}
+                    </div>
+
+                    {crop.status === 'active' && (
+                      <div>
+                        <div className="flex justify-between text-xs text-gray-400 mb-1">
+                          <span>Progress</span>
+                          <span>
+                            {days > 0 ? `${days} days to harvest` : 'Ready to harvest!'}
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5">
+                          <div
+                            className="bg-[#52B788] h-1.5 rounded-full transition-all"
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

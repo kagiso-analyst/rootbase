@@ -93,7 +93,7 @@ export default function IncomePage() {
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
+          <DialogTrigger>
             <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
               <Plus size={16} className="mr-2" /> Add Income
             </Button>
@@ -105,7 +105,7 @@ export default function IncomePage() {
             <div className="space-y-4 pt-2">
               <div className="space-y-2">
                 <Label>Category</Label>
-                <Select value={category} onValueChange={setCategory}>
+                <Select value={category} onValueChange={(val) => setCategory(val ?? '')}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
