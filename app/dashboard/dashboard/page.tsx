@@ -15,7 +15,6 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold text-[#1B4332]">Farm Dashboard</h1>
         <p className="text-gray-500 text-sm mt-1">Welcome to RootBase — your digital farm HQ</p>
       </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map(({ label, value, sub, icon: Icon, color }) => (
           <Card key={label} className="shadow-sm">
@@ -30,7 +29,6 @@ export default function DashboardPage() {
           </Card>
         ))}
       </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="shadow-sm">
           <CardHeader>
@@ -42,13 +40,10 @@ export default function DashboardPage() {
             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
               <CheckSquare size={32} className="mb-2 opacity-30" />
               <p className="text-sm">No tasks yet — add your first task</p>
-              <a href="/tasks" className="mt-2 text-sm text-[#2D6A4F] hover:underline">
-                Go to Tasks →
-              </a>
+              <a href="/tasks" className="mt-2 text-sm text-[#2D6A4F] hover:underline">Go to Tasks →</a>
             </div>
           </CardContent>
         </Card>
-
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
@@ -59,9 +54,7 @@ export default function DashboardPage() {
             <div className="flex flex-col items-center justify-center py-8 text-gray-400">
               <BookOpen size={32} className="mb-2 opacity-30" />
               <p className="text-sm">No journal entries yet</p>
-              <a href="/journal" className="mt-2 text-sm text-[#2D6A4F] hover:underline">
-                Write your first entry →
-              </a>
+              <a href="/journal" className="mt-2 text-sm text-[#2D6A4F] hover:underline">Write your first entry →</a>
             </div>
           </CardContent>
         </Card>
