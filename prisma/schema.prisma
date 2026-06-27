@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  fullName           String?
+  phone              String?
+  avatarUrl          String?
+  subscriptionTier   String    @default("free")
+  preferredLanguage  String    @default("en")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  farms              Farm[]
+  tasks              Task[]
+  journalEntries     JournalEntry[]
+  expenses           Expense[]
+  income             Income[]
+}
+
+model Farm {
+  id               String    @id @default(uuid())
+  ownerId          String
+  name             String
+  description      String?
+  country          String    @default("ZA")
+  province         String?
+  totalHectares    Decimal?
+  farmType         String?
+  primaryCommodity String?
+  latitude         Decimal?
+  longitude        Decimal?
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+
+  owner            User      @relation(fields: [ownerId], references: [id])
+  fields           Field[]
+  crops            Crop[]
+  livestock        Livestock[]
+  inventoryItems   InventoryItem[]
+  suppliers        Supplier[]
+  tasks            Task[]
+  equipment        Equipment[]
+  journalEntries   JournalEntry[]
+  expenses         Expense[]
+  income           Income[]
+}
+
+model Field {
+  id            String    @id @default(uuid())
+  farmId        String
+  name          String
+  areaHectares  Decimal?
+  soilType      String?
+  irrigationType String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  farm          Farm      @relation(fields: [farmId], references: [id])
+  crops         Crop[]
+  tasks         Task[]
+  journalEntries JournalEntry[]
+  expenses      Expense[]
+}
+
+model Crop {
+  id                  String    @id @default(uuid())
+  farmId              String
+  fieldId             String?
+  cropName            String
+  variety             String?
+  season              String?
+  plantingDate        DateTime?
+  expectedHarvestDate DateTime?
+  actualHarvestDate   DateTime?
+  areaPlantedHa       Decimal?
+  seedSource          String?
+  status              String    @default("active")
+  notes               String?
+  createdAt           DateTime  @default(now())
+  deletedAt           DateTime?
+
+  farm                Farm      @relation(fields: [farmId], references: [id])
+  field               Field?    @relation(fields: [fieldId], references: [id])
+  harvests            Harvest[]
+  tasks               Task[]
+  expenses            Expense[]
+  journalEntries      JournalEntry[]
+}
+
+model Harvest {
+  id             String    @id @default(uuid())
+  cropId         String
+  harvestDate    DateTime
+  quantity       Decimal?
+  unit           String?
+  qualityGrade   String?
+  moisturePercent Decimal?
+  buyerName      String?
+  pricePerUnit   Decimal?
+  totalValue     Decimal?
+  notes          String?
+  createdAt      DateTime  @default(now())
+
+  crop           Crop      @relation(fields: [cropId], references: [id])
+  income         Income[]
+}
+
+model Expense {
+  id              String    @id @default(uuid())
+  farmId          String
+  fieldId         String?
+  cropId          String?
+  category        String
+  description     String
+  amount          Decimal
+  currency        String    @default("ZAR")
+  date            DateTime
+  supplierId      String?
+  receiptUrl      String?
+  paymentMethod   String?
+  referenceNumber String?
+  notes           String?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+
+  farm            Farm      @relation(fields: [farmId], references: [id])
+  field           Field?    @relation(fields: [fieldId], references: [id])
+  crop            Crop?     @relation(fields: [cropId], references: [id])
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  createdBy       User?     @relation(fields: [createdById], references: [id])
+}
+
+model Income {
+  id            String    @id @default(uuid())
+  farmId        String
+  harvestId     String?
+  category      String
+  description   String
+  amount        Decimal
+  currency      String    @default("ZAR")
+  date          DateTime
+  buyerName     String?
+  invoiceNumber String?
+  invoiceUrl    String?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  farm          Farm      @relation(fields: [farmId], references: [id])
+  harvest       Harvest?  @relation(fields: [harvestId], references: [id])
+  createdBy     User?     @relation(fields: [createdById], references: [id])
+}
+
+model Livestock {
+  id            String    @id @default(uuid())
+  farmId        String
+  tagNumber     String?
+  species       String
+  breed         String?
+  sex           String?
+  dateOfBirth   DateTime?
+  purchaseDate  DateTime?
+  purchasePrice Decimal?
+  currentWeightKg Decimal?
+  status        String    @default("active")
+  notes         String?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  farm          Farm      @relation(fields: [farmId], references: [id])
+}
+
+model InventoryItem {
+  id              String    @id @default(uuid())
+  farmId          String
+  name            String
+  sku             String?
+  category        String?
+  unitOfMeasure   String?
+  currentQuantity Decimal?
+  reorderLevel    Decimal?
+  unitCost        Decimal?
+  supplierId      String?
+  storageLocation String?
+  expiryDate      DateTime?
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+
+  farm            Farm      @relation(fields: [farmId], references: [id])
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+}
+
+model Supplier {
+  id            String    @id @default(uuid())
+  farmId        String
+  name          String
+  contactPerson String?
+  email         String?
+  phone         String?
+  address       String?
+  category      String?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  deletedAt     DateTime?
+
+  farm          Farm      @relation(fields: [farmId], references: [id])
+  expenses      Expense[]
+  inventoryItems InventoryItem[]
+}
+
+model Task {
+  id              String    @id @default(uuid())
+  farmId          String
+  title           String
+  description     String?
+  assigneeId      String?
+  fieldId         String?
+  cropId          String?
+  equipmentId     String?
+  priority        String    @default("medium")
+  status          String    @default("todo")
+  dueDate         DateTime?
+  completedAt     DateTime?
+  createdById     String?
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+
+  farm            Farm      @relation(fields: [farmId], references: [id])
+  field           Field?    @relation(fields: [fieldId], references: [id])
+  crop            Crop?     @relation(fields: [cropId], references: [id])
+  assignee        User?     @relation(fields: [assigneeId], references: [id])
+  equipment       Equipment? @relation(fields: [equipmentId], references: [id])
+}
+
+model Equipment {
+  id                 String    @id @default(uuid())
+  farmId             String
+  name               String
+  make               String?
+  model              String?
+  year               Int?
+  serialNumber       String?
+  purchaseDate       DateTime?
+  purchasePrice      Decimal?
+  currentHours       Decimal?
+  nextServiceDate    DateTime?
+  insuranceExpiry    DateTime?
+  notes              String?
+  createdAt          DateTime  @default(now())
+  deletedAt          DateTime?
+
+  farm               Farm      @relation(fields: [farmId], references: [id])
+  tasks              Task[]
+}
+
+model JournalEntry {
+  id                String    @id @default(uuid())
+  farmId            String
+  authorId          String?
+  title             String?
+  content           String
+  entryType         String?
+  fieldId           String?
+  cropId            String?
+  weatherConditions String?
+  temperatureC      Decimal?
+  photos            Json      @default("[]")
+  tags              String[]  @default([])
+  entryDate         DateTime
+  createdAt         DateTime  @default(now())
+  deletedAt         DateTime?
+
+  farm              Farm      @relation(fields: [farmId], references: [id])
+  field             Field?    @relation(fields: [fieldId], references: [id])
+  crop              Crop?     @relation(fields: [cropId], references: [id])
+  author            User?     @relation(fields: [authorId], references: [id])
+}
