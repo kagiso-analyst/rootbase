@@ -49,8 +49,8 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #F9FAFB;
+  --foreground: #1F2937;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -127,4 +127,13 @@
   html {
     @apply font-sans;
   }
+}
+/* RootBase Brand Colours */
+:root {
+  --brand-dark: #1B4332;
+  --brand: #2D6A4F;
+  --brand-light: #52B788;
+  --brand-pale: #D8F3DC;
+  --earth: #B5835A;
+  --harvest: #F4A261;
 }
