@@ -273,20 +273,14 @@ export default function SuppliersPage() {
 
                 <div className="space-y-1.5">
                   {supplier.phone && (
-                    
-                      href={`tel:${supplier.phone}`}
-                      className="flex items-center gap-2 text-xs text-gray-500 hover:text-[#2D6A4F]"
-                    >
+                    <p className="flex items-center gap-2 text-xs text-gray-500">
                       <Phone size={12} /> {supplier.phone}
-                    </a>
+                    </p>
                   )}
                   {supplier.email && (
-                    
-                      href={`mailto:${supplier.email}`}
-                      className="flex items-center gap-2 text-xs text-gray-500 hover:text-[#2D6A4F]"
-                    >
+                    <p className="flex items-center gap-2 text-xs text-gray-500">
                       <Mail size={12} /> {supplier.email}
-                    </a>
+                    </p>
                   )}
                   {supplier.address && (
                     <p className="flex items-center gap-2 text-xs text-gray-500">
