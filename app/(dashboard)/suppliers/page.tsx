@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Building2, Trash2, Phone, Mail, MapPin } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -64,6 +65,8 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [open, setOpen] = useState(false)
   const [filterCategory, setFilterCategory] = useState('All')
+  const [loading, setLoading] = useState(false);
+
 
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
@@ -78,28 +81,31 @@ export default function SuppliersPage() {
       ? suppliers
       : suppliers.filter((s) => s.category === filterCategory)
 
-  function handleAdd() {
-    if (!name || !category) return
-    const newSupplier: Supplier = {
-      id: crypto.randomUUID(),
-      name,
-      category,
-      contactPerson,
-      phone,
-      email,
-      address,
-      notes,
-    }
-    setSuppliers((prev) => [newSupplier, ...prev])
-    setName('')
-    setCategory('')
-    setContactPerson('')
+  async function handleAdd() {
+  if (!name || !category) return
+  setLoading(true)
+  console.log('Saving supplier...')
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('suppliers')
+    .insert([{ name, category, contact_person: contactPerson, phone, email, address, notes }])
+    .select()
+    .single()
+  console.log('Supplier data:', data)
+  console.log('Supplier error:', error)
+  if (!error && data) {
+    setSuppliers((prev) => [data, ...prev])
+    setName('') 
+    setCategory('') 
+    setContactPerson('') 
     setPhone('')
-    setEmail('')
-    setAddress('')
+    setEmail('') 
+    setAddress('') 
     setNotes('')
     setOpen(false)
   }
+  setLoading(false)
+}
 
   function handleDelete(id: string) {
     setSuppliers((prev) => prev.filter((s) => s.id !== id))
@@ -299,3 +305,4 @@ export default function SuppliersPage() {
     </div>
   )
 }
+

@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { createClient } from '@/lib/supabase/client'
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent'
 type Status = 'todo' | 'done'
@@ -79,33 +80,36 @@ export default function TasksPage() {
   const [priority, setPriority] = useState<Priority>('medium')
   const [dueDate, setDueDate] = useState('')
   const [category, setCategory] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const supabase = createClient()
 
   const todoTasks = tasks.filter(t => t.status === 'todo')
   const doneTasks = tasks.filter(t => t.status === 'done')
   const overdueTasks = todoTasks.filter(t => t.dueDate && isOverdue(t.dueDate, t.status))
   const urgentCount = todoTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!title) return
-
-    const newTask: Task = {
-      id: crypto.randomUUID(),
-      title,
-      description,
-      priority,
-      status: 'todo',
-      dueDate,
-      category,
-      createdAt: new Date().toISOString(),
+    setLoading(true)
+    console.log('Saving to Supabase...')
+    const { data, error } = await supabase
+      .from('tasks')
+      .insert([{ title, description, priority, status: 'todo', due_date: dueDate || null, category }])
+      .select()
+      .single()
+    console.log('Data:', data)
+    console.log('Error:', error)
+    if (!error && data) {
+      setTasks((prev) => [data as Task, ...prev])
+      setTitle('')
+      setDescription('')
+      setPriority('medium')
+      setDueDate('')
+      setCategory('')
+      setOpen(false)
     }
-
-    setTasks(prev => [newTask, ...prev])
-    setTitle('')
-    setDescription('')
-    setPriority('medium')
-    setDueDate('')
-    setCategory('')
-    setOpen(false)
+    setLoading(false)
   }
 
   function toggleDone(id: string) {

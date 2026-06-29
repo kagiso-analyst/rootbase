@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, BookOpen, Trash2, Tag, MapPin, Leaf, Search } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -94,6 +95,7 @@ export default function JournalPage() {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -119,34 +121,37 @@ export default function JournalPage() {
     setTags((prev) => prev.filter((t) => t !== tag))
   }
 
-  function handleAdd() {
-    if (!content) return
-
-    const newEntry: JournalEntry = {
-      id: crypto.randomUUID(),
-      title,
-      content,
-      entryType,
-      fieldName,
-      cropName,
-      weatherConditions,
-      tags,
-      entryDate,
-      createdAt: new Date().toISOString(),
-    }
-
-    setEntries((prev) => [newEntry, ...prev])
+  async function handleAdd() {
+  if (!content) return
+  setLoading(true)
+  console.log('Saving journal entry...')
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('journal_entries')
+    .insert([{
+      title, content, entry_type: entryType, field_name: fieldName,
+      crop_name: cropName, weather_conditions: weatherConditions,
+      tags, entry_date: entryDate,
+    }])
+    .select()
+    .single()
+  console.log('Journal data:', data)
+  console.log('Journal error:', error)
+  if (!error && data) {
+    setEntries((prev) => [data, ...prev])
     setTitle('')
-    setContent('')
-    setEntryType('General')
-    setFieldName('')
-    setCropName('')
-    setWeatherConditions('')
-    setTags([])
-    setTagInput('')
+setContent('')
+setEntryType('General')
+setFieldName('')
+setCropName('')
+setWeatherConditions('')
+setTags([])
+setTagInput('')
     setEntryDate(new Date().toISOString().split('T')[0])
     setOpen(false)
   }
+  setLoading(false)
+}
 
   function handleDelete(id: string) {
     setEntries((prev) => prev.filter((e) => e.id !== id))
@@ -346,12 +351,12 @@ export default function JournalPage() {
               </div>
 
               <Button
-                className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-                onClick={handleAdd}
-                disabled={!content}
-              >
-                Save Entry
-              </Button>
+  className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+  onClick={handleAdd}
+  disabled={!content || loading}
+>
+  {loading ? 'Saving...' : 'Save Entry'}
+</Button>
             </div>
           </DialogContent>
         </Dialog>
