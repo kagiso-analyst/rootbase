@@ -1,69 +1,77 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
-  const supabase = createClient()
 
   async function handleLogin() {
     setLoading(true)
     setError('')
-    console.log('Attempting login with:', email)
-    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    console.log('Login clicked')
+    const supabase = createClient()
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    console.log('Login result:', { data, error })
+    console.log('Result:', data, error)
     if (error) {
       setError(error.message)
       setLoading(false)
-    } else if (data.session) {
+    } else {
       window.location.href = '/dashboard'
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB]">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="text-center">
-          <div className="text-3xl font-bold text-[#1B4332] mb-1">RootBase</div>
-          <CardTitle className="text-xl">Welcome back</CardTitle>
-          <CardDescription>Sign in to your farm account</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="bg-red-50 text-red-700 text-sm px-4 py-3 rounded-lg">{error}</div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="you@farm.com"
-              value={email} onChange={(e) => setEmail((e.target as HTMLInputElement).value)} />
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F9FAFB' }}>
+      <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+        <h1 style={{ textAlign: 'center', color: '#1B4332', fontWeight: 'bold', fontSize: '28px', marginBottom: '8px' }}>RootBase</h1>
+        <p style={{ textAlign: 'center', color: '#6B7280', marginBottom: '24px' }}>Sign in to your farm account</p>
+
+        {error && (
+          <div style={{ background: '#FEF2F2', color: '#DC2626', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
+            {error}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="••••••••"
-              value={password} onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
-              onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()} />
-          </div>
-          <Button className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-            onClick={handleLogin} disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign In'}
-          </Button>
-          <p className="text-center text-sm text-gray-500">
-            Don't have an account?{' '}
-            <a href="/register" className="text-[#2D6A4F] font-medium hover:underline">Register</a>
-          </p>
-        </CardContent>
-      </Card>
+        )}
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px' }}>Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@farm.com"
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px' }}>Password</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          style={{ width: '100%', padding: '12px', background: '#2D6A4F', color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}
+        >
+          {loading ? 'Signing in...' : 'Sign In'}
+        </button>
+
+        <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '14px', color: '#6B7280' }}>
+          No account?{' '}
+          <a href="/register" style={{ color: '#2D6A4F', fontWeight: '500' }}>Register</a>
+        </p>
+      </div>
     </div>
   )
 }
