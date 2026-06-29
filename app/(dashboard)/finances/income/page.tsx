@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,16 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { createClient } from '@/lib/supabase/client'
 
 const CATEGORIES = [
-  'Crop Sales',
-  'Livestock Sales',
-  'Wool / Fibre',
-  'Eggs / Dairy',
-  'Contract Work',
-  'Government Grant',
-  'Insurance Payout',
-  'Other',
+  'Crop Sales', 'Livestock Sales', 'Wool / Fibre', 'Eggs / Dairy',
+  'Contract Work', 'Government Grant', 'Insurance Payout', 'Other',
 ]
 
 type Income = {
@@ -38,7 +33,8 @@ type Income = {
   description: string
   amount: number
   date: string
-  buyerName: string
+  buyer_name: string
+  created_at: string
 }
 
 export default function IncomePage() {
@@ -50,34 +46,58 @@ export default function IncomePage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [buyerName, setBuyerName] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
 
-  const total = incomes.reduce((sum, i) => sum + i.amount, 0)
+  const supabase = createClient()
 
-  function handleAdd() {
+  async function fetchIncome() {
+    setFetching(true)
+    const { data, error } = await supabase
+      .from('income')
+      .select('*')
+      .order('date', { ascending: false })
+
+    if (!error && data) setIncomes(data)
+    setFetching(false)
+  }
+
+  useEffect(() => {
+    fetchIncome()
+  }, [])
+
+  const total = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
+
+  async function handleAdd() {
     if (!category || !description || !amount || !date) return
     setLoading(true)
 
-    const newIncome: Income = {
-      id: crypto.randomUUID(),
-      category,
-      description,
-      amount: parseFloat(amount),
-      date,
-      buyerName,
-    }
+    const { data, error } = await supabase
+      .from('income')
+      .insert([{
+        category,
+        description,
+        amount: parseFloat(amount),
+        date,
+        buyer_name: buyerName,
+      }])
+      .select()
+      .single()
 
-    setIncomes(prev => [newIncome, ...prev])
-    setCategory('')
-    setDescription('')
-    setAmount('')
-    setDate(new Date().toISOString().split('T')[0])
-    setBuyerName('')
-    setOpen(false)
+    if (!error && data) {
+      setIncomes((prev) => [data, ...prev])
+      setCategory('')
+      setDescription('')
+      setAmount('')
+      setDate(new Date().toISOString().split('T')[0])
+      setBuyerName('')
+      setOpen(false)
+    }
     setLoading(false)
   }
 
-  function handleDelete(id: string) {
-    setIncomes(prev => prev.filter(i => i.id !== id))
+  async function handleDelete(id: string) {
+    const { error } = await supabase.from('income').delete().eq('id', id)
+    if (!error) setIncomes((prev) => prev.filter((i) => i.id !== id))
   }
 
   return (
@@ -86,9 +106,8 @@ export default function IncomePage() {
         <div>
           <h1 className="text-2xl font-bold text-[#1B4332]">Income</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Total: <span className="font-semibold text-green-600">
-              R{total.toFixed(2)}
-            </span>
+            Total:{' '}
+            <span className="font-semibold text-green-600">R{total.toFixed(2)}</span>
           </p>
         </div>
 
@@ -106,17 +125,14 @@ export default function IncomePage() {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={category} onValueChange={(val) => setCategory(val ?? '')}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map(cat => (
+                    {CATEGORIES.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Input
@@ -125,16 +141,14 @@ export default function IncomePage() {
                   onChange={(e) => setDescription((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Buyer / Source</Label>
                 <Input
-                  placeholder="e.g. Shoprite, Fresh Produce Market"
+                  placeholder="e.g. Shoprite"
                   value={buyerName}
                   onChange={(e) => setBuyerName((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Amount (ZAR)</Label>
                 <Input
@@ -144,7 +158,6 @@ export default function IncomePage() {
                   onChange={(e) => setAmount((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input
@@ -153,20 +166,25 @@ export default function IncomePage() {
                   onChange={(e) => setDate((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <Button
                 className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                 onClick={handleAdd}
                 disabled={loading || !category || !description || !amount}
               >
-                Save Income
+                {loading ? 'Saving...' : 'Save Income'}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {incomes.length === 0 ? (
+      {fetching ? (
+        <Card className="shadow-sm">
+          <CardContent className="flex items-center justify-center py-16 text-gray-400">
+            <p className="text-sm">Loading income records...</p>
+          </CardContent>
+        </Card>
+      ) : incomes.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <TrendingUp size={40} className="mb-3 opacity-30" />
@@ -193,19 +211,17 @@ export default function IncomePage() {
                       <TrendingUp size={16} className="text-green-500" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-800">
-                        {income.description}
-                      </p>
+                      <p className="text-sm font-medium text-gray-800">{income.description}</p>
                       <p className="text-xs text-gray-400">
                         {income.category}
-                        {income.buyerName ? ` · ${income.buyerName}` : ''}
+                        {income.buyer_name ? ` · ${income.buyer_name}` : ''}
                         {` · ${income.date}`}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-semibold text-green-600">
-                      +R{income.amount.toFixed(2)}
+                      +R{Number(income.amount).toFixed(2)}
                     </span>
                     <button
                       onClick={() => handleDelete(income.id)}

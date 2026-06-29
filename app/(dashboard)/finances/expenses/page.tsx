@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Trash2, Receipt } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,22 +20,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { createClient } from '@/lib/supabase/client'
 
 const CATEGORIES = [
-  'Seed',
-  'Fertiliser',
-  'Chemicals / Sprays',
-  'Labour',
-  'Fuel',
-  'Equipment',
-  'Transport',
-  'Irrigation',
-  'Packaging',
-  'Veterinary',
-  'Feed',
-  'Repairs',
-  'Insurance',
-  'Other',
+  'Seed', 'Fertiliser', 'Chemicals / Sprays', 'Labour', 'Fuel',
+  'Equipment', 'Transport', 'Irrigation', 'Packaging',
+  'Veterinary', 'Feed', 'Repairs', 'Insurance', 'Other',
 ]
 
 type Expense = {
@@ -44,6 +34,7 @@ type Expense = {
   description: string
   amount: number
   date: string
+  created_at: string
 }
 
 export default function ExpensesPage() {
@@ -54,32 +45,51 @@ export default function ExpensesPage() {
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
 
-  const total = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const supabase = createClient()
 
-  function handleAdd() {
+  async function fetchExpenses() {
+    setFetching(true)
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .order('date', { ascending: false })
+
+    if (!error && data) setExpenses(data)
+    setFetching(false)
+  }
+
+  useEffect(() => {
+    fetchExpenses()
+  }, [])
+
+  const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+
+  async function handleAdd() {
     if (!category || !description || !amount || !date) return
     setLoading(true)
 
-    const newExpense: Expense = {
-      id: crypto.randomUUID(),
-      category,
-      description,
-      amount: parseFloat(amount),
-      date,
-    }
+    const { data, error } = await supabase
+      .from('expenses')
+      .insert([{ category, description, amount: parseFloat(amount), date }])
+      .select()
+      .single()
 
-    setExpenses(prev => [newExpense, ...prev])
-    setCategory('')
-    setDescription('')
-    setAmount('')
-    setDate(new Date().toISOString().split('T')[0])
-    setOpen(false)
+    if (!error && data) {
+      setExpenses((prev) => [data, ...prev])
+      setCategory('')
+      setDescription('')
+      setAmount('')
+      setDate(new Date().toISOString().split('T')[0])
+      setOpen(false)
+    }
     setLoading(false)
   }
 
-  function handleDelete(id: string) {
-    setExpenses(prev => prev.filter(e => e.id !== id))
+  async function handleDelete(id: string) {
+    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    if (!error) setExpenses((prev) => prev.filter((e) => e.id !== id))
   }
 
   return (
@@ -88,9 +98,8 @@ export default function ExpensesPage() {
         <div>
           <h1 className="text-2xl font-bold text-[#1B4332]">Expenses</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Total: <span className="font-semibold text-red-500">
-              R{total.toFixed(2)}
-            </span>
+            Total:{' '}
+            <span className="font-semibold text-red-500">R{total.toFixed(2)}</span>
           </p>
         </div>
 
@@ -108,17 +117,14 @@ export default function ExpensesPage() {
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={category} onValueChange={(val) => setCategory(val ?? '')}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map(cat => (
+                    {CATEGORIES.map((cat) => (
                       <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Description</Label>
                 <Input
@@ -127,7 +133,6 @@ export default function ExpensesPage() {
                   onChange={(e) => setDescription((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Amount (ZAR)</Label>
                 <Input
@@ -137,7 +142,6 @@ export default function ExpensesPage() {
                   onChange={(e) => setAmount((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <div className="space-y-2">
                 <Label>Date</Label>
                 <Input
@@ -146,20 +150,25 @@ export default function ExpensesPage() {
                   onChange={(e) => setDate((e.target as HTMLInputElement).value)}
                 />
               </div>
-
               <Button
                 className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                 onClick={handleAdd}
                 disabled={loading || !category || !description || !amount}
               >
-                Save Expense
+                {loading ? 'Saving...' : 'Save Expense'}
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {expenses.length === 0 ? (
+      {fetching ? (
+        <Card className="shadow-sm">
+          <CardContent className="flex items-center justify-center py-16 text-gray-400">
+            <p className="text-sm">Loading expenses...</p>
+          </CardContent>
+        </Card>
+      ) : expenses.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Receipt size={40} className="mb-3 opacity-30" />
@@ -186,9 +195,7 @@ export default function ExpensesPage() {
                       <Receipt size={16} className="text-red-400" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-800">
-                        {expense.description}
-                      </p>
+                      <p className="text-sm font-medium text-gray-800">{expense.description}</p>
                       <p className="text-xs text-gray-400">
                         {expense.category} · {expense.date}
                       </p>
@@ -196,7 +203,7 @@ export default function ExpensesPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <span className="text-sm font-semibold text-red-500">
-                      −R{expense.amount.toFixed(2)}
+                      −R{Number(expense.amount).toFixed(2)}
                     </span>
                     <button
                       onClick={() => handleDelete(expense.id)}

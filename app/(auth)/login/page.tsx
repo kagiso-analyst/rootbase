@@ -19,7 +19,10 @@ export default function LoginPage() {
   async function handleLogin() {
     setLoading(true)
     setError('')
+    console.log('Attempting login with:', email)
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    console.log('Login result:', { data, error })
     if (error) {
       setError(error.message)
       setLoading(false)
