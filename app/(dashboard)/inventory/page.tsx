@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -120,11 +120,12 @@ export default function InventoryPage() {
           </p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger>
-            <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
-              <Plus size={16} className="mr-2" /> Add Item
-            </Button>
-          </DialogTrigger>
+          <Button
+            className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+            onClick={() => setOpen(true)}
+          >
+            <Plus size={16} className="mr-2" /> Add Item
+          </Button>
           <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Add Inventory Item</DialogTitle></DialogHeader>
             <div className="space-y-4 pt-2">

@@ -13,7 +13,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -95,11 +94,12 @@ export default function CropDetailPage() {
               {activities.length} activit{activities.length !== 1 ? 'ies' : 'y'} logged
             </p>
             <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger>
-                <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
-                  <Plus size={16} className="mr-2" /> Log Activity
-                </Button>
-              </DialogTrigger>
+              <Button
+                className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+                onClick={() => setOpen(true)}
+              >
+                <Plus size={16} className="mr-2" /> Log Activity
+              </Button>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle>Log Activity</DialogTitle>

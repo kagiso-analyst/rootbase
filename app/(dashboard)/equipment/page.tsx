@@ -12,7 +12,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -193,11 +192,13 @@ export default function EquipmentPage() {
         </div>
         <div className="flex gap-2">
           <Dialog open={serviceOpen} onOpenChange={setServiceOpen}>
-            <DialogTrigger>
-              <Button variant="outline" className="border-[#2D6A4F] text-[#2D6A4F]">
-                <Wrench size={16} className="mr-2" /> Log Service
-              </Button>
-            </DialogTrigger>
+            <Button
+              variant="outline"
+              className="border-[#2D6A4F] text-[#2D6A4F]"
+              onClick={() => setServiceOpen(true)}
+            >
+              <Wrench size={16} className="mr-2" /> Log Service
+            </Button>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Log Maintenance</DialogTitle>
@@ -273,11 +274,12 @@ export default function EquipmentPage() {
           </Dialog>
 
           <Dialog open={equipOpen} onOpenChange={setEquipOpen}>
-            <DialogTrigger>
-              <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
-                <Plus size={16} className="mr-2" /> Add Equipment
-              </Button>
-            </DialogTrigger>
+            <Button
+              className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              onClick={() => setEquipOpen(true)}
+            >
+              <Plus size={16} className="mr-2" /> Add Equipment
+            </Button>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Equipment</DialogTitle>

@@ -45,7 +45,7 @@ export default function TopBar() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => alert('Notifications coming soon!')}
+          onClick={() => router.push('/notifications')}
           title="Notifications"
         >
           <Bell size={18} className="text-gray-500" />

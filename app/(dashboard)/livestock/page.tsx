@@ -13,7 +13,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -170,11 +169,13 @@ export default function LivestockPage() {
         </div>
         <div className="flex gap-2">
           <Dialog open={healthOpen} onOpenChange={setHealthOpen}>
-            <DialogTrigger>
-              <Button variant="outline" className="border-[#2D6A4F] text-[#2D6A4F]">
-                <Heart size={16} className="mr-2" /> Log Health Event
-              </Button>
-            </DialogTrigger>
+            <Button
+              variant="outline"
+              className="border-[#2D6A4F] text-[#2D6A4F]"
+              onClick={() => setHealthOpen(true)}
+            >
+              <Heart size={16} className="mr-2" /> Log Health Event
+            </Button>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
                 <DialogTitle>Log Health Event</DialogTitle>
@@ -240,11 +241,12 @@ export default function LivestockPage() {
           </Dialog>
 
           <Dialog open={animalOpen} onOpenChange={setAnimalOpen}>
-            <DialogTrigger>
-              <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
-                <Plus size={16} className="mr-2" /> Add Animal
-              </Button>
-            </DialogTrigger>
+            <Button
+              className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              onClick={() => setAnimalOpen(true)}
+            >
+              <Plus size={16} className="mr-2" /> Add Animal
+            </Button>
             <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Animal</DialogTitle>
