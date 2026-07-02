@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Building2, Trash2, Phone, Mail, MapPin } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -76,10 +76,41 @@ export default function SuppliersPage() {
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
 
+  useEffect(() => {
+  fetchSuppliers();
+}, []);
+
   const filtered =
     filterCategory === 'All'
       ? suppliers
       : suppliers.filter((s) => s.category === filterCategory)
+
+  async function fetchSuppliers() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase
+    .from("suppliers")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  const suppliers = (data || []).map((supplier) => ({
+    id: supplier.id,
+    name: supplier.name,
+    category: supplier.category,
+    contactPerson: supplier.contact_person,
+    phone: supplier.phone,
+    email: supplier.email,
+    address: supplier.address,
+    notes: supplier.notes,
+  }));
+
+  setSuppliers(suppliers);
+}
 
   async function handleAdd() {
   if (!name || !category) return
@@ -107,9 +138,18 @@ export default function SuppliersPage() {
   setLoading(false)
 }
 
-  function handleDelete(id: string) {
-    setSuppliers((prev) => prev.filter((s) => s.id !== id))
+  async function handleDelete(id: string) {
+  const supabase = createClient();
+
+  const { error } = await supabase
+    .from("suppliers")
+    .delete()
+    .eq("id", id);
+
+  if (!error) {
+    fetchSuppliers();
   }
+}
 
   return (
     <div className="space-y-6">
