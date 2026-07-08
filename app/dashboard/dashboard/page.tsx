@@ -49,9 +49,9 @@ export default function DashboardPage() {
         supabase.from('income').select('amount').gte('date', firstOfMonth),
         supabase.from('expenses').select('amount').gte('date', firstOfMonth),
         supabase.from('crops').select('id', { count: 'exact' }).eq('status', 'active'),
-        supabase.from('tasks').select('id', { count: 'exact' }).eq('status', 'todo'),
-        supabase.from('tasks').select('*').eq('status', 'todo').order('due_date', { ascending: true }).limit(5),
-        supabase.from('journal_entries').select('*').order('entry_date', { ascending: false }).limit(3),
+        supabase.from('tasks').select('id', { count: 'exact' }).neq('status', 'done'),
+        supabase.from('tasks').select('*').neq('status', 'done').order('due_date', { ascending: true }).limit(5),
+        supabase.from('journal_entries').select('*').order('created_at', { ascending: false }).limit(3),
       ])
 
       const totalIncome = incomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0

@@ -1,5 +1,9 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { BarChart2, TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
 const sections = [
@@ -30,6 +34,34 @@ const sections = [
 ]
 
 export default function FinancesPage() {
+  const [income, setIncome] = useState(0)
+  const [expenses, setExpenses] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function fetchMonthData() {
+      const now = new Date()
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+
+      const [incomeRes, expensesRes] = await Promise.all([
+        supabase.from('income').select('amount').gte('date', firstOfMonth).lte('date', endOfMonth),
+        supabase.from('expenses').select('amount').gte('date', firstOfMonth).lte('date', endOfMonth),
+      ])
+
+      const totalInc = incomeRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
+      const totalExp = expensesRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
+      setIncome(totalInc)
+      setExpenses(totalExp)
+      setLoading(false)
+    }
+    fetchMonthData()
+  }, [])
+
+  const net = income - expenses
+  const isProfit = net >= 0
+
   return (
     <div className="space-y-6">
       <div>
@@ -65,20 +97,24 @@ export default function FinancesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Income</p>
-              <p className="text-xl font-bold text-green-600">R0.00</p>
+          {loading ? (
+            <div className="text-center text-sm text-gray-400">Loading...</div>
+          ) : (
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Income</p>
+                <p className="text-xl font-bold text-green-600">R{income.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Expenses</p>
+                <p className="text-xl font-bold text-red-500">R{expenses.toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Net {isProfit ? 'Profit' : 'Loss'}</p>
+                <p className={`text-xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>R{Math.abs(net).toFixed(2)}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Expenses</p>
-              <p className="text-xl font-bold text-red-500">R0.00</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 mb-1">Net Profit</p>
-              <p className="text-xl font-bold text-[#2D6A4F]">R0.00</p>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

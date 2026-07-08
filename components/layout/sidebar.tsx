@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Bell, BookOpen, BarChart2, Leaf, PawPrint,
   Package, Building2, CheckSquare, Wrench, TrendingUp,
-  FolderOpen, Settings, Calculator
+  FolderOpen, Settings, Calculator, Crown
 } from 'lucide-react'
 
 const navItems = [
@@ -21,6 +21,7 @@ const navItems = [
   { href: '/analytics',  label: 'Analytics',   icon: TrendingUp },
   { href: '/analytics/costs', label: 'Cost Calculator', icon: Calculator },
   { href: '/documents',  label: 'Documents',   icon: FolderOpen },
+  { href: '/subscriptions', label: 'Plans',   icon: Crown },
   { href: '/settings',   label: 'Settings',    icon: Settings },
 ]
 

@@ -183,8 +183,14 @@ export default function JournalPage() {
     }
   }
 
-  function handleDelete(id: string) {
-    setEntries((prev) => prev.filter((e) => e.id !== id))
+  async function handleDelete(id: string) {
+    try {
+      const { error } = await supabase.from('journal_entries').delete().eq('id', id)
+      if (error) console.error('Delete error:', error)
+      else setEntries((prev) => prev.filter((e) => e.id !== id))
+    } catch (err) {
+      console.error('Delete crash:', err)
+    }
   }
 
   const filtered = entries.filter((e) => {
