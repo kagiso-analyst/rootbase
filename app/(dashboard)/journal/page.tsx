@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, BookOpen, Trash2, Tag, MapPin, Leaf, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -108,6 +108,28 @@ export default function JournalPage() {
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().split('T')[0]
   )
+  const [fetching, setFetching] = useState(false)
+  const supabase = createClient()
+
+  async function fetchEntries() {
+    try {
+      setFetching(true)
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) console.error('Journal fetch error:', error)
+      if (data) setEntries(data)
+    } catch (err) {
+      console.error('Journal crash:', err)
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchEntries()
+  }, [])
 
   function handleAddTag() {
     const trimmed = tagInput.trim()
@@ -122,36 +144,44 @@ export default function JournalPage() {
   }
 
   async function handleAdd() {
-  if (!content) return
-  setLoading(true)
-  console.log('Saving journal entry...')
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('journal_entries')
-    .insert([{
-      title, content, entry_type: entryType, field_name: fieldName,
-      crop_name: cropName, weather_conditions: weatherConditions,
-      tags, entry_date: entryDate,
-    }])
-    .select()
-    .single()
-  console.log('Journal data:', data)
-  console.log('Journal error:', error)
-  if (!error && data) {
-    setEntries((prev) => [data, ...prev])
-    setTitle('')
-setContent('')
-setEntryType('General')
-setFieldName('')
-setCropName('')
-setWeatherConditions('')
-setTags([])
-setTagInput('')
-    setEntryDate(new Date().toISOString().split('T')[0])
-    setOpen(false)
+    if (!content) return
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('journal_entries')
+        .insert([{
+          title: title || null,
+          content,
+          entry_type: entryType,
+          field_name: fieldName || null,
+          crop_name: cropName || null,
+          weather_conditions: weatherConditions || null,
+          tags,
+          entry_date: entryDate,
+        }])
+        .select()
+        .single()
+      if (error) {
+        console.error('Journal insert error:', error)
+      } else if (data) {
+        setEntries((prev) => [data, ...prev])
+        setTitle('')
+        setContent('')
+        setEntryType('General')
+        setFieldName('')
+        setCropName('')
+        setWeatherConditions('')
+        setTags([])
+        setTagInput('')
+        setEntryDate(new Date().toISOString().split('T')[0])
+        setOpen(false)
+      }
+    } catch (err) {
+      console.error('Journal crash:', err)
+    } finally {
+      setLoading(false)
+    }
   }
-  setLoading(false)
-}
 
   function handleDelete(id: string) {
     setEntries((prev) => prev.filter((e) => e.id !== id))

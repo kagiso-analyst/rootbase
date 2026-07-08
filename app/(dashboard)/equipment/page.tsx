@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Plus, Wrench, Trash2, AlertTriangle, Calendar } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -116,37 +117,58 @@ export default function EquipmentPage() {
   const [serviceCost, setServiceCost] = useState('')
   const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0])
   const [serviceHours, setServiceHours] = useState('')
+  const [loading, setLoading] = useState(false)
 
   const dueSoon = equipment.filter(isServiceDue)
+  const supabase = createClient()
 
-  function handleAddEquipment() {
+  async function handleAddEquipment() {
     if (!name || !category) return
-    const newEquip: Equipment = {
-      id: crypto.randomUUID(),
-      name, category, make, model, year, serialNumber,
-      purchaseDate,
-      purchasePrice: parseFloat(purchasePrice) || 0,
-      currentHours: parseFloat(currentHours) || 0,
-      nextServiceDate,
-      nextServiceHours: parseFloat(nextServiceHours) || 0,
-      insuranceExpiry,
-      notes,
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .insert([{
+          name,
+          category,
+          make: make || null,
+          model: model || null,
+          year: year || null,
+          serial_number: serialNumber || null,
+          purchase_date: purchaseDate || null,
+          purchase_price: parseFloat(purchasePrice) || 0,
+          current_hours: parseFloat(currentHours) || 0,
+          next_service_date: nextServiceDate || null,
+          next_service_hours: parseFloat(nextServiceHours) || 0,
+          insurance_expiry: insuranceExpiry || null,
+          notes: notes || null,
+        }])
+        .select()
+        .single()
+      if (error) {
+        console.error('Equipment insert error:', error)
+      } else if (data) {
+        setEquipment((prev) => [data, ...prev])
+        setName('')
+        setCategory('')
+        setMake('')
+        setModel('')
+        setYear('')
+        setSerialNumber('')
+        setPurchaseDate('')
+        setPurchasePrice('')
+        setCurrentHours('')
+        setNextServiceDate('')
+        setNextServiceHours('')
+        setInsuranceExpiry('')
+        setNotes('')
+        setEquipOpen(false)
+      }
+    } catch (err) {
+      console.error('Equipment crash:', err)
+    } finally {
+      setLoading(false)
     }
-    setEquipment((prev) => [newEquip, ...prev])
-    setName('')
-    setCategory('')
-    setMake('')
-    setModel('')
-    setYear('')
-    setSerialNumber('')
-    setPurchaseDate('')
-    setPurchasePrice('')
-    setCurrentHours('')
-    setNextServiceDate('')
-    setNextServiceHours('')
-    setInsuranceExpiry('')
-    setNotes('')
-    setEquipOpen(false)
   }
 
   function handleAddService() {

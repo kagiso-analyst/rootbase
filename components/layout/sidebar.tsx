@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, BookOpen, BarChart2, Leaf, PawPrint,
+  LayoutDashboard, Bell, BookOpen, BarChart2, Leaf, PawPrint,
   Package, Building2, CheckSquare, Wrench, TrendingUp,
-  FolderOpen, Settings
+  FolderOpen, Settings, Calculator
 } from 'lucide-react'
 
 const navItems = [
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/tasks',      label: 'Tasks',       icon: CheckSquare },
   { href: '/equipment',  label: 'Equipment',   icon: Wrench },
   { href: '/analytics',  label: 'Analytics',   icon: TrendingUp },
+  { href: '/analytics/costs', label: 'Cost Calculator', icon: Calculator },
   { href: '/documents',  label: 'Documents',   icon: FolderOpen },
   { href: '/settings',   label: 'Settings',    icon: Settings },
 ]
