@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Save, User, Bell, Shield, Palette } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -236,9 +237,11 @@ export default function SettingsPage() {
                 <p className="text-xs text-[#2D6A4F] mt-1">
                   Upgrade to Starter (R199/month) for unlimited fields and financial reports
                 </p>
-                <Button className="mt-3 bg-[#2D6A4F] hover:bg-[#1B4332] text-white text-xs h-8">
-                  Upgrade to Starter
-                </Button>
+                <Link href="/subscription">
+                  <Button className="mt-3 bg-[#2D6A4F] hover:bg-[#1B4332] text-white text-xs h-8">
+                    View Plans & Upgrade
+                  </Button>
+                </Link>
               </div>
 
               <div className="space-y-3 pt-2">

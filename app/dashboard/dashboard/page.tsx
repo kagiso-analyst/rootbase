@@ -5,6 +5,7 @@ import { BarChart2, Leaf, CheckSquare, BookOpen } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { fetchWeather, getWeatherEmoji, type WeatherData } from '@/lib/weather'
 
 type Task = {
   id: string
@@ -29,6 +30,7 @@ export default function DashboardPage() {
   const [openTasks, setOpenTasks] = useState(0)
   const [tasks, setTasks] = useState<Task[]>([])
   const [entries, setEntries] = useState<JournalEntry[]>([])
+  const [weather, setWeather] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(true)
 
   const supabase = createClient()
@@ -63,6 +65,23 @@ export default function DashboardPage() {
       setOpenTasks(tasksCountRes.count || 0)
       setTasks(tasksRes.data || [])
       setEntries(journalRes.data || [])
+
+      // Fetch weather using GPS or default to Johannesburg
+      if (typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const w = await fetchWeather(pos.coords.latitude, pos.coords.longitude)
+            if (w) setWeather(w)
+          },
+          async () => {
+            const w = await fetchWeather(-26.2041, 28.0473)
+            if (w) setWeather(w)
+          }
+        )
+      } else {
+        const w = await fetchWeather(-26.2041, 28.0473)
+        if (w) setWeather(w)
+      }
       setLoading(false)
     }
 
@@ -152,6 +171,50 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weather widget */}
+      {weather && (
+        <Card className="shadow-sm bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] text-white">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-4xl font-bold">{weather.temp}°C</p>
+                  <p className="text-[#D8F3DC] text-sm capitalize mt-0.5">{weather.description}</p>
+                </div>
+                <div className="text-4xl">{getWeatherEmoji(weather.description)}</div>
+              </div>
+              <div className="flex items-center gap-6 text-sm">
+                <div className="text-center">
+                  <p className="text-[#D8F3DC] text-xs">Humidity</p>
+                  <p className="font-semibold">{weather.humidity}%</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[#D8F3DC] text-xs">Wind</p>
+                  <p className="font-semibold">{weather.windSpeed} km/h</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[#D8F3DC] text-xs">Feels like</p>
+                  <p className="font-semibold">{weather.feelsLike}°C</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-[#D8F3DC] text-xs">Location</p>
+                  <p className="font-semibold">{weather.city}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {weather.forecast.slice(1, 4).map((day) => (
+                  <div key={day.date} className="text-center bg-white/10 rounded-lg px-3 py-2">
+                    <p className="text-xs text-[#D8F3DC]">{day.dayName}</p>
+                    <p className="text-lg my-1">{getWeatherEmoji(day.description)}</p>
+                    <p className="text-xs font-medium">{day.tempMax}°/{day.tempMin}°</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="shadow-sm">
