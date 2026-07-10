@@ -5,7 +5,7 @@ import { Check, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
-import { PLANS, PAYFAST_CONFIG, getPayFastUrl } from '@/lib/payfast'
+import { PLANS, PAYFAST_CONFIG, getPayFastUrl, generateSignature } from '@/lib/payfast'
 
 export default function SubscriptionPage() {
   const [userEmail, setUserEmail] = useState('')
@@ -35,39 +35,51 @@ export default function SubscriptionPage() {
   }, [])
 
   function handleSubscribe(plan: typeof PLANS[0]) {
-    if (plan.price === 0 || plan.id === currentPlan) return
-    setLoading(true)
+  if (plan.price === 0 || plan.id === currentPlan) return
+  setLoading(true)
 
-    const params = new URLSearchParams({
-      merchant_id: PAYFAST_CONFIG.merchantId,
-      merchant_key: PAYFAST_CONFIG.merchantKey,
-      return_url: PAYFAST_CONFIG.returnUrl,
-      cancel_url: PAYFAST_CONFIG.cancelUrl,
-      notify_url: PAYFAST_CONFIG.notifyUrl,
-      name_first: userName.split(' ')[0] || 'Farmer',
-      name_last: userName.split(' ')[1] || '',
-      email_address: userEmail,
-      amount: plan.price.toFixed(2),
-      item_name: `RootBase ${plan.name} Plan`,
-      item_description: `Monthly subscription to RootBase ${plan.name}`,
-      currency: 'ZAR',
-    })
-
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = getPayFastUrl()
-
-    params.forEach((value, key) => {
-      const input = document.createElement('input')
-      input.type = 'hidden'
-      input.name = key
-      input.value = value
-      form.appendChild(input)
-    })
-
-    document.body.appendChild(form)
-    form.submit()
+  // Build the data object — order matters for signature
+  const data: Record<string, string> = {
+    merchant_id: PAYFAST_CONFIG.merchantId,
+    merchant_key: PAYFAST_CONFIG.merchantKey,
+    return_url: PAYFAST_CONFIG.returnUrl,
+    cancel_url: PAYFAST_CONFIG.cancelUrl,
+    notify_url: PAYFAST_CONFIG.notifyUrl,
+    name_first: userName.split(' ')[0] || 'Farmer',
+    name_last: userName.split(' ').slice(1).join(' ') || 'User',
+    email_address: userEmail,
+    amount: plan.price.toFixed(2),
+    item_name: `RootBase ${plan.name} Plan`,
+    item_description: `Monthly subscription to RootBase ${plan.name} - billed monthly`,
   }
+
+  // Remove empty values
+  Object.keys(data).forEach(key => {
+    if (!data[key] || data[key] === '') delete data[key]
+  })
+
+  // Generate signature
+  const signature = generateSignature(data, PAYFAST_CONFIG.passphrase)
+
+  // Add signature to data
+  const finalData = { ...data, signature }
+
+  // Build and submit form
+  const form = document.createElement('form')
+  form.method = 'POST'
+  form.action = getPayFastUrl()
+
+  Object.entries(finalData).forEach(([key, value]) => {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = key
+    input.value = value
+    form.appendChild(input)
+  })
+
+  document.body.appendChild(form)
+  form.submit()
+}
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] py-12 px-6">

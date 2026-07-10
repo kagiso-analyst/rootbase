@@ -1,6 +1,9 @@
+import md5 from 'md5'
+
 export const PAYFAST_CONFIG = {
   merchantId: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '10000100',
   merchantKey: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '46f0cd694581a',
+  passphrase: process.env.NEXT_PUBLIC_PAYFAST_PASSPHRASE || '',
   sandbox: process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true',
   returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/success`,
   cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/cancel`,
@@ -11,6 +14,25 @@ export function getPayFastUrl() {
   return PAYFAST_CONFIG.sandbox
     ? 'https://sandbox.payfast.co.za/eng/process'
     : 'https://www.payfast.co.za/eng/process'
+}
+
+export function generateSignature(data: Record<string, string>, passphrase?: string): string {
+  // Step 1 — sort params alphabetically
+  const sortedKeys = Object.keys(data).sort()
+
+  // Step 2 — build query string
+  let queryString = sortedKeys
+    .filter(key => data[key] !== '' && data[key] !== undefined)
+    .map(key => `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}`)
+    .join('&')
+
+  // Step 3 — append passphrase if set
+  if (passphrase && passphrase !== '') {
+    queryString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`
+  }
+
+  // Step 4 — MD5 hash
+  return md5(queryString)
 }
 
 export const PLANS = [
