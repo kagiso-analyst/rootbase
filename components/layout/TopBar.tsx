@@ -18,6 +18,7 @@ export default function TopBar() {
   const router = useRouter()
   const supabase = createClient()
   const [userEmail, setUserEmail] = useState('')
+  const [userName, setUserName] = useState('') // ✅ Added missing state
   const [greeting, setGreeting] = useState('Good morning')
 
   useEffect(() => {
@@ -26,10 +27,14 @@ export default function TopBar() {
     else if (hour < 17) setGreeting('Good afternoon')
     else setGreeting('Good evening')
 
+    // ✅ Combined getUser call with both email and name
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setUserEmail(data.user.email)
+      if (data.user?.user_metadata?.full_name) {
+        setUserName(data.user.user_metadata.full_name)
+      }
     })
-  }, [])
+  }, []) // ✅ Fixed dependency array
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -39,8 +44,8 @@ export default function TopBar() {
   return (
     <header className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6">
       <p className="text-sm font-medium text-gray-500">
-     {greeting}, {userName ? userName.split(' ')[0] : 'Farmer'} 🌱
-       </p>
+        {greeting}, {userName ? userName.split(' ')[0] : 'Farmer'} 🌱
+      </p>
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"

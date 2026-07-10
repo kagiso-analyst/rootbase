@@ -1,5 +1,6 @@
 'use client'
 
+import { Input } from '@/components/ui/input'
 import { useState, useEffect } from 'react'
 import {
   Wind, Droplets, Thermometer, Eye, Sunrise,

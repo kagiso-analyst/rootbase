@@ -89,38 +89,32 @@ export default function CostCalculatorPage() {
   const estimatedMonthly = estimatedTotal * 4.33
   const estimatedAnnual = estimatedTotal * 52
 
-  async function saveEstimate() {
-    if (estimatedTotal === 0) {
-      alert('Please enter at least one cost before saving')
-      return
-    }
-    setSaving(true)
-    try {
-      const { error, data } = await supabase.from('cost_snapshots').insert([{
-        week_start: getWeekStart(),
-        infrastructure_total: infraTotal,
-        production_total: productionTotal,
-        estimated_total: estimatedTotal,
-        actual_income: actualIncome,
-        actual_expenses: actualExpenses,
-      }])
-      if (error) {
-        console.error('Save error:', error)
-        alert(`Failed to save estimate: ${error.message || 'Unknown error. Make sure the cost_snapshots table exists in Supabase.'}`)
-      } else {
-        alert('Weekly estimate saved successfully!')
-        // Refresh history
-        const histRes = await supabase
-          .from('cost_snapshots')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(12)
-        if (histRes.data) setHistory(histRes.data as CostSnapshot[])
-      }
-    } catch (err) {
-      console.error('Save crash:', err)
-    } finally {
-      setSaving(false)
+  // REPLACED: This is the new save function
+  async function handleSave() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error } = await supabase.from('cost_snapshots').insert([{
+      user_id: user.id,
+      week_start: new Date().toISOString().split('T')[0],
+      infra_total: infraTotal,
+      production_total: productionTotal,
+      total: estimatedTotal,
+      data: { weeklyInfra, weeklyProduction },
+    }])
+
+    if (error) {
+      console.error('Save error:', error)
+      alert('Failed to save: ' + error.message)
+    } else {
+      alert('Estimate saved!')
+      // Refresh history after successful save
+      const histRes = await supabase
+        .from('cost_snapshots')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(12)
+      if (histRes.data) setHistory(histRes.data as CostSnapshot[])
     }
   }
 
@@ -291,9 +285,10 @@ export default function CostCalculatorPage() {
                 </div>
               )}
 
+              {/* REPLACED: The save button now calls handleSave instead of saveEstimate */}
               <Button
                 className="w-full mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-                onClick={saveEstimate}
+                onClick={handleSave}
                 disabled={saving}
               >
                 <Save size={16} className="mr-2" />
