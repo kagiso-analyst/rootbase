@@ -39,8 +39,8 @@ export default function TopBar() {
   return (
     <header className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6">
       <p className="text-sm font-medium text-gray-500">
-        {greeting}, Farmer 🌱
-      </p>
+     {greeting}, {userName ? userName.split(' ')[0] : 'Farmer'} 🌱
+       </p>
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"

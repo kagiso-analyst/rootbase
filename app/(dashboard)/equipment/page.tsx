@@ -198,7 +198,7 @@ export default function EquipmentPage() {
     setEquipment((prev) => prev.filter((e) => e.id !== id))
   }
 
-  const totalValue = equipment.reduce((sum, e) => sum + e.purchasePrice, 0)
+  const totalValue = equipment.reduce((sum, e) => sum + (parseFloat(String(e.purchasePrice)) || 0), 0)
 
   return (
     <div className="space-y-6">
@@ -421,7 +421,7 @@ export default function EquipmentPage() {
         <Card className="shadow-sm">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-[#1B4332]">
-              R{totalValue.toLocaleString()}
+              R{isNaN(totalValue) ? '0' : totalValue.toLocaleString()}
             </p>
             <p className="text-xs text-gray-400 mt-1">Total Value</p>
           </CardContent>
