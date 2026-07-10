@@ -36,12 +36,12 @@ export function DropdownMenuTrigger({
   const { open, setOpen } = useDropdownMenu()
 
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement, {
-      ...props,
-      onClick: (event: React.MouseEvent) => {
-        props.onClick?.(event)
-        setOpen((prev) => !prev)
-      },
+    return React.cloneElement(children as React.ReactElement<any>, {
+  ...props,
+  onClick: (event: React.MouseEvent) => {
+    props.onClick?.(event as any)
+    setOpen((prev) => !prev)
+  },
       'aria-expanded': open,
     })
   }
