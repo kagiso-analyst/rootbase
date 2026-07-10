@@ -28,6 +28,32 @@ export default function WeatherPage() {
   const [selectedCity, setSelectedCity] = useState('')
   const [usingGPS, setUsingGPS] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+  const [customSearch, setCustomSearch] = useState('')
+
+  async function handleCustomSearch() {
+  if (!customSearch.trim()) return
+  setLoading(true)
+  setError('')
+  const key = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
+  try {
+    const res = await fetch(
+      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(customSearch)}&limit=1&appid=${key}`
+    )
+    const data = await res.json()
+    if (data && data[0]) {
+      const w = await fetchWeather(data[0].lat, data[0].lon)
+      if (w) {
+        setWeather(w)
+        setLastUpdated(new Date())
+      }
+    } else {
+      setError(`City "${customSearch}" not found. Try a different spelling.`)
+    }
+  } catch {
+    setError('Search failed. Check your connection.')
+  }
+  setLoading(false)
+}
 
   async function loadWeatherByGPS() {
     setLoading(true)
@@ -126,6 +152,18 @@ export default function WeatherPage() {
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
           </Button>
         </div>
+
+        {/* Custom location search */}
+<div className="flex gap-2 mt-3">
+  <Input
+    placeholder="Type any city name..."
+    value={customSearch}
+    onChange={(e) => setCustomSearch((e.target as HTMLInputElement).value)}
+    onKeyDown={(e) => e.key === 'Enter' && handleCustomSearch()}
+    className="flex-1"
+  />
+  <Button variant="outline" onClick={handleCustomSearch}>Search</Button>
+</div>
       </div>
 
       {error && (

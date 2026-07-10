@@ -89,6 +89,16 @@ export default function TasksPage() {
   const overdueTasks = todoTasks.filter(t => t.dueDate && isOverdue(t.dueDate, t.status))
   const urgentCount = todoTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length
 
+  async function fetchTasks() {
+  setFetching(true)
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (!error && data) setTasks(data)
+  setFetching(false)
+}
+
   async function handleAdd() {
     if (!title) return
     setLoading(true)
@@ -369,4 +379,8 @@ export default function TasksPage() {
       </Tabs>
     </div>
   )
+}
+
+function setFetching(arg0: boolean) {
+  throw new Error('Function not implemented.')
 }
