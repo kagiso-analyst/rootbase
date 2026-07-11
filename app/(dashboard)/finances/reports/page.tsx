@@ -26,9 +26,23 @@ export default function ReportsPage() {
   async function fetchReport() {
     setLoading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
       const [incomeRes, expensesRes] = await Promise.all([
-        supabase.from('income').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
-        supabase.from('expenses').select('*').gte('date', startDate).lte('date', endDate).order('date', { ascending: false }),
+        supabase
+          .from('income')
+          .select('*')
+          .eq('user_id', user?.id)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: false }),
+        supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', user?.id)
+          .gte('date', startDate)
+          .lte('date', endDate)
+          .order('date', { ascending: false }),
       ])
       if (incomeRes.data) setIncome(incomeRes.data)
       if (expensesRes.data) setExpenses(expensesRes.data)

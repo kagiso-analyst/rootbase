@@ -37,52 +37,86 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchDashboardData() {
-      const now = new Date()
-      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        const now = new Date()
+        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
 
-      const [
-        incomeRes,
-        expensesRes,
-        cropsRes,
-        tasksCountRes,
-        tasksRes,
-        journalRes,
-      ] = await Promise.all([
-        supabase.from('income').select('amount').gte('date', firstOfMonth),
-        supabase.from('expenses').select('amount').gte('date', firstOfMonth),
-        supabase.from('crops').select('id', { count: 'exact' }).eq('status', 'active'),
-        supabase.from('tasks').select('id', { count: 'exact' }).neq('status', 'done'),
-        supabase.from('tasks').select('*').neq('status', 'done').order('due_date', { ascending: true }).limit(5),
-        supabase.from('journal_entries').select('*').order('created_at', { ascending: false }).limit(3),
-      ])
+        const [
+          incomeRes,
+          expensesRes,
+          cropsRes,
+          tasksCountRes,
+          tasksRes,
+          journalRes,
+        ] = await Promise.all([
+          supabase
+            .from('income')
+            .select('amount')
+            .eq('user_id', user?.id)
+            .gte('date', firstOfMonth),
+          supabase
+            .from('expenses')
+            .select('amount')
+            .eq('user_id', user?.id)
+            .gte('date', firstOfMonth),
+          supabase
+            .from('crops')
+            .select('id', { count: 'exact' })
+            .eq('user_id', user?.id)
+            .eq('status', 'active'),
+          supabase
+            .from('tasks')
+            .select('id', { count: 'exact' })
+            .eq('user_id', user?.id)
+            .neq('status', 'done'),
+          supabase
+            .from('tasks')
+            .select('*')
+            .eq('user_id', user?.id)
+            .neq('status', 'done')
+            .order('due_date', { ascending: true })
+            .limit(5),
+          supabase
+            .from('journal_entries')
+            .select('*')
+            .eq('user_id', user?.id)
+            .order('created_at', { ascending: false })
+            .limit(3),
+        ])
 
-      const totalIncome = incomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
-      const totalExpenses = expensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
+        const totalIncome = incomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
+        const totalExpenses = expensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
 
-      setIncome(totalIncome)
-      setExpenses(totalExpenses)
-      setActiveCrops(cropsRes.count || 0)
-      setOpenTasks(tasksCountRes.count || 0)
-      setTasks(tasksRes.data || [])
-      setEntries(journalRes.data || [])
+        setIncome(totalIncome)
+        setExpenses(totalExpenses)
+        setActiveCrops(cropsRes.count || 0)
+        setOpenTasks(tasksCountRes.count || 0)
+        setTasks(tasksRes.data || [])
+        setEntries(journalRes.data || [])
 
-      // Fetch weather using GPS or default to Johannesburg
-      if (typeof window !== 'undefined' && navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            const w = await fetchWeather(pos.coords.latitude, pos.coords.longitude)
-            if (w) setWeather(w)
-          },
-          async () => {
-            const w = await fetchWeather(-26.2041, 28.0473)
-            if (w) setWeather(w)
-          }
-        )
-      } else {
-        const w = await fetchWeather(-26.2041, 28.0473)
-        if (w) setWeather(w)
+        // Fetch weather using GPS or default to Johannesburg
+        if (typeof window !== 'undefined' && navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              const w = await fetchWeather(pos.coords.latitude, pos.coords.longitude)
+              if (w) setWeather(w)
+            },
+            async () => {
+              const w = await fetchWeather(-26.2041, 28.0473)
+              if (w) setWeather(w)
+            }
+          )
+        } else {
+          const w = await fetchWeather(-26.2041, 28.0473)
+          if (w) setWeather(w)
+        }
+      } catch (err) {
+        console.error('Dashboard fetch error:', err)
+      } finally {
+        setLoading(false)
       }
-      setLoading(false)
     }
 
     fetchDashboardData()

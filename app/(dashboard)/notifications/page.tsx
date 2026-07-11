@@ -22,90 +22,86 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     async function buildNotifications() {
-      const alerts: Notification[] = []
-      const today = new Date().toISOString().split('T')[0]
+      try {
+        const alerts: Notification[] = []
+        const today = new Date().toISOString().split('T')[0]
 
-      const [tasksRes, inventoryRes, equipmentRes, documentsRes] = await Promise.all([
-        supabase.from('tasks').select('*').eq('status', 'todo').lt('due_date', today),
-        supabase.from('inventory_items').select('*'),
-        supabase.from('equipment').select('*'),
-        supabase.from('documents').select('*'),
-      ])
+        const { data: { user } } = await supabase.auth.getUser()
 
-      // Overdue tasks
-      const overdueTasks = tasksRes.data || []
-      overdueTasks.forEach(task => {
-        alerts.push({
-          id: `task-${task.id}`,
-          type: 'overdue_task',
-          title: `Overdue task: ${task.title}`,
-          description: `Was due on ${task.due_date} · Priority: ${task.priority}`,
-          severity: task.priority === 'urgent' || task.priority === 'high' ? 'urgent' : 'warning',
-        })
-      })
+        const [tasksRes, inventoryRes, equipmentRes] = await Promise.all([
+          supabase
+            .from('tasks')
+            .select('*')
+            .eq('user_id', user?.id)
+            .eq('status', 'todo')
+            .lt('due_date', today),
+          supabase
+            .from('inventory_items')
+            .select('*')
+            .eq('user_id', user?.id),
+          supabase
+            .from('equipment')
+            .select('*')
+            .eq('user_id', user?.id),
+        ])
 
-      // Low stock items
-      const inventoryItems = inventoryRes.data || []
-      inventoryItems
-        .filter(i => i.reorder_level > 0 && i.current_quantity <= i.reorder_level)
-        .forEach(item => {
+        // Overdue tasks
+        const overdueTasks = tasksRes.data || []
+        overdueTasks.forEach(task => {
           alerts.push({
-            id: `stock-${item.id}`,
-            type: 'low_stock',
-            title: `Low stock: ${item.name}`,
-            description: `${item.current_quantity} ${item.unit} remaining — reorder level is ${item.reorder_level} ${item.unit}`,
-            severity: 'warning',
+            id: `task-${task.id}`,
+            type: 'overdue_task',
+            title: `Overdue task: ${task.title}`,
+            description: `Was due on ${task.due_date} · Priority: ${task.priority}`,
+            severity: task.priority === 'urgent' || task.priority === 'high' ? 'urgent' : 'warning',
           })
         })
 
-      // Equipment service due
-      const equipment = equipmentRes.data || []
-      equipment.forEach(equip => {
-        if (equip.next_service_date) {
-          const days = Math.ceil(
-            (new Date(equip.next_service_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-          )
-          if (days <= 14) {
+        // Low stock items
+        const inventoryItems = inventoryRes.data || []
+        inventoryItems
+          .filter(i => i.reorder_level > 0 && i.current_quantity <= i.reorder_level)
+          .forEach(item => {
             alerts.push({
-              id: `equip-${equip.id}`,
-              type: 'service_due',
-              title: `Service due: ${equip.name}`,
-              description: days <= 0
-                ? `Service was due on ${equip.next_service_date}`
-                : `Service due in ${days} days — ${equip.next_service_date}`,
-              severity: days <= 0 ? 'urgent' : 'warning',
+              id: `stock-${item.id}`,
+              type: 'low_stock',
+              title: `Low stock: ${item.name}`,
+              description: `${item.current_quantity} ${item.unit} remaining — reorder level is ${item.reorder_level} ${item.unit}`,
+              severity: 'warning',
             })
+          })
+
+        // Equipment service due
+        const equipment = equipmentRes.data || []
+        equipment.forEach(equip => {
+          if (equip.next_service_date) {
+            const days = Math.ceil(
+              (new Date(equip.next_service_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+            )
+            if (days <= 14) {
+              alerts.push({
+                id: `equip-${equip.id}`,
+                type: 'service_due',
+                title: `Service due: ${equip.name}`,
+                description: days <= 0
+                  ? `Service was due on ${equip.next_service_date}`
+                  : `Service due in ${days} days — ${equip.next_service_date}`,
+                severity: days <= 0 ? 'urgent' : 'warning',
+              })
+            }
           }
-        }
-      })
+        })
 
-      // Document expiry
-      const documents = documentsRes.data || []
-      documents.forEach(doc => {
-        if (doc.expiry_date) {
-          const days = Math.ceil(
-            (new Date(doc.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-          )
-          if (days <= 30) {
-            alerts.push({
-              id: `doc-${doc.id}`,
-              type: 'expiry',
-              title: `Document expiring: ${doc.name}`,
-              description: days <= 0
-                ? `Expired on ${doc.expiry_date}`
-                : `Expires in ${days} days — ${doc.expiry_date}`,
-              severity: days <= 7 ? 'urgent' : 'warning',
-            })
-          }
-        }
-      })
+        // Sort by severity
+        const order = { urgent: 0, warning: 1, info: 2 }
+        alerts.sort((a, b) => order[a.severity] - order[b.severity])
 
-      // Sort by severity
-      const order = { urgent: 0, warning: 1, info: 2 }
-      alerts.sort((a, b) => order[a.severity] - order[b.severity])
-
-      setNotifications(alerts)
-      setLoading(false)
+        setNotifications(alerts)
+      } catch (err) {
+        console.error('Notification build error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
 
     buildNotifications()

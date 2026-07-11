@@ -29,63 +29,84 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     async function fetchAnalytics() {
-      const [incomeRes, expensesRes, cropsRes, inventoryRes] = await Promise.all([
-        supabase.from('income').select('amount, date'),
-        supabase.from('expenses').select('amount, date, category'),
-        supabase.from('crops').select('id', { count: 'exact' }).eq('status', 'active'),
-        supabase.from('inventory_items').select('id', { count: 'exact' }),
-      ])
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        const [incomeRes, expensesRes, cropsRes, inventoryRes] = await Promise.all([
+          supabase
+            .from('income')
+            .select('amount, date')
+            .eq('user_id', user?.id),
+          supabase
+            .from('expenses')
+            .select('amount, date, category')
+            .eq('user_id', user?.id),
+          supabase
+            .from('crops')
+            .select('id', { count: 'exact' })
+            .eq('user_id', user?.id)
+            .eq('status', 'active'),
+          supabase
+            .from('inventory_items')
+            .select('id', { count: 'exact' })
+            .eq('user_id', user?.id),
+        ])
 
-      const incomeData = incomeRes.data || []
-      const expensesData = expensesRes.data || []
+        const incomeData = incomeRes.data || []
+        const expensesData = expensesRes.data || []
 
-      const totalInc = incomeData.reduce((sum, r) => sum + Number(r.amount), 0)
-      const totalExp = expensesData.reduce((sum, r) => sum + Number(r.amount), 0)
+        const totalInc = incomeData.reduce((sum, r) => sum + Number(r.amount), 0)
+        const totalExp = expensesData.reduce((sum, r) => sum + Number(r.amount), 0)
 
-      setTotalIncome(totalInc)
-      setTotalExpenses(totalExp)
-      setActiveCrops(cropsRes.count || 0)
-      setInventoryItems(inventoryRes.count || 0)
+        setTotalIncome(totalInc)
+        setTotalExpenses(totalExp)
+        setActiveCrops(cropsRes.count || 0)
+        setInventoryItems(inventoryRes.count || 0)
 
-      // Build monthly data for last 6 months
-      const months: MonthlyData[] = []
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date()
-        d.setMonth(d.getMonth() - i)
-        const monthStr = d.toLocaleString('default', { month: 'short' })
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const prefix = `${year}-${month}`
+        // Build monthly data for last 6 months
+        const months: MonthlyData[] = []
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date()
+          d.setMonth(d.getMonth() - i)
+          const monthStr = d.toLocaleString('default', { month: 'short' })
+          const year = d.getFullYear()
+          const month = String(d.getMonth() + 1).padStart(2, '0')
+          const prefix = `${year}-${month}`
 
-        const monthIncome = incomeData
-          .filter(r => r.date?.startsWith(prefix))
-          .reduce((sum, r) => sum + Number(r.amount), 0)
+          const monthIncome = incomeData
+            .filter(r => r.date?.startsWith(prefix))
+            .reduce((sum, r) => sum + Number(r.amount), 0)
 
-        const monthExpenses = expensesData
-          .filter(r => r.date?.startsWith(prefix))
-          .reduce((sum, r) => sum + Number(r.amount), 0)
+          const monthExpenses = expensesData
+            .filter(r => r.date?.startsWith(prefix))
+            .reduce((sum, r) => sum + Number(r.amount), 0)
 
-        months.push({
-          month: monthStr,
-          income: monthIncome,
-          expenses: monthExpenses,
-          profit: monthIncome - monthExpenses,
+          months.push({
+            month: monthStr,
+            income: monthIncome,
+            expenses: monthExpenses,
+            profit: monthIncome - monthExpenses,
+          })
+        }
+        setMonthlyData(months)
+
+        // Expenses by category
+        const catMap: Record<string, number> = {}
+        expensesData.forEach(r => {
+          if (r.category) {
+            catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount)
+          }
         })
+        const catArray = Object.entries(catMap)
+          .map(([category, amount]) => ({ category, amount }))
+          .sort((a, b) => b.amount - a.amount)
+          .slice(0, 6)
+        setExpensesByCategory(catArray)
+      } catch (err) {
+        console.error('Analytics fetch error:', err)
+      } finally {
+        setLoading(false)
       }
-      setMonthlyData(months)
-
-      // Expenses by category
-      const catMap: Record<string, number> = {}
-      expensesData.forEach(r => {
-        catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount)
-      })
-      const catArray = Object.entries(catMap)
-        .map(([category, amount]) => ({ category, amount }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 6)
-      setExpensesByCategory(catArray)
-
-      setLoading(false)
     }
 
     fetchAnalytics()

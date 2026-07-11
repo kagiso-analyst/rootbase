@@ -18,6 +18,7 @@ type CostSnapshot = {
   actual_income: number
   actual_expenses: number
   created_at: string
+  user_id: string
 }
 
 export default function CostCalculatorPage() {
@@ -44,6 +45,7 @@ export default function CostCalculatorPage() {
   const [actualIncome, setActualIncome] = useState(0)
   const [history, setHistory] = useState<CostSnapshot[]>([])
   const [saving, setSaving] = useState(false)
+  const [fetching, setFetching] = useState(true)
   const supabase = createClient()
 
   const getWeekStart = () => {
@@ -55,32 +57,54 @@ export default function CostCalculatorPage() {
   }
 
   useEffect(() => {
-    async function fetchThisWeek() {
-      const today = new Date()
-      const weekAgo = new Date(today)
-      weekAgo.setDate(today.getDate() - 7)
-      const from = weekAgo.toISOString().split('T')[0]
-      const to = today.toISOString().split('T')[0]
+    async function fetchData() {
+      setFetching(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        const today = new Date()
+        const weekAgo = new Date(today)
+        weekAgo.setDate(today.getDate() - 7)
+        const from = weekAgo.toISOString().split('T')[0]
+        const to = today.toISOString().split('T')[0]
 
-      const [expRes, incRes] = await Promise.all([
-        supabase.from('expenses').select('amount').gte('date', from).lte('date', to),
-        supabase.from('income').select('amount').gte('date', from).lte('date', to),
-      ])
+        // Fetch expenses and income for this week (filtered by user)
+        const [expRes, incRes] = await Promise.all([
+          supabase
+            .from('expenses')
+            .select('amount')
+            .eq('user_id', user?.id)
+            .gte('date', from)
+            .lte('date', to),
+          supabase
+            .from('income')
+            .select('amount')
+            .eq('user_id', user?.id)
+            .gte('date', from)
+            .lte('date', to),
+        ])
 
-      const totalExp = expRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
-      const totalInc = incRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
-      setActualExpenses(totalExp)
-      setActualIncome(totalInc)
+        const totalExp = expRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
+        const totalInc = incRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
+        setActualExpenses(totalExp)
+        setActualIncome(totalInc)
 
-      // Fetch history
-      const histRes = await supabase
-        .from('cost_snapshots')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(12)
-      if (histRes.data) setHistory(histRes.data as CostSnapshot[])
+        // Fetch history (filtered by user)
+        const histRes = await supabase
+          .from('cost_snapshots')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('created_at', { ascending: false })
+          .limit(12)
+        
+        if (histRes.data) setHistory(histRes.data as CostSnapshot[])
+      } catch (err) {
+        console.error('Fetch error:', err)
+      } finally {
+        setFetching(false)
+      }
     }
-    fetchThisWeek()
+    fetchData()
   }, [])
 
   const infraTotal = Object.values(weeklyInfra).reduce((s, v) => s + (parseFloat(v) || 0), 0)
@@ -89,32 +113,54 @@ export default function CostCalculatorPage() {
   const estimatedMonthly = estimatedTotal * 4.33
   const estimatedAnnual = estimatedTotal * 52
 
-  // REPLACED: This is the new save function
   async function handleSave() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (estimatedTotal === 0) {
+      alert('Please enter some costs before saving.')
+      return
+    }
 
-    const { error } = await supabase.from('cost_snapshots').insert([{
-      user_id: user.id,
-      week_start: new Date().toISOString().split('T')[0],
-      infra_total: infraTotal,
-      production_total: productionTotal,
-      total: estimatedTotal,
-      data: { weeklyInfra, weeklyProduction },
-    }])
+    setSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please sign in to save estimates.')
+        setSaving(false)
+        return
+      }
 
-    if (error) {
-      console.error('Save error:', error)
-      alert('Failed to save: ' + error.message)
-    } else {
-      alert('Estimate saved!')
-      // Refresh history after successful save
-      const histRes = await supabase
-        .from('cost_snapshots')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(12)
-      if (histRes.data) setHistory(histRes.data as CostSnapshot[])
+      const weekStart = getWeekStart()
+
+      const { error } = await supabase.from('cost_snapshots').insert([{
+        user_id: user.id,
+        week_start: weekStart,
+        infrastructure_total: infraTotal,
+        production_total: productionTotal,
+        estimated_total: estimatedTotal,
+        actual_income: actualIncome,
+        actual_expenses: actualExpenses,
+      }])
+
+      if (error) {
+        console.error('Save error:', error)
+        alert('Failed to save: ' + error.message)
+      } else {
+        alert('Estimate saved successfully!')
+        
+        // Refresh history after successful save
+        const histRes = await supabase
+          .from('cost_snapshots')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(12)
+        
+        if (histRes.data) setHistory(histRes.data as CostSnapshot[])
+      }
+    } catch (err) {
+      console.error('Save error:', err)
+      alert('An error occurred while saving.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -278,14 +324,13 @@ export default function CostCalculatorPage() {
                 <div className={`mt-4 p-3 rounded-lg ${actualIncome >= estimatedTotal ? 'bg-green-100' : 'bg-red-100'}`}>
                   <p className={`text-sm font-medium text-center ${actualIncome >= estimatedTotal ? 'text-green-700' : 'text-red-700'}`}>
                     {actualIncome >= estimatedTotal
-                      ? ` This week's income (R${actualIncome.toFixed(0)}) covers your estimated costs (R${estimatedTotal.toFixed(0)})`
-                      : ` This week's income (R${actualIncome.toFixed(0)}) is below your estimated costs (R${estimatedTotal.toFixed(0)}) — shortfall of R${(estimatedTotal - actualIncome).toFixed(0)}`
+                      ? `✓ This week's income (R${actualIncome.toFixed(0)}) covers your estimated costs (R${estimatedTotal.toFixed(0)})`
+                      : `⚠ This week's income (R${actualIncome.toFixed(0)}) is below your estimated costs (R${estimatedTotal.toFixed(0)}) — shortfall of R${(estimatedTotal - actualIncome).toFixed(0)}`
                     }
                   </p>
                 </div>
               )}
 
-              {/* REPLACED: The save button now calls handleSave instead of saveEstimate */}
               <Button
                 className="w-full mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                 onClick={handleSave}
@@ -307,7 +352,11 @@ export default function CostCalculatorPage() {
               <p className="text-xs text-gray-400">Your saved weekly cost estimates</p>
             </CardHeader>
             <CardContent>
-              {history.length === 0 ? (
+              {fetching ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-400">Loading history...</p>
+                </div>
+              ) : history.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-sm text-gray-400">No saved estimates yet. Start by calculating your costs above!</p>
                 </div>

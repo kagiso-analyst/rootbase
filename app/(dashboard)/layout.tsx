@@ -8,20 +8,45 @@ import TopBar from '@/components/layout/TopBar'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true)
+  const [authenticated, setAuthenticated] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.replace('/login')
+        } else {
+          setAuthenticated(true)
+        }
+      } catch (error) {
+        console.error('Auth check error:', error)
         router.replace('/login')
-      } else {
+      } finally {
         setChecking(false)
       }
     }
     checkAuth()
-  }, [])
+  }, [router, supabase])
+
+  // Subscribe to auth changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (!session) {
+          router.replace('/login')
+        } else {
+          setAuthenticated(true)
+        }
+      }
+    )
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [router, supabase])
 
   if (checking) {
     return (
@@ -32,6 +57,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </div>
     )
+  }
+
+  if (!authenticated) {
+    return null // Will redirect in useEffect
   }
 
   return (
