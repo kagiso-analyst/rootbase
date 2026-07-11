@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Save, User, Bell, Shield, Palette } from 'lucide-react'
+import { Save, User, Bell, Shield, Palette, Import } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,12 +43,15 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="profile">
-        <TabsList className="bg-[#D8F3DC]">
+        <TabsList className="bg-[#D8F3DC] flex flex-wrap gap-1">
           <TabsTrigger value="profile" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white">
             <User size={14} className="mr-1.5" /> Profile
           </TabsTrigger>
           <TabsTrigger value="farm" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white">
             <Palette size={14} className="mr-1.5" /> Farm
+          </TabsTrigger>
+          <TabsTrigger value="import" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white">
+            <Import size={14} className="mr-1.5" /> Import Data
           </TabsTrigger>
           <TabsTrigger value="notifications" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white">
             <Bell size={14} className="mr-1.5" /> Notifications
@@ -194,6 +197,57 @@ export default function SettingsPage() {
                 <Save size={15} className="mr-2" />
                 {saved ? 'Saved!' : 'Save Changes'}
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="import" className="mt-4">
+          <Card className="shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base">Import Historical Data</CardTitle>
+              <p className="text-xs text-gray-400">
+                Farming since before 2026? Add all your past records with the correct dates.
+                RootBase accepts back-dated entries for any module.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { label: 'Past Expenses', href: '/finances/expenses', desc: 'Add historical input costs, fuel, labour' },
+                  { label: 'Past Income', href: '/finances/income', desc: 'Add historical crop and livestock sales' },
+                  { label: 'Past Crops', href: '/crops', desc: 'Add previous seasons\'s crop records' },
+                  { label: 'Past Journal Entries', href: '/journal', desc: 'Add historical farm diary entries' },
+                  { label: 'Past Livestock Records', href: '/livestock', desc: 'Add animals purchased or born before 2026' },
+                  { label: 'Past Equipment', href: '/equipment', desc: 'Add equipment purchased in previous years' },
+                ].map(({ label, href, desc }) => (
+                  <a key={label} href={href} className="border border-gray-200 rounded-xl p-4 hover:border-[#2D6A4F] hover:bg-[#D8F3DC]/20 transition-all group">
+                    <p className="text-sm font-semibold text-[#1B4332] group-hover:text-[#2D6A4F]">{label}</p>
+                    <p className="text-xs text-gray-400 mt-1">{desc}</p>
+                    <p className="text-xs text-[#2D6A4F] mt-2 font-medium">
+                      Go to module → pick any past date when adding records
+                    </p>
+                  </a>
+                ))}
+              </div>
+
+              <div className="bg-[#D8F3DC] rounded-xl p-4 mt-4">
+                <p className="text-sm font-semibold text-[#1B4332] mb-2">💡 How to import historical data</p>
+                <ol className="space-y-1">
+                  {[
+                    'Go to any module (e.g. Finances → Expenses)',
+                    'Click "Add Expense" as normal',
+                    'Change the Date field to the historical date (e.g. 2023-03-15)',
+                    'Fill in the rest of the details and save',
+                    'RootBase will store it with the correct historical date',
+                    'Your analytics will reflect the full historical picture',
+                  ].map((step, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-[#2D6A4F]">
+                      <span className="font-bold flex-shrink-0">{i + 1}.</span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -125,44 +125,57 @@ export default function EquipmentPage() {
   const dueSoon = equipment.filter(isServiceDue)
   const supabase = createClient()
 
-  // Fetch equipment with user_id filter
-  async function fetchEquipment() {
+  // FIXED: Combined fetch function with proper type handling
+  async function fetchAll() {
     setFetching(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data, error } = await supabase
-        .from('equipment')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-      if (error) console.error('Equipment fetch error:', error)
-      if (data) setEquipment(data)
+      
+      const [equipRes, logsRes] = await Promise.all([
+        supabase
+          .from('equipment')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('maintenance_logs')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('date', { ascending: false }),
+      ])
+
+      if (!equipRes.error && equipRes.data) {
+        // FIXED: Map the data to ensure purchase_price is a number
+        const mappedEquipment = equipRes.data.map((item: any) => ({
+          ...item,
+          purchasePrice: parseFloat(String(item.purchase_price)) || 0,
+          currentHours: parseFloat(String(item.current_hours)) || 0,
+          nextServiceHours: parseFloat(String(item.next_service_hours)) || 0,
+        }))
+        setEquipment(mappedEquipment)
+      }
+
+      if (!logsRes.error && logsRes.data) {
+        // FIXED: Map the data to ensure cost is a number
+        const mappedLogs = logsRes.data.map((item: any) => ({
+          ...item,
+          equipmentId: item.equipment_id,
+          equipmentName: item.equipment_name,
+          serviceType: item.service_type,
+          hoursAtService: parseFloat(String(item.hours_at_service)) || 0,
+          cost: parseFloat(String(item.cost)) || 0,
+        }))
+        setMaintenanceLogs(mappedLogs)
+      }
     } catch (err) {
-      console.error('Equipment fetch crash:', err)
+      console.error('Fetch error:', err)
     } finally {
       setFetching(false)
     }
   }
 
-  // Fetch maintenance logs with user_id filter
-  async function fetchMaintenanceLogs() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data, error } = await supabase
-        .from('maintenance_logs')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('date', { ascending: false })
-      if (error) console.error('Maintenance logs fetch error:', error)
-      if (data) setMaintenanceLogs(data)
-    } catch (err) {
-      console.error('Maintenance logs fetch crash:', err)
-    }
-  }
-
   useEffect(() => {
-    fetchEquipment()
-    fetchMaintenanceLogs()
+    fetchAll()
   }, [])
 
   async function handleAddEquipment() {
@@ -194,7 +207,14 @@ export default function EquipmentPage() {
       if (error) {
         console.error('Equipment insert error:', error)
       } else if (data) {
-        setEquipment((prev) => [data, ...prev])
+        // FIXED: Ensure the returned data has correct types
+        const newEquipment = {
+          ...data,
+          purchasePrice: parseFloat(String(data.purchase_price)) || 0,
+          currentHours: parseFloat(String(data.current_hours)) || 0,
+          nextServiceHours: parseFloat(String(data.next_service_hours)) || 0,
+        }
+        setEquipment((prev) => [newEquipment, ...prev])
         setName('')
         setCategory('')
         setMake('')
@@ -243,7 +263,16 @@ export default function EquipmentPage() {
       if (error) {
         console.error('Maintenance log insert error:', error)
       } else if (data) {
-        setMaintenanceLogs((prev) => [data, ...prev])
+        // FIXED: Ensure the returned data has correct types
+        const newLog = {
+          ...data,
+          equipmentId: data.equipment_id,
+          equipmentName: data.equipment_name,
+          serviceType: data.service_type,
+          hoursAtService: parseFloat(String(data.hours_at_service)) || 0,
+          cost: parseFloat(String(data.cost)) || 0,
+        }
+        setMaintenanceLogs((prev) => [newLog, ...prev])
         setSelectedEquipId('')
         setServiceType('')
         setServiceDesc('')
@@ -295,7 +324,11 @@ export default function EquipmentPage() {
     }
   }
 
-  const totalValue = equipment.reduce((sum, e) => sum + (parseFloat(String(e.purchasePrice)) || 0), 0)
+  // FIXED: Total value calculation with proper number conversion
+  const totalValue = equipment.reduce((sum, e) => {
+    const price = parseFloat(String(e.purchasePrice)) || 0
+    return sum + price
+  }, 0)
 
   return (
     <div className="space-y-6">
@@ -599,7 +632,7 @@ export default function EquipmentPage() {
                       <div className="flex items-center gap-4">
                         {equip.purchasePrice > 0 && (
                           <span className="text-sm text-gray-500">
-                            R{equip.purchasePrice.toLocaleString()}
+                            R{Number(equip.purchasePrice).toLocaleString()}
                           </span>
                         )}
                         <button
