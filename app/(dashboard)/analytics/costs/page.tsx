@@ -6,103 +6,57 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 
-type CostSnapshot = {
+type Snapshot = {
   id: string
   week_start: string
-  infrastructure_total: number
+  infra_total: number
   production_total: number
-  estimated_total: number
-  actual_income: number
-  actual_expenses: number
+  weekly_total: number
+  monthly_estimate: number
+  annual_estimate: number
   created_at: string
-  user_id: string
 }
 
 export default function CostCalculatorPage() {
   const [weeklyInfra, setWeeklyInfra] = useState({
-    electricity: '',
-    water: '',
-    fuel: '',
-    labour: '',
-    insurance: '',
-    rent: '',
-    other: '',
+    electricity: '', water: '', fuel: '', labour: '',
+    insurance: '', rent: '', other: '',
   })
-
   const [weeklyProduction, setWeeklyProduction] = useState({
-    seeds: '',
-    fertiliser: '',
-    chemicals: '',
-    packaging: '',
-    transport: '',
-    other: '',
+    seeds: '', fertiliser: '', chemicals: '',
+    packaging: '', transport: '', other: '',
   })
-
   const [actualExpenses, setActualExpenses] = useState(0)
   const [actualIncome, setActualIncome] = useState(0)
-  const [history, setHistory] = useState<CostSnapshot[]>([])
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [saving, setSaving] = useState(false)
-  const [fetching, setFetching] = useState(true)
-  const supabase = createClient()
+  const [showHistory, setShowHistory] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
 
-  const getWeekStart = () => {
-    const today = new Date()
-    const day = today.getDay()
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1)
-    const weekStart = new Date(today.setDate(diff))
-    return weekStart.toISOString().split('T')[0]
-  }
+  const supabase = createClient()
 
   useEffect(() => {
     async function fetchData() {
-      setFetching(true)
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        
-        const today = new Date()
-        const weekAgo = new Date(today)
-        weekAgo.setDate(today.getDate() - 7)
-        const from = weekAgo.toISOString().split('T')[0]
-        const to = today.toISOString().split('T')[0]
+      const today = new Date()
+      const weekAgo = new Date(today)
+      weekAgo.setDate(today.getDate() - 7)
+      const from = weekAgo.toISOString().split('T')[0]
+      const to = today.toISOString().split('T')[0]
 
-        // Fetch expenses and income for this week (filtered by user)
-        const [expRes, incRes] = await Promise.all([
-          supabase
-            .from('expenses')
-            .select('amount')
-            .eq('user_id', user?.id)
-            .gte('date', from)
-            .lte('date', to),
-          supabase
-            .from('income')
-            .select('amount')
-            .eq('user_id', user?.id)
-            .gte('date', from)
-            .lte('date', to),
-        ])
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-        const totalExp = expRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
-        const totalInc = incRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
-        setActualExpenses(totalExp)
-        setActualIncome(totalInc)
+      const [expRes, incRes, snapshotRes] = await Promise.all([
+        supabase.from('expenses').select('amount').gte('date', from).lte('date', to).eq('user_id', user.id),
+        supabase.from('income').select('amount').gte('date', from).lte('date', to).eq('user_id', user.id),
+        supabase.from('cost_snapshots').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+      ])
 
-        // Fetch history (filtered by user)
-        const histRes = await supabase
-          .from('cost_snapshots')
-          .select('*')
-          .eq('user_id', user?.id)
-          .order('created_at', { ascending: false })
-          .limit(12)
-        
-        if (histRes.data) setHistory(histRes.data as CostSnapshot[])
-      } catch (err) {
-        console.error('Fetch error:', err)
-      } finally {
-        setFetching(false)
-      }
+      setActualExpenses(expRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0)
+      setActualIncome(incRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0)
+      if (snapshotRes.data) setSnapshots(snapshotRes.data)
     }
     fetchData()
   }, [])
@@ -115,53 +69,54 @@ export default function CostCalculatorPage() {
 
   async function handleSave() {
     if (estimatedTotal === 0) {
-      alert('Please enter some costs before saving.')
+      setSaveMessage('Please enter some costs before saving.')
       return
     }
-
     setSaving(true)
+    setSaveMessage('')
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
-        alert('Please sign in to save estimates.')
+        setSaveMessage('Not logged in.')
         setSaving(false)
         return
       }
 
-      const weekStart = getWeekStart()
-
-      const { error } = await supabase.from('cost_snapshots').insert([{
+      const { data, error } = await supabase.from('cost_snapshots').insert([{
         user_id: user.id,
-        week_start: weekStart,
-        infrastructure_total: infraTotal,
+        week_start: new Date().toISOString().split('T')[0],
+        infra_electricity: parseFloat(weeklyInfra.electricity) || 0,
+        infra_water: parseFloat(weeklyInfra.water) || 0,
+        infra_fuel: parseFloat(weeklyInfra.fuel) || 0,
+        infra_labour: parseFloat(weeklyInfra.labour) || 0,
+        infra_insurance: parseFloat(weeklyInfra.insurance) || 0,
+        infra_rent: parseFloat(weeklyInfra.rent) || 0,
+        infra_other: parseFloat(weeklyInfra.other) || 0,
+        infra_total: infraTotal,
+        prod_seeds: parseFloat(weeklyProduction.seeds) || 0,
+        prod_fertiliser: parseFloat(weeklyProduction.fertiliser) || 0,
+        prod_chemicals: parseFloat(weeklyProduction.chemicals) || 0,
+        prod_packaging: parseFloat(weeklyProduction.packaging) || 0,
+        prod_transport: parseFloat(weeklyProduction.transport) || 0,
+        prod_other: parseFloat(weeklyProduction.other) || 0,
         production_total: productionTotal,
-        estimated_total: estimatedTotal,
-        actual_income: actualIncome,
-        actual_expenses: actualExpenses,
-      }])
+        weekly_total: estimatedTotal,
+        monthly_estimate: estimatedMonthly,
+        annual_estimate: estimatedAnnual,
+      }]).select().single()
 
       if (error) {
-        console.error('Save error:', error)
-        alert('Failed to save: ' + error.message)
-      } else {
-        alert('Estimate saved successfully!')
-        
-        // Refresh history after successful save
-        const histRes = await supabase
-          .from('cost_snapshots')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(12)
-        
-        if (histRes.data) setHistory(histRes.data as CostSnapshot[])
+        setSaveMessage('Error: ' + error.message)
+      } else if (data) {
+        setSnapshots((prev) => [data, ...prev])
+        setSaveMessage('✅ Estimate saved successfully!')
+        setTimeout(() => setSaveMessage(''), 3000)
       }
     } catch (err) {
-      console.error('Save error:', err)
-      alert('An error occurred while saving.')
-    } finally {
-      setSaving(false)
+      setSaveMessage('Unexpected error. Try again.')
     }
+    setSaving(false)
   }
 
   const INFRA_FIELDS = [
@@ -192,211 +147,196 @@ export default function CostCalculatorPage() {
             Estimate your weekly infrastructure and production costs
           </p>
         </div>
+        <Button
+          variant="outline"
+          className="border-[#2D6A4F] text-[#2D6A4F]"
+          onClick={() => setShowHistory(!showHistory)}
+        >
+          <History size={16} className="mr-2" />
+          {showHistory ? 'Hide History' : 'View History'}
+        </Button>
       </div>
 
-      <Tabs defaultValue="calculator" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="calculator">Calculator</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+      {/* This week actual from Supabase */}
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="shadow-sm border-green-100">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-xs text-gray-400 mb-1">Actual Income This Week</p>
+            <p className="text-2xl font-bold text-green-600">R{actualIncome.toFixed(2)}</p>
+            <p className="text-xs text-gray-400 mt-1">From your records</p>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm border-red-100">
+          <CardContent className="pt-4 pb-4 text-center">
+            <p className="text-xs text-gray-400 mb-1">Actual Expenses This Week</p>
+            <p className="text-2xl font-bold text-red-500">R{actualExpenses.toFixed(2)}</p>
+            <p className="text-xs text-gray-400 mt-1">From your records</p>
+          </CardContent>
+        </Card>
+      </div>
 
-        <TabsContent value="calculator" className="space-y-6">
-          {/* This week from Supabase */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="shadow-sm border-green-100">
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-xs text-gray-400 mb-1">Actual Income This Week</p>
-                <p className="text-2xl font-bold text-green-600">R{actualIncome.toFixed(2)}</p>
-                <p className="text-xs text-gray-400 mt-1">From your records</p>
-              </CardContent>
-            </Card>
-            <Card className="shadow-sm border-red-100">
-              <CardContent className="pt-4 pb-4 text-center">
-                <p className="text-xs text-gray-400 mb-1">Actual Expenses This Week</p>
-                <p className="text-2xl font-bold text-red-500">R{actualExpenses.toFixed(2)}</p>
-                <p className="text-xs text-gray-400 mt-1">From your records</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-            {/* Infrastructure costs */}
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Wrench size={16} className="text-[#2D6A4F]" />
-                  Weekly Infrastructure Costs
-                </CardTitle>
-                <p className="text-xs text-gray-400">Fixed/overhead costs per week</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {INFRA_FIELDS.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <Label className="w-40 text-sm text-gray-600 flex-shrink-0">{label}</Label>
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R</span>
-                      <Input
-                        type="number"
-                        placeholder="0.00"
-                        className="pl-7"
-                        value={weeklyInfra[key as keyof typeof weeklyInfra]}
-                        onChange={(e) => setWeeklyInfra(prev => ({
-                          ...prev,
-                          [key]: (e.target as HTMLInputElement).value
-                        }))}
-                      />
-                    </div>
+      {/* History */}
+      {showHistory && snapshots.length > 0 && (
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base">Previous Estimates</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-gray-100">
+              {snapshots.map((snap) => (
+                <div key={snap.id} className="flex items-center justify-between px-6 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Week of {snap.week_start}</p>
+                    <p className="text-xs text-gray-400">
+                      Infra: R{Number(snap.infra_total).toFixed(0)} +
+                      Production: R{Number(snap.production_total).toFixed(0)}
+                    </p>
                   </div>
-                ))}
-                <div className="border-t pt-3 flex justify-between">
-                  <p className="text-sm font-semibold text-gray-700">Infrastructure Total</p>
-                  <p className="text-sm font-bold text-[#2D6A4F]">R{infraTotal.toFixed(2)}/week</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Production costs */}
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Leaf size={16} className="text-[#2D6A4F]" />
-                  Weekly Production Costs
-                </CardTitle>
-                <p className="text-xs text-gray-400">Variable/input costs per week</p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {PRODUCTION_FIELDS.map(({ key, label }) => (
-                  <div key={key} className="flex items-center gap-3">
-                    <Label className="w-40 text-sm text-gray-600 flex-shrink-0">{label}</Label>
-                    <div className="relative flex-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R</span>
-                      <Input
-                        type="number"
-                        placeholder="0.00"
-                        className="pl-7"
-                        value={weeklyProduction[key as keyof typeof weeklyProduction]}
-                        onChange={(e) => setWeeklyProduction(prev => ({
-                          ...prev,
-                          [key]: (e.target as HTMLInputElement).value
-                        }))}
-                      />
-                    </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-[#1B4332]">R{Number(snap.weekly_total).toFixed(0)}/week</p>
+                    <p className="text-xs text-gray-400">R{Number(snap.monthly_estimate).toFixed(0)}/month</p>
                   </div>
-                ))}
-                <div className="border-t pt-3 flex justify-between">
-                  <p className="text-sm font-semibold text-gray-700">Production Total</p>
-                  <p className="text-sm font-bold text-[#2D6A4F]">R{productionTotal.toFixed(2)}/week</p>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Summary */}
-          <Card className="shadow-sm bg-[#D8F3DC] border-[#52B788]">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2 text-[#1B4332]">
-                <Calculator size={18} /> Cost Summary
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-400 mb-1">Weekly Total</p>
-                  <p className="text-2xl font-bold text-[#1B4332]">R{estimatedTotal.toFixed(2)}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Infra: R{infraTotal.toFixed(0)} + Production: R{productionTotal.toFixed(0)}
-                  </p>
-                </div>
-                <div className="bg-white rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-400 mb-1">Monthly Estimate</p>
-                  <p className="text-2xl font-bold text-[#2D6A4F]">R{estimatedMonthly.toFixed(2)}</p>
-                  <p className="text-xs text-gray-400 mt-1">Weekly × 4.33</p>
-                </div>
-                <div className="bg-white rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-400 mb-1">Annual Estimate</p>
-                  <p className="text-2xl font-bold text-[#2D6A4F]">R{estimatedAnnual.toFixed(2)}</p>
-                  <p className="text-xs text-gray-400 mt-1">Weekly × 52</p>
+      {showHistory && snapshots.length === 0 && (
+        <Card className="shadow-sm">
+          <CardContent className="flex items-center justify-center py-8 text-gray-400">
+            <p className="text-sm">No saved estimates yet</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Input grids */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wrench size={16} className="text-[#2D6A4F]" />
+              Weekly Infrastructure Costs
+            </CardTitle>
+            <p className="text-xs text-gray-400">Fixed/overhead costs per week</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {INFRA_FIELDS.map(({ key, label }) => (
+              <div key={key} className="flex items-center gap-3">
+                <Label className="w-40 text-sm text-gray-600 flex-shrink-0">{label}</Label>
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R</span>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    className="pl-7"
+                    value={weeklyInfra[key as keyof typeof weeklyInfra]}
+                    onChange={(e) => setWeeklyInfra(prev => ({
+                      ...prev,
+                      [key]: (e.target as HTMLInputElement).value
+                    }))}
+                  />
                 </div>
               </div>
+            ))}
+            <div className="border-t pt-3 flex justify-between">
+              <p className="text-sm font-semibold text-gray-700">Infrastructure Total</p>
+              <p className="text-sm font-bold text-[#2D6A4F]">R{infraTotal.toFixed(2)}/week</p>
+            </div>
+          </CardContent>
+        </Card>
 
-              {estimatedTotal > 0 && actualIncome > 0 && (
-                <div className={`mt-4 p-3 rounded-lg ${actualIncome >= estimatedTotal ? 'bg-green-100' : 'bg-red-100'}`}>
-                  <p className={`text-sm font-medium text-center ${actualIncome >= estimatedTotal ? 'text-green-700' : 'text-red-700'}`}>
-                    {actualIncome >= estimatedTotal
-                      ? `✓ This week's income (R${actualIncome.toFixed(0)}) covers your estimated costs (R${estimatedTotal.toFixed(0)})`
-                      : `⚠ This week's income (R${actualIncome.toFixed(0)}) is below your estimated costs (R${estimatedTotal.toFixed(0)}) — shortfall of R${(estimatedTotal - actualIncome).toFixed(0)}`
-                    }
-                  </p>
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Leaf size={16} className="text-[#2D6A4F]" />
+              Weekly Production Costs
+            </CardTitle>
+            <p className="text-xs text-gray-400">Variable/input costs per week</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {PRODUCTION_FIELDS.map(({ key, label }) => (
+              <div key={key} className="flex items-center gap-3">
+                <Label className="w-40 text-sm text-gray-600 flex-shrink-0">{label}</Label>
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">R</span>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    className="pl-7"
+                    value={weeklyProduction[key as keyof typeof weeklyProduction]}
+                    onChange={(e) => setWeeklyProduction(prev => ({
+                      ...prev,
+                      [key]: (e.target as HTMLInputElement).value
+                    }))}
+                  />
                 </div>
-              )}
+              </div>
+            ))}
+            <div className="border-t pt-3 flex justify-between">
+              <p className="text-sm font-semibold text-gray-700">Production Total</p>
+              <p className="text-sm font-bold text-[#2D6A4F]">R{productionTotal.toFixed(2)}/week</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-              <Button
-                className="w-full mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-                onClick={handleSave}
-                disabled={saving}
-              >
-                <Save size={16} className="mr-2" />
-                {saving ? 'Saving...' : 'Save This Week\'s Estimate'}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      {/* Summary */}
+      <Card className="shadow-sm bg-[#D8F3DC] border-[#52B788]">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2 text-[#1B4332]">
+            <Calculator size={18} /> Cost Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg p-4 text-center">
+              <p className="text-xs text-gray-400 mb-1">Weekly Total</p>
+              <p className="text-2xl font-bold text-[#1B4332]">R{estimatedTotal.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Infra: R{infraTotal.toFixed(0)} + Prod: R{productionTotal.toFixed(0)}
+              </p>
+            </div>
+            <div className="bg-white rounded-lg p-4 text-center">
+              <p className="text-xs text-gray-400 mb-1">Monthly Estimate</p>
+              <p className="text-2xl font-bold text-[#2D6A4F]">R{estimatedMonthly.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 mt-1">Weekly × 4.33</p>
+            </div>
+            <div className="bg-white rounded-lg p-4 text-center">
+              <p className="text-xs text-gray-400 mb-1">Annual Estimate</p>
+              <p className="text-2xl font-bold text-[#2D6A4F]">R{estimatedAnnual.toFixed(2)}</p>
+              <p className="text-xs text-gray-400 mt-1">Weekly × 52</p>
+            </div>
+          </div>
 
-        <TabsContent value="history" className="space-y-4">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <History size={18} className="text-[#2D6A4F]" /> Cost History
-              </CardTitle>
-              <p className="text-xs text-gray-400">Your saved weekly cost estimates</p>
-            </CardHeader>
-            <CardContent>
-              {fetching ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-400">Loading history...</p>
-                </div>
-              ) : history.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-400">No saved estimates yet. Start by calculating your costs above!</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {history.map((snapshot) => (
-                    <div key={snapshot.id} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="text-sm font-semibold text-gray-700">Week of {snapshot.week_start}</p>
-                          <p className="text-xs text-gray-400">Saved {new Date(snapshot.created_at).toLocaleDateString()}</p>
-                        </div>
-                        <p className="text-sm font-bold text-[#2D6A4F]">R{snapshot.estimated_total.toFixed(2)}</p>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                        <div>
-                          <p className="text-gray-400">Infrastructure</p>
-                          <p className="font-semibold text-gray-700">R{snapshot.infrastructure_total.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Production</p>
-                          <p className="font-semibold text-gray-700">R{snapshot.production_total.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Actual Income</p>
-                          <p className="font-semibold text-green-600">R{snapshot.actual_income.toFixed(2)}</p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Actual Expenses</p>
-                          <p className="font-semibold text-red-500">R{snapshot.actual_expenses.toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          {estimatedTotal > 0 && actualIncome > 0 && (
+            <div className={`p-3 rounded-lg ${actualIncome >= estimatedTotal ? 'bg-green-100' : 'bg-red-100'}`}>
+              <p className={`text-sm font-medium text-center ${actualIncome >= estimatedTotal ? 'text-green-700' : 'text-red-700'}`}>
+                {actualIncome >= estimatedTotal
+                  ? `✅ Income (R${actualIncome.toFixed(0)}) covers estimated costs (R${estimatedTotal.toFixed(0)})`
+                  : `⚠️ Income (R${actualIncome.toFixed(0)}) is below estimated costs (R${estimatedTotal.toFixed(0)}) — shortfall of R${(estimatedTotal - actualIncome).toFixed(0)}`
+                }
+              </p>
+            </div>
+          )}
+
+          {saveMessage && (
+            <p className={`text-sm text-center font-medium ${saveMessage.includes('✅') ? 'text-green-700' : 'text-red-600'}`}>
+              {saveMessage}
+            </p>
+          )}
+
+          <Button
+            className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+            onClick={handleSave}
+            disabled={saving || estimatedTotal === 0}
+          >
+            <Save size={16} className="mr-2" />
+            {saving ? 'Saving...' : 'Save This Week\'s Estimate'}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
