@@ -26,11 +26,12 @@ type Supplier = {
   id: string
   name: string
   category: string
-  contactPerson: string
+  contact_person: string
   phone: string
   email: string
   address: string
   notes: string
+  user_id: string
 }
 
 const CATEGORIES = [
@@ -65,8 +66,8 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [open, setOpen] = useState(false)
   const [filterCategory, setFilterCategory] = useState('All')
-  const [loading, setLoading] = useState(false);
-
+  const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
 
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
@@ -76,9 +77,7 @@ export default function SuppliersPage() {
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
 
-  useEffect(() => {
-  fetchSuppliers();
-}, []);
+  const supabase = createClient()
 
   const filtered =
     filterCategory === 'All'
@@ -86,70 +85,74 @@ export default function SuppliersPage() {
       : suppliers.filter((s) => s.category === filterCategory)
 
   async function fetchSuppliers() {
-  const supabase = createClient();
+    setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    const { data, error } = await supabase
+      .from("suppliers")
+      .select("*")
+      .eq('user_id', user?.id)
+      .order("created_at", { ascending: false })
 
-  const { data, error } = await supabase
-    .from("suppliers")
-    .select("*")
-    .order("created_at", { ascending: false });
+    if (error) {
+      console.error(error)
+      setFetching(false)
+      return
+    }
 
-  if (error) {
-    console.error(error);
-    return;
+    setSuppliers(data || [])
+    setFetching(false)
   }
 
-  const suppliers = (data || []).map((supplier) => ({
-    id: supplier.id,
-    name: supplier.name,
-    category: supplier.category,
-    contactPerson: supplier.contact_person,
-    phone: supplier.phone,
-    email: supplier.email,
-    address: supplier.address,
-    notes: supplier.notes,
-  }));
-
-  setSuppliers(suppliers);
-}
+  useEffect(() => {
+    fetchSuppliers()
+  }, [])
 
   async function handleAdd() {
-  if (!name || !category) return
-  setLoading(true)
-  console.log('Saving supplier...')
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('suppliers')
-    .insert([{ name, category, contact_person: contactPerson, phone, email, address, notes }])
-    .select()
-    .single()
-  console.log('Supplier data:', data)
-  console.log('Supplier error:', error)
-  if (!error && data) {
-    setSuppliers((prev) => [data, ...prev])
-    setName('') 
-    setCategory('') 
-    setContactPerson('') 
-    setPhone('')
-    setEmail('') 
-    setAddress('') 
-    setNotes('')
-    setOpen(false)
+    if (!name || !category) return
+    setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { data, error } = await supabase
+      .from('suppliers')
+      .insert([{ 
+        name, 
+        category, 
+        contact_person: contactPerson, 
+        phone, 
+        email, 
+        address, 
+        notes,
+        user_id: user?.id 
+      }])
+      .select()
+      .single()
+
+    if (!error && data) {
+      setSuppliers((prev) => [data, ...prev])
+      setName('') 
+      setCategory('') 
+      setContactPerson('') 
+      setPhone('')
+      setEmail('') 
+      setAddress('') 
+      setNotes('')
+      setOpen(false)
+    }
+    setLoading(false)
   }
-  setLoading(false)
-}
 
   async function handleDelete(id: string) {
-  const supabase = createClient();
+    const { error } = await supabase
+      .from("suppliers")
+      .delete()
+      .eq("id", id)
 
-  const { error } = await supabase
-    .from("suppliers")
-    .delete()
-    .eq("id", id);
-
-  if (!error) {
-    fetchSuppliers();
+    if (!error) {
+      setSuppliers((prev) => prev.filter((s) => s.id !== id))
+    }
   }
-}
 
   return (
     <div className="space-y-6">
@@ -245,9 +248,9 @@ export default function SuppliersPage() {
               <Button
                 className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                 onClick={handleAdd}
-                disabled={!name || !category}
+                disabled={!name || !category || loading}
               >
-                Save Supplier
+                {loading ? 'Saving...' : 'Save Supplier'}
               </Button>
             </div>
           </DialogContent>
@@ -274,7 +277,13 @@ export default function SuppliersPage() {
       )}
 
       {/* Suppliers list */}
-      {suppliers.length === 0 ? (
+      {fetching ? (
+        <Card className="shadow-sm">
+          <CardContent className="flex items-center justify-center py-16 text-gray-400">
+            <p className="text-sm">Loading suppliers...</p>
+          </CardContent>
+        </Card>
+      ) : suppliers.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Building2 size={40} className="mb-3 opacity-30" />
@@ -300,8 +309,8 @@ export default function SuppliersPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-800">{supplier.name}</p>
-                      {supplier.contactPerson && (
-                        <p className="text-xs text-gray-400">{supplier.contactPerson}</p>
+                      {supplier.contact_person && (
+                        <p className="text-xs text-gray-400">{supplier.contact_person}</p>
                       )}
                     </div>
                   </div>
@@ -345,4 +354,3 @@ export default function SuppliersPage() {
     </div>
   )
 }
-

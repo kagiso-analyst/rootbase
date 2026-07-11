@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, CheckSquare, Trash2, Calendar, Flag } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,9 +33,10 @@ type Task = {
   description: string
   priority: Priority
   status: Status
-  dueDate: string
+  due_date: string
   category: string
-  createdAt: string
+  created_at: string
+  user_id: string
 }
 
 const PRIORITY_STYLES: Record<Priority, string> = {
@@ -81,35 +82,51 @@ export default function TasksPage() {
   const [dueDate, setDueDate] = useState('')
   const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
 
   const supabase = createClient()
 
   const todoTasks = tasks.filter(t => t.status === 'todo')
   const doneTasks = tasks.filter(t => t.status === 'done')
-  const overdueTasks = todoTasks.filter(t => t.dueDate && isOverdue(t.dueDate, t.status))
+  const overdueTasks = todoTasks.filter(t => t.due_date && isOverdue(t.due_date, t.status))
   const urgentCount = todoTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length
 
   async function fetchTasks() {
-  setFetching(true)
-  const { data, error } = await supabase
-    .from('tasks')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (!error && data) setTasks(data)
-  setFetching(false)
-}
+    setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false })
+    if (!error && data) setTasks(data)
+    setFetching(false)
+  }
+
+  useEffect(() => {
+    fetchTasks()
+  }, [])
 
   async function handleAdd() {
     if (!title) return
     setLoading(true)
-    console.log('Saving to Supabase...')
+
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('tasks')
-      .insert([{ title, description, priority, status: 'todo', due_date: dueDate || null, category }])
+      .insert([{ 
+        title, 
+        description, 
+        priority, 
+        status: 'todo', 
+        due_date: dueDate || null, 
+        category,
+        user_id: user?.id 
+      }])
       .select()
       .single()
-    console.log('Data:', data)
-    console.log('Error:', error)
+
     if (!error && data) {
       setTasks((prev) => [data as Task, ...prev])
       setTitle('')
@@ -122,22 +139,41 @@ export default function TasksPage() {
     setLoading(false)
   }
 
-  function toggleDone(id: string) {
-    setTasks(prev =>
-      prev.map(t =>
-        t.id === id
-          ? { ...t, status: t.status === 'done' ? 'todo' : 'done' }
-          : t
+  async function toggleDone(id: string) {
+    const task = tasks.find(t => t.id === id)
+    if (!task) return
+
+    const newStatus = task.status === 'done' ? 'todo' : 'done'
+    
+    const { error } = await supabase
+      .from('tasks')
+      .update({ status: newStatus })
+      .eq('id', id)
+
+    if (!error) {
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === id
+            ? { ...t, status: newStatus }
+            : t
+        )
       )
-    )
+    }
   }
 
-  function handleDelete(id: string) {
-    setTasks(prev => prev.filter(t => t.id !== id))
+  async function handleDelete(id: string) {
+    const { error } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', id)
+    
+    if (!error) {
+      setTasks(prev => prev.filter(t => t.id !== id))
+    }
   }
 
   function TaskCard({ task }: { task: Task }) {
-    const overdue = task.dueDate && isOverdue(task.dueDate, task.status)
+    const overdue = task.due_date && isOverdue(task.due_date, task.status)
 
     return (
       <div className={`flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors
@@ -167,11 +203,11 @@ export default function TasksPage() {
             {task.category && (
               <span className="text-xs text-gray-400">{task.category}</span>
             )}
-            {task.dueDate && (
+            {task.due_date && (
               <span className={`flex items-center gap-1 text-xs
                 ${overdue ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
                 <Calendar size={11} />
-                {overdue ? 'Overdue · ' : ''}{task.dueDate}
+                {overdue ? 'Overdue · ' : ''}{task.due_date}
               </span>
             )}
           </div>
@@ -284,9 +320,9 @@ export default function TasksPage() {
               <Button
                 className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                 onClick={handleAdd}
-                disabled={!title}
+                disabled={!title || loading}
               >
-                Save Task
+                {loading ? 'Saving...' : 'Save Task'}
               </Button>
             </div>
           </DialogContent>
@@ -379,8 +415,4 @@ export default function TasksPage() {
       </Tabs>
     </div>
   )
-}
-
-function setFetching(arg0: boolean) {
-  throw new Error('Function not implemented.')
 }

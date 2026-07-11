@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, PawPrint, Trash2, Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,31 +21,34 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { createClient } from '@/lib/supabase/client'
 
 type LivestockStatus = 'active' | 'sold' | 'deceased' | 'culled'
 
 type Animal = {
   id: string
-  tagNumber: string
+  tag_number: string
   species: string
   breed: string
   sex: string
-  dateOfBirth: string
-  purchaseDate: string
-  purchasePrice: number
-  currentWeightKg: number
+  date_of_birth: string
+  purchase_date: string
+  purchase_price: number
+  current_weight_kg: number
   status: LivestockStatus
   notes: string
+  user_id: string
 }
 
 type HealthEvent = {
   id: string
-  animalId: string
-  animalTag: string
-  eventType: string
+  animal_id: string
+  animal_tag: string
+  event_type: string
   description: string
   product: string
   date: string
+  user_id: string
 }
 
 const SPECIES = [
@@ -76,6 +79,8 @@ export default function LivestockPage() {
   const [healthEvents, setHealthEvents] = useState<HealthEvent[]>([])
   const [animalOpen, setAnimalOpen] = useState(false)
   const [healthOpen, setHealthOpen] = useState(false)
+  const [fetching, setFetching] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   // Animal form
   const [tagNumber, setTagNumber] = useState('')
@@ -96,60 +101,123 @@ export default function LivestockPage() {
   const [eventProduct, setEventProduct] = useState('')
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0])
 
+  const supabase = createClient()
+
   const activeAnimals = animals.filter((a) => a.status === 'active')
 
-  function handleAddAnimal() {
+  async function fetchAnimals() {
+    setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    const { data, error } = await supabase
+      .from('livestock')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('created_at', { ascending: false })
+    
+    if (!error && data) setAnimals(data)
+    setFetching(false)
+  }
+
+  async function fetchHealthEvents() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('health_events')
+      .select('*')
+      .eq('user_id', user?.id)
+      .order('date', { ascending: false })
+    
+    if (!error && data) setHealthEvents(data)
+  }
+
+  useEffect(() => {
+    fetchAnimals()
+    fetchHealthEvents()
+  }, [])
+
+  async function handleAddAnimal() {
     if (!species) return
-    const newAnimal: Animal = {
-      id: crypto.randomUUID(),
-      tagNumber,
-      species,
-      breed,
-      sex,
-      dateOfBirth,
-      purchaseDate,
-      purchasePrice: parseFloat(purchasePrice) || 0,
-      currentWeightKg: parseFloat(currentWeightKg) || 0,
-      status,
-      notes,
+    setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const { data, error } = await supabase
+      .from('livestock')
+      .insert([{
+        tag_number: tagNumber,
+        species,
+        breed,
+        sex,
+        date_of_birth: dateOfBirth || null,
+        purchase_date: purchaseDate || null,
+        purchase_price: parseFloat(purchasePrice) || 0,
+        current_weight_kg: parseFloat(currentWeightKg) || 0,
+        status,
+        notes: notes || null,
+        user_id: user?.id
+      }])
+      .select()
+      .single()
+
+    if (!error && data) {
+      setAnimals((prev) => [data, ...prev])
+      setTagNumber('')
+      setSpecies('')
+      setBreed('')
+      setSex('')
+      setDateOfBirth('')
+      setPurchaseDate('')
+      setPurchasePrice('')
+      setCurrentWeightKg('')
+      setStatus('active')
+      setNotes('')
+      setAnimalOpen(false)
     }
-    setAnimals((prev) => [newAnimal, ...prev])
-    setTagNumber('')
-    setSpecies('')
-    setBreed('')
-    setSex('')
-    setDateOfBirth('')
-    setPurchaseDate('')
-    setPurchasePrice('')
-    setCurrentWeightKg('')
-    setStatus('active')
-    setNotes('')
-    setAnimalOpen(false)
+    setLoading(false)
   }
 
-  function handleAddHealthEvent() {
+  async function handleAddHealthEvent() {
     if (!selectedAnimalId || !eventType || !eventDescription) return
+    setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
     const animal = animals.find((a) => a.id === selectedAnimalId)
-    const newEvent: HealthEvent = {
-      id: crypto.randomUUID(),
-      animalId: selectedAnimalId,
-      animalTag: animal?.tagNumber || animal?.species || 'Unknown',
-      eventType,
-      description: eventDescription,
-      product: eventProduct,
-      date: eventDate,
+
+    const { data, error } = await supabase
+      .from('health_events')
+      .insert([{
+        animal_id: selectedAnimalId,
+        animal_tag: animal?.tag_number || animal?.species || 'Unknown',
+        event_type: eventType,
+        description: eventDescription,
+        product: eventProduct || null,
+        date: eventDate,
+        user_id: user?.id
+      }])
+      .select()
+      .single()
+
+    if (!error && data) {
+      setHealthEvents((prev) => [data, ...prev])
+      setSelectedAnimalId('')
+      setEventType('')
+      setEventDescription('')
+      setEventProduct('')
+      setEventDate(new Date().toISOString().split('T')[0])
+      setHealthOpen(false)
     }
-    setHealthEvents((prev) => [newEvent, ...prev])
-    setSelectedAnimalId('')
-    setEventType('')
-    setEventDescription('')
-    setEventProduct('')
-    setEventDate(new Date().toISOString().split('T')[0])
-    setHealthOpen(false)
+    setLoading(false)
   }
 
-  function handleDeleteAnimal(id: string) {
-    setAnimals((prev) => prev.filter((a) => a.id !== id))
+  async function handleDeleteAnimal(id: string) {
+    const { error } = await supabase
+      .from('livestock')
+      .delete()
+      .eq('id', id)
+    
+    if (!error) {
+      setAnimals((prev) => prev.filter((a) => a.id !== id))
+    }
   }
 
   const speciesGroups = animals.reduce((groups, animal) => {
@@ -188,7 +256,7 @@ export default function LivestockPage() {
                     <SelectContent>
                       {animals.filter(a => a.status === 'active').map((a) => (
                         <SelectItem key={a.id} value={a.id}>
-                          {a.tagNumber ? `${a.tagNumber} — ` : ''}{a.species} {a.breed}
+                          {a.tag_number ? `${a.tag_number} — ` : ''}{a.species} {a.breed}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -232,9 +300,9 @@ export default function LivestockPage() {
                 <Button
                   className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                   onClick={handleAddHealthEvent}
-                  disabled={!selectedAnimalId || !eventType || !eventDescription}
+                  disabled={!selectedAnimalId || !eventType || !eventDescription || loading}
                 >
-                  Save Health Event
+                  {loading ? 'Saving...' : 'Save Health Event'}
                 </Button>
               </div>
             </DialogContent>
@@ -362,9 +430,9 @@ export default function LivestockPage() {
                 <Button
                   className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                   onClick={handleAddAnimal}
-                  disabled={!species}
+                  disabled={!species || loading}
                 >
-                  Save Animal
+                  {loading ? 'Saving...' : 'Save Animal'}
                 </Button>
               </div>
             </DialogContent>
@@ -397,7 +465,13 @@ export default function LivestockPage() {
         </TabsList>
 
         <TabsContent value="animals" className="mt-4">
-          {animals.length === 0 ? (
+          {fetching ? (
+            <Card className="shadow-sm">
+              <CardContent className="flex items-center justify-center py-16 text-gray-400">
+                <p className="text-sm">Loading animals...</p>
+              </CardContent>
+            </Card>
+          ) : animals.length === 0 ? (
             <Card className="shadow-sm">
               <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
                 <PawPrint size={40} className="mb-3 opacity-30" />
@@ -417,7 +491,7 @@ export default function LivestockPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-gray-800">
-                            {animal.tagNumber ? `${animal.tagNumber} — ` : ''}{animal.species}
+                            {animal.tag_number ? `${animal.tag_number} — ` : ''}{animal.species}
                             {animal.breed ? ` (${animal.breed})` : ''}
                           </p>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -425,15 +499,15 @@ export default function LivestockPage() {
                               {animal.status}
                             </Badge>
                             {animal.sex && <span className="text-xs text-gray-400">{animal.sex}</span>}
-                            {animal.currentWeightKg > 0 && (
-                              <span className="text-xs text-gray-400">{animal.currentWeightKg}kg</span>
+                            {animal.current_weight_kg > 0 && (
+                              <span className="text-xs text-gray-400">{animal.current_weight_kg}kg</span>
                             )}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        {animal.purchasePrice > 0 && (
-                          <span className="text-sm text-gray-500">R{animal.purchasePrice.toFixed(0)}</span>
+                        {animal.purchase_price > 0 && (
+                          <span className="text-sm text-gray-500">R{animal.purchase_price.toFixed(0)}</span>
                         )}
                         <button
                           onClick={() => handleDeleteAnimal(animal.id)}
@@ -471,8 +545,8 @@ export default function LivestockPage() {
                       <div>
                         <p className="text-sm font-medium text-gray-800">{event.description}</p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <Badge className="text-xs bg-gray-100 text-gray-600">{event.eventType}</Badge>
-                          <span className="text-xs text-gray-400">{event.animalTag}</span>
+                          <Badge className="text-xs bg-gray-100 text-gray-600">{event.event_type}</Badge>
+                          <span className="text-xs text-gray-400">{event.animal_tag}</span>
                           {event.product && <span className="text-xs text-gray-400">· {event.product}</span>}
                           <span className="text-xs text-gray-400">· {event.date}</span>
                         </div>

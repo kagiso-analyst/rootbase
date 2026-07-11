@@ -34,6 +34,7 @@ type Income = {
   date: string
   buyer_name: string
   created_at: string
+  user_id: string
 }
 
 export default function IncomePage() {
@@ -51,9 +52,11 @@ export default function IncomePage() {
 
   async function fetchIncome() {
     setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase
       .from('income')
       .select('*')
+      .eq('user_id', user?.id)
       .order('date', { ascending: false })
 
     if (!error && data) setIncomes(data)
@@ -64,11 +67,14 @@ export default function IncomePage() {
     fetchIncome()
   }, [])
 
+  // Calculate total - MOVE THIS BEFORE THE RETURN STATEMENT
   const total = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
 
   async function handleAdd() {
     if (!category || !description || !amount || !date) return
     setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
 
     const { data, error } = await supabase
       .from('income')
@@ -78,6 +84,7 @@ export default function IncomePage() {
         amount: parseFloat(amount),
         date,
         buyer_name: buyerName,
+        user_id: user?.id
       }])
       .select()
       .single()

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Wrench, Trash2, AlertTriangle, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -37,6 +37,7 @@ type Equipment = {
   nextServiceHours: number
   insuranceExpiry: string
   notes: string
+  user_id: string
 }
 
 type MaintenanceLog = {
@@ -48,6 +49,7 @@ type MaintenanceLog = {
   cost: number
   date: string
   hoursAtService: number
+  user_id: string
 }
 
 const CATEGORIES = [
@@ -96,6 +98,7 @@ export default function EquipmentPage() {
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([])
   const [equipOpen, setEquipOpen] = useState(false)
   const [serviceOpen, setServiceOpen] = useState(false)
+  const [fetching, setFetching] = useState(true)
 
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
@@ -122,10 +125,52 @@ export default function EquipmentPage() {
   const dueSoon = equipment.filter(isServiceDue)
   const supabase = createClient()
 
+  // Fetch equipment with user_id filter
+  async function fetchEquipment() {
+    setFetching(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+      if (error) console.error('Equipment fetch error:', error)
+      if (data) setEquipment(data)
+    } catch (err) {
+      console.error('Equipment fetch crash:', err)
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  // Fetch maintenance logs with user_id filter
+  async function fetchMaintenanceLogs() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('maintenance_logs')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('date', { ascending: false })
+      if (error) console.error('Maintenance logs fetch error:', error)
+      if (data) setMaintenanceLogs(data)
+    } catch (err) {
+      console.error('Maintenance logs fetch crash:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchEquipment()
+    fetchMaintenanceLogs()
+  }, [])
+
   async function handleAddEquipment() {
     if (!name || !category) return
     setLoading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
       const { data, error } = await supabase
         .from('equipment')
         .insert([{
@@ -142,6 +187,7 @@ export default function EquipmentPage() {
           next_service_hours: parseFloat(nextServiceHours) || 0,
           insurance_expiry: insuranceExpiry || null,
           notes: notes || null,
+          user_id: user?.id
         }])
         .select()
         .single()
@@ -171,31 +217,82 @@ export default function EquipmentPage() {
     }
   }
 
-  function handleAddService() {
+  async function handleAddService() {
     if (!selectedEquipId || !serviceType || !serviceDesc) return
+    
     const equip = equipment.find((e) => e.id === selectedEquipId)
-    const newLog: MaintenanceLog = {
-      id: crypto.randomUUID(),
-      equipmentId: selectedEquipId,
-      equipmentName: equip?.name || 'Unknown',
-      serviceType,
-      description: serviceDesc,
-      cost: parseFloat(serviceCost) || 0,
-      date: serviceDate,
-      hoursAtService: parseFloat(serviceHours) || 0,
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      const { data, error } = await supabase
+        .from('maintenance_logs')
+        .insert([{
+          equipment_id: selectedEquipId,
+          equipment_name: equip?.name || 'Unknown',
+          service_type: serviceType,
+          description: serviceDesc,
+          cost: parseFloat(serviceCost) || 0,
+          date: serviceDate,
+          hours_at_service: parseFloat(serviceHours) || 0,
+          user_id: user?.id
+        }])
+        .select()
+        .single()
+      
+      if (error) {
+        console.error('Maintenance log insert error:', error)
+      } else if (data) {
+        setMaintenanceLogs((prev) => [data, ...prev])
+        setSelectedEquipId('')
+        setServiceType('')
+        setServiceDesc('')
+        setServiceCost('')
+        setServiceHours('')
+        setServiceDate(new Date().toISOString().split('T')[0])
+        setServiceOpen(false)
+      }
+    } catch (err) {
+      console.error('Maintenance log crash:', err)
     }
-    setMaintenanceLogs((prev) => [newLog, ...prev])
-    setSelectedEquipId('')
-    setServiceType('')
-    setServiceDesc('')
-    setServiceCost('')
-    setServiceHours('')
-    setServiceDate(new Date().toISOString().split('T')[0])
-    setServiceOpen(false)
   }
 
-  function handleDelete(id: string) {
-    setEquipment((prev) => prev.filter((e) => e.id !== id))
+  async function handleDelete(id: string) {
+    try {
+      const { error } = await supabase
+        .from('equipment')
+        .delete()
+        .eq('id', id)
+      if (error) {
+        console.error('Delete error:', error)
+      } else {
+        setEquipment((prev) => prev.filter((e) => e.id !== id))
+        // Also delete associated maintenance logs
+        const { error: logError } = await supabase
+          .from('maintenance_logs')
+          .delete()
+          .eq('equipment_id', id)
+        if (!logError) {
+          setMaintenanceLogs((prev) => prev.filter((log) => log.equipmentId !== id))
+        }
+      }
+    } catch (err) {
+      console.error('Delete crash:', err)
+    }
+  }
+
+  async function handleDeleteLog(id: string) {
+    try {
+      const { error } = await supabase
+        .from('maintenance_logs')
+        .delete()
+        .eq('id', id)
+      if (!error) {
+        setMaintenanceLogs((prev) => prev.filter((log) => log.id !== id))
+      }
+    } catch (err) {
+      console.error('Delete log crash:', err)
+    }
   }
 
   const totalValue = equipment.reduce((sum, e) => sum + (parseFloat(String(e.purchasePrice)) || 0), 0)
@@ -287,9 +384,9 @@ export default function EquipmentPage() {
                 <Button
                   className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                   onClick={handleAddService}
-                  disabled={!selectedEquipId || !serviceType || !serviceDesc}
+                  disabled={!selectedEquipId || !serviceType || !serviceDesc || loading}
                 >
-                  Save Service Log
+                  {loading ? 'Saving...' : 'Save Service Log'}
                 </Button>
               </div>
             </DialogContent>
@@ -395,9 +492,9 @@ export default function EquipmentPage() {
                 <Button
                   className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                   onClick={handleAddEquipment}
-                  disabled={!name || !category}
+                  disabled={!name || !category || loading}
                 >
-                  Save Equipment
+                  {loading ? 'Saving...' : 'Save Equipment'}
                 </Button>
               </div>
             </DialogContent>
@@ -441,7 +538,13 @@ export default function EquipmentPage() {
         </Card>
       )}
 
-      {equipment.length === 0 ? (
+      {fetching ? (
+        <Card className="shadow-sm">
+          <CardContent className="flex items-center justify-center py-16 text-gray-400">
+            <p className="text-sm">Loading equipment...</p>
+          </CardContent>
+        </Card>
+      ) : equipment.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Wrench size={40} className="mb-3 opacity-30" />
@@ -523,7 +626,7 @@ export default function EquipmentPage() {
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100">
                   {maintenanceLogs.map((log) => (
-                    <div key={log.id} className="flex items-start gap-4 px-6 py-4">
+                    <div key={log.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50">
                       <div className="w-8 h-8 rounded-full bg-[#D8F3DC] flex items-center justify-center flex-shrink-0">
                         <Wrench size={14} className="text-[#2D6A4F]" />
                       </div>
@@ -538,11 +641,19 @@ export default function EquipmentPage() {
                           )}
                         </div>
                       </div>
-                      {log.cost > 0 && (
-                        <span className="text-sm font-medium text-red-500">
-                          R{log.cost.toFixed(0)}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-3">
+                        {log.cost > 0 && (
+                          <span className="text-sm font-medium text-red-500">
+                            R{log.cost.toFixed(0)}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleDeleteLog(log.id)}
+                          className="text-gray-300 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

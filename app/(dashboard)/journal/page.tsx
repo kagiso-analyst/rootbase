@@ -38,13 +38,14 @@ type JournalEntry = {
   id: string
   title: string
   content: string
-  entryType: EntryType
-  fieldName: string
-  cropName: string
-  weatherConditions: string
+  entry_type: EntryType
+  field_name: string
+  crop_name: string
+  weather_conditions: string
   tags: string[]
-  entryDate: string
-  createdAt: string
+  entry_date: string
+  created_at: string
+  user_id: string
 }
 
 const ENTRY_TYPE_COLOURS: Record<EntryType, string> = {
@@ -84,7 +85,7 @@ function formatDate(dateStr: string): string {
 
 function groupByDate(entries: JournalEntry[]): Record<string, JournalEntry[]> {
   return entries.reduce((groups, entry) => {
-    const date = entry.entryDate
+    const date = entry.entry_date
     if (!groups[date]) groups[date] = []
     groups[date].push(entry)
     return groups
@@ -96,6 +97,7 @@ export default function JournalPage() {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [fetching, setFetching] = useState(true)
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -108,15 +110,17 @@ export default function JournalPage() {
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().split('T')[0]
   )
-  const [fetching, setFetching] = useState(false)
+  
   const supabase = createClient()
 
   async function fetchEntries() {
     try {
       setFetching(true)
+      const { data: { user } } = await supabase.auth.getUser()
       const { data, error } = await supabase
         .from('journal_entries')
         .select('*')
+        .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
       if (error) console.error('Journal fetch error:', error)
       if (data) setEntries(data)
@@ -147,6 +151,8 @@ export default function JournalPage() {
     if (!content) return
     setLoading(true)
     try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
       const { data, error } = await supabase
         .from('journal_entries')
         .insert([{
@@ -158,6 +164,7 @@ export default function JournalPage() {
           weather_conditions: weatherConditions || null,
           tags,
           entry_date: entryDate,
+          user_id: user?.id
         }])
         .select()
         .single()
@@ -185,7 +192,10 @@ export default function JournalPage() {
 
   async function handleDelete(id: string) {
     try {
-      const { error } = await supabase.from('journal_entries').delete().eq('id', id)
+      const { error } = await supabase
+        .from('journal_entries')
+        .delete()
+        .eq('id', id)
       if (error) console.error('Delete error:', error)
       else setEntries((prev) => prev.filter((e) => e.id !== id))
     } catch (err) {
@@ -198,8 +208,8 @@ export default function JournalPage() {
     return (
       e.content.toLowerCase().includes(q) ||
       e.title.toLowerCase().includes(q) ||
-      e.fieldName.toLowerCase().includes(q) ||
-      e.cropName.toLowerCase().includes(q) ||
+      e.field_name.toLowerCase().includes(q) ||
+      e.crop_name.toLowerCase().includes(q) ||
       e.tags.some((t) => t.toLowerCase().includes(q))
     )
   })
@@ -207,7 +217,7 @@ export default function JournalPage() {
   const grouped = groupByDate(
     [...filtered].sort(
       (a, b) =>
-        new Date(b.entryDate).getTime() - new Date(a.entryDate).getTime()
+        new Date(b.entry_date).getTime() - new Date(a.entry_date).getTime()
     )
   )
 
@@ -387,12 +397,12 @@ export default function JournalPage() {
               </div>
 
               <Button
-  className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-  onClick={handleAdd}
-  disabled={!content || loading}
->
-  {loading ? 'Saving...' : 'Save Entry'}
-</Button>
+                className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+                onClick={handleAdd}
+                disabled={!content || loading}
+              >
+                {loading ? 'Saving...' : 'Save Entry'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -413,7 +423,13 @@ export default function JournalPage() {
         </div>
       )}
 
-      {entries.length === 0 ? (
+      {fetching ? (
+        <Card className="shadow-sm">
+          <CardContent className="flex items-center justify-center py-16 text-gray-400">
+            <p className="text-sm">Loading journal entries...</p>
+          </CardContent>
+        </Card>
+      ) : entries.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <BookOpen size={40} className="mb-3 opacity-30" />
@@ -452,13 +468,13 @@ export default function JournalPage() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <Badge
-                            className={`text-xs ${ENTRY_TYPE_COLOURS[entry.entryType]}`}
+                            className={`text-xs ${ENTRY_TYPE_COLOURS[entry.entry_type]}`}
                           >
-                            {entry.entryType}
+                            {entry.entry_type}
                           </Badge>
-                          {entry.weatherConditions && (
+                          {entry.weather_conditions && (
                             <span className="text-xs text-gray-400">
-                              {entry.weatherConditions}
+                              {entry.weather_conditions}
                             </span>
                           )}
                         </div>
@@ -480,16 +496,16 @@ export default function JournalPage() {
                         {entry.content}
                       </p>
 
-                      {(entry.fieldName || entry.cropName) && (
+                      {(entry.field_name || entry.crop_name) && (
                         <div className="flex items-center gap-3">
-                          {entry.fieldName && (
+                          {entry.field_name && (
                             <span className="flex items-center gap-1 text-xs text-gray-400">
-                              <MapPin size={11} /> {entry.fieldName}
+                              <MapPin size={11} /> {entry.field_name}
                             </span>
                           )}
-                          {entry.cropName && (
+                          {entry.crop_name && (
                             <span className="flex items-center gap-1 text-xs text-gray-400">
-                              <Leaf size={11} /> {entry.cropName}
+                              <Leaf size={11} /> {entry.crop_name}
                             </span>
                           )}
                         </div>

@@ -25,6 +25,7 @@ type InventoryItem = {
   unit_cost: number
   storage_location: string
   expiry_date: string
+  user_id: string
 }
 
 const CATEGORIES = [
@@ -54,9 +55,11 @@ export default function InventoryPage() {
 
   async function fetchItems() {
     setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase
       .from('inventory_items')
       .select('*')
+      .eq('user_id', user?.id)
       .order('created_at', { ascending: false })
     if (!error && data) setItems(data)
     setFetching(false)
@@ -75,15 +78,21 @@ export default function InventoryPage() {
   async function handleAdd() {
     if (!name || !category || !unit) return
     setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('inventory_items')
       .insert([{
-        name, category, unit,
+        name, 
+        category, 
+        unit,
         current_quantity: parseFloat(currentQuantity) || 0,
         reorder_level: parseFloat(reorderLevel) || 0,
         unit_cost: parseFloat(unitCost) || 0,
         storage_location: storageLocation,
         expiry_date: expiryDate || null,
+        user_id: user?.id
       }])
       .select()
       .single()
@@ -296,4 +305,3 @@ export default function InventoryPage() {
     </div>
   )
 }
-      

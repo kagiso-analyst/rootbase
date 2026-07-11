@@ -34,6 +34,7 @@ type Expense = {
   amount: number
   date: string
   created_at: string
+  user_id: string
 }
 
 export default function ExpensesPage() {
@@ -50,9 +51,11 @@ export default function ExpensesPage() {
 
   async function fetchExpenses() {
     setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
+      .eq('user_id', user?.id)
       .order('date', { ascending: false })
 
     if (!error && data) setExpenses(data)
@@ -63,15 +66,24 @@ export default function ExpensesPage() {
     fetchExpenses()
   }, [])
 
+  // Calculate total - MOVE THIS BEFORE THE RETURN STATEMENT
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
   async function handleAdd() {
     if (!category || !description || !amount || !date) return
     setLoading(true)
 
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { data, error } = await supabase
       .from('expenses')
-      .insert([{ category, description, amount: parseFloat(amount), date }])
+      .insert([{ 
+        category, 
+        description, 
+        amount: parseFloat(amount), 
+        date,
+        user_id: user?.id 
+      }])
       .select()
       .single()
 

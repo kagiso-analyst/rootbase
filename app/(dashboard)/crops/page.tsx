@@ -77,52 +77,55 @@ export default function CropsPage() {
   const supabase = createClient()
 
   async function fetchCrops() {
-    setFetching(true)
-    const { data, error } = await supabase
-      .from('crops')
-      .select('*')
-      .order('created_at', { ascending: false })
-    if (!error && data) setCrops(data)
-    setFetching(false)
-  }
-
-  useEffect(() => { fetchCrops() }, [])
+  setFetching(true)
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase
+    .from('crops')
+    .select('*')
+    .eq('user_id', user?.id)
+    .order('created_at', { ascending: false })
+  if (!error && data) setCrops(data)
+  setFetching(false)
+}
 
   async function handleAdd() {
-    if (!cropName || !plantingDate || !expectedHarvestDate) return
-    setLoading(true)
+  if (!cropName || !plantingDate || !expectedHarvestDate) return
+  setLoading(true)
 
-    const { data, error } = await supabase
-      .from('crops')
-      .insert([{
-        crop_name: cropName,
-        variety,
-        field_name: fieldName,
-        season,
-        planting_date: plantingDate,
-        expected_harvest_date: expectedHarvestDate,
-        area_planted_ha: parseFloat(areaPlantedHa) || 0,
-        status,
-        notes,
-      }])
-      .select()
-      .single()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  const { data, error } = await supabase
+    .from('crops')
+    .insert([{
+      crop_name: cropName,
+      variety,
+      field_name: fieldName,
+      season,
+      planting_date: plantingDate,
+      expected_harvest_date: expectedHarvestDate,
+      area_planted_ha: parseFloat(areaPlantedHa) || 0,
+      status,
+      notes,
+      user_id: user?.id
+    }])
+    .select()
+    .single()
 
-    if (!error && data) {
-      setCrops((prev) => [data, ...prev])
-      setCropName('')
-      setVariety('')
-      setFieldName('')
-      setSeason('')
-      setPlantingDate('')
-      setExpectedHarvestDate('')
-      setAreaPlantedHa('')
-      setStatus('active')
-      setNotes('')
-      setOpen(false)
-    }
-    setLoading(false)
+  if (!error && data) {
+    setCrops((prev) => [data, ...prev])
+    setCropName('')
+    setVariety('')
+    setFieldName('')
+    setSeason('')
+    setPlantingDate('')
+    setExpectedHarvestDate('')
+    setAreaPlantedHa('')
+    setStatus('active')
+    setNotes('')
+    setOpen(false)
   }
+  setLoading(false)
+}
 
   const activeCrops = crops.filter((c) => c.status === 'active').length
   const plannedCrops = crops.filter((c) => c.status === 'planned').length
