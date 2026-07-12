@@ -50,17 +50,16 @@ export default function ExpensesPage() {
   const supabase = createClient()
 
   async function fetchExpenses() {
-    setFetching(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('date', { ascending: false })
-
-    if (!error && data) setExpenses(data)
-    setFetching(false)
-  }
+  setFetching(true)
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('user_id', user?.id)
+    .order('date', { ascending: false })
+  if (!error && data) setExpenses(data)
+  setFetching(false)
+}
 
   useEffect(() => {
     fetchExpenses()

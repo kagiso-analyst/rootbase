@@ -2,6 +2,12 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Leaf } from 'lucide-react'
+import Link from 'next/link'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -12,10 +18,8 @@ export default function LoginPage() {
   async function handleLogin() {
     setLoading(true)
     setError('')
-    console.log('Login clicked')
     const supabase = createClient()
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    console.log('Result:', data, error)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
       setLoading(false)
@@ -25,51 +29,68 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F9FAFB' }}>
-      <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
-        <h1 style={{ textAlign: 'center', color: '#1B4332', fontWeight: 'bold', fontSize: '28px', marginBottom: '8px' }}>RootBase</h1>
-        <p style={{ textAlign: 'center', color: '#6B7280', marginBottom: '24px' }}>Sign in to your farm account</p>
-
-        {error && (
-          <div style={{ background: '#FEF2F2', color: '#DC2626', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px' }}>Email</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@farm.com"
-            style={{ width: '100%', padding: '10px 12px', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
-          />
+    <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-2 mb-6">
+            <div className="w-8 h-8 bg-[#1B4332] rounded-lg flex items-center justify-center">
+              <Leaf size={16} className="text-[#52B788]" />
+            </div>
+            <span className="text-xl font-bold text-[#1B4332]">RootBase</span>
+          </Link>
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '6px' }}>Password</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-            style={{ width: '100%', padding: '10px 12px', border: '1px solid #E5E7EB', borderRadius: '8px', fontSize: '14px', boxSizing: 'border-box' }}
-          />
-        </div>
+        <Card className="shadow-sm border border-gray-200">
+          <CardHeader className="text-center pb-4">
+            <CardTitle className="text-xl font-bold text-[#1B4332]">Welcome back</CardTitle>
+            <CardDescription>Sign in to your farm account</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
+                {error}
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@farm.com"
+                value={email}
+                onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
+                onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            <Button
+              className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              onClick={handleLogin}
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign In'}
+            </Button>
+            <p className="text-center text-sm text-gray-500">
+              Don't have an account?{' '}
+              <Link href="/register" className="text-[#2D6A4F] font-medium hover:underline">
+                Register free
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
 
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          style={{ width: '100%', padding: '12px', background: '#2D6A4F', color: 'white', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}
-        >
-          {loading ? 'Signing in...' : 'Sign In'}
-        </button>
-
-        <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '14px', color: '#6B7280' }}>
-          No account?{' '}
-          <a href="/register" style={{ color: '#2D6A4F', fontWeight: '500' }}>Register</a>
+        <p className="text-center text-xs text-gray-400 mt-6">
+          <Link href="/" className="hover:text-[#2D6A4F]">← Back to RootBase</Link>
         </p>
       </div>
     </div>
