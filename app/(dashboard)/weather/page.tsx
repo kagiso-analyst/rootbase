@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select'
 import {
   fetchWeather, getWeatherEmoji, getFarmingAdvice,
-  SA_CITIES, type WeatherData
+  SA_CITIES, type WeatherData, searchCity
 } from '@/lib/weather'
 
 function formatTime(unix: number): string {
@@ -32,29 +32,24 @@ export default function WeatherPage() {
   const [customSearch, setCustomSearch] = useState('')
 
   async function handleCustomSearch() {
-  if (!customSearch.trim()) return
-  setLoading(true)
-  setError('')
-  const key = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
-  try {
-    const res = await fetch(
-      `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(customSearch)}&limit=1&appid=${key}`
-    )
-    const data = await res.json()
-    if (data && data[0]) {
-      const w = await fetchWeather(data[0].lat, data[0].lon)
-      if (w) {
+    if (!customSearch.trim()) return
+    setLoading(true)
+    setError('')
+    const coords = await searchCity(customSearch)
+    if (coords) {
+      const w = await fetchWeather(coords.lat, coords.lon)
+      if (w) { 
         setWeather(w)
         setLastUpdated(new Date())
+        setSelectedCity(w.city || customSearch)
+      } else {
+        setError('Could not load weather for that location.')
       }
     } else {
-      setError(`City "${customSearch}" not found. Try a different spelling.`)
+      setError(`"${customSearch}" not found. Try a different spelling.`)
     }
-  } catch {
-    setError('Search failed. Check your connection.')
+    setLoading(false)
   }
-  setLoading(false)
-}
 
   async function loadWeatherByGPS() {
     setLoading(true)
@@ -66,6 +61,7 @@ export default function WeatherPage() {
         if (data) {
           setWeather(data)
           setLastUpdated(new Date())
+          setSelectedCity('')
         } else {
           setError('Could not load weather data. Check your API key.')
         }
@@ -155,16 +151,16 @@ export default function WeatherPage() {
         </div>
 
         {/* Custom location search */}
-<div className="flex gap-2 mt-3">
-  <Input
-    placeholder="Type any city name..."
-    value={customSearch}
-    onChange={(e) => setCustomSearch((e.target as HTMLInputElement).value)}
-    onKeyDown={(e) => e.key === 'Enter' && handleCustomSearch()}
-    className="flex-1"
-  />
-  <Button variant="outline" onClick={handleCustomSearch}>Search</Button>
-</div>
+        <div className="flex gap-2 mt-3 w-full">
+          <Input
+            placeholder="Type any city name..."
+            value={customSearch}
+            onChange={(e) => setCustomSearch((e.target as HTMLInputElement).value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCustomSearch()}
+            className="flex-1"
+          />
+          <Button variant="outline" onClick={handleCustomSearch}>Search</Button>
+        </div>
       </div>
 
       {error && (

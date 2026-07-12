@@ -25,21 +25,14 @@ export type ForecastDay = {
 }
 
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherData | null> {
-  const key = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY
-  if (!key) return null
-
   try {
-    const [currentRes, forecastRes] = await Promise.all([
-      fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${key}&units=metric`),
-      fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${key}&units=metric&cnt=40`),
-    ])
+    const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+    const json = await res.json()
+    if (!json.current || json.current.cod !== 200) return null
 
-    const current = await currentRes.json()
-    const forecastData = await forecastRes.json()
+    const current = json.current
+    const forecastData = json.forecast
 
-    if (current.cod !== 200) return null
-
-    // Process 7-day forecast — one entry per day (noon)
     const dailyMap: Record<string, any[]> = {}
     forecastData.list?.forEach((item: any) => {
       const date = item.dt_txt.split(' ')[0]
@@ -52,16 +45,12 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
       .map(([date, items]) => {
         const temps = items.map((i: any) => i.main.temp)
         const noon = items.find((i: any) => i.dt_txt.includes('12:00')) || items[0]
-        const rainItems = items.filter((i: any) => i.pop > 0)
-        const avgRain = rainItems.length > 0
-          ? Math.round((rainItems.reduce((s: number, i: any) => s + i.pop, 0) / rainItems.length) * 100)
+        const avgRain = items.filter((i: any) => i.pop > 0).length > 0
+          ? Math.round((items.reduce((s: number, i: any) => s + i.pop, 0) / items.length) * 100)
           : 0
-
-        const dayName = new Date(date).toLocaleDateString('en-ZA', { weekday: 'short' })
-
         return {
           date,
-          dayName,
+          dayName: new Date(date).toLocaleDateString('en-ZA', { weekday: 'short' }),
           tempMin: Math.round(Math.min(...temps)),
           tempMax: Math.round(Math.max(...temps)),
           description: noon.weather[0].description,
@@ -86,7 +75,18 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
       forecast,
     }
   } catch (err) {
-    console.error('Weather fetch error:', err)
+    console.error('Weather error:', err)
+    return null
+  }
+}
+
+export async function searchCity(query: string): Promise<{ lat: number; lon: number } | null> {
+  try {
+    const res = await fetch(`/api/weather?q=${encodeURIComponent(query)}`)
+    const data = await res.json()
+    if (data && data[0]) return { lat: data[0].lat, lon: data[0].lon }
+    return null
+  } catch {
     return null
   }
 }
