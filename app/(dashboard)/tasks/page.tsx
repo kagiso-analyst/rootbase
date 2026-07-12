@@ -69,9 +69,10 @@ const CATEGORIES = [
 ]
 
 function isOverdue(dueDate: string, status: Status): boolean {
-  if (status === 'done') return false
-  return new Date(dueDate) < new Date()
-}
+     if (status === 'done' || !dueDate) return false
+     const today = new Date().toISOString().split('T')[0]
+     return dueDate < today
+   }
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([])

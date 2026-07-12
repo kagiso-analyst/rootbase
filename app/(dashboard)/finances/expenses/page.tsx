@@ -66,7 +66,6 @@ export default function ExpensesPage() {
     fetchExpenses()
   }, [])
 
-  // Calculate total - MOVE THIS BEFORE THE RETURN STATEMENT
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
   async function handleAdd() {

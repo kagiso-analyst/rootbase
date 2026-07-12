@@ -13,16 +13,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const supabase = createClient()
 
   useEffect(() => {
-    async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.replace('/login')
-      } else {
-        setChecking(false)
-      }
-    }
-    checkAuth()
-  }, [])
+     async function checkAuth() {
+       try {
+         const { data: { user } } = await supabase.auth.getUser()
+         if (!user) {
+           router.replace('/login')
+         } else {
+           setChecking(false)
+         }
+       } catch {
+         router.replace('/login')
+       }
+     }
+     checkAuth()
+   }, [])
 
   if (checking) {
     return (

@@ -67,7 +67,6 @@ export default function IncomePage() {
     fetchIncome()
   }, [])
 
-  // Calculate total - MOVE THIS BEFORE THE RETURN STATEMENT
   const total = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
 
   async function handleAdd() {

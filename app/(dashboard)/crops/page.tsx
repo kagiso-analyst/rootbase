@@ -79,11 +79,11 @@ export default function CropsPage() {
   async function fetchCrops() {
   setFetching(true)
   try {
-    const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase
-      .from('crops')
-      .select('*')
-      .order('created_at', { ascending: false })
+     .from('crops')
+     .select('*')
+     .eq('user_id', user?.id)
+     .order('created_at', { ascending: false })
     if (error) console.error('Crops error:', error)
     if (data) setCrops(data)
   } catch (err) {
