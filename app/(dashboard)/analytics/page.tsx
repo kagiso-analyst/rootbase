@@ -1,354 +1,591 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { BarChart2, TrendingUp, TrendingDown, Leaf, Package } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button' // 👈 ADD THIS
-import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link' // 👈 ADD THIS
+import { useState, useEffect, useCallback } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, LineChart, Line, Legend
-} from 'recharts'
+  Calculator, TrendingDown, Leaf, Wrench, Save,
+  History, ChevronDown, ChevronUp, Trash2,
+  ArrowUpRight, ArrowDownRight, AlertCircle, CheckCircle2
+} from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { createClient } from '@/lib/supabase/client'
 
-type MonthlyData = {
-  month: string
-  income: number
-  expenses: number
-  profit: number
+type Snapshot = {
+  id: string
+  week_start: string
+  infra_total: number
+  production_total: number
+  weekly_total: number
+  monthly_estimate: number
+  annual_estimate: number
+  infra_electricity: number
+  infra_water: number
+  infra_fuel: number
+  infra_labour: number
+  infra_insurance: number
+  infra_rent: number
+  infra_other: number
+  prod_seeds: number
+  prod_fertiliser: number
+  prod_chemicals: number
+  prod_packaging: number
+  prod_transport: number
+  prod_other: number
+  created_at: string
 }
 
-export default function AnalyticsPage() {
-  // ===== STATE =====
-  const [totalIncome, setTotalIncome] = useState(0)
-  const [totalExpenses, setTotalExpenses] = useState(0)
-  const [activeCrops, setActiveCrops] = useState(0)
-  const [inventoryItems, setInventoryItems] = useState(0)
-  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
-  const [expensesByCategory, setExpensesByCategory] = useState<{category: string, amount: number}[]>([])
-  const [loading, setLoading] = useState(true) // ✅ Already have this
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+const fmt = (n: number) => `R${n.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+export default function CostCalculatorPage() {
+  const [weeklyInfra, setWeeklyInfra] = useState({
+    electricity: '', water: '', fuel: '', labour: '',
+    insurance: '', rent: '', other: '',
+  })
+  const [weeklyProduction, setWeeklyProduction] = useState({
+    seeds: '', fertiliser: '', chemicals: '',
+    packaging: '', transport: '', other: '',
+  })
+
+  const [actualExpenses, setActualExpenses] = useState(0)
+  const [actualIncome, setActualIncome] = useState(0)
+  const [expenseBreakdown, setExpenseBreakdown] = useState<Record<string, number>>({})
+  const [snapshots, setSnapshots] = useState<Snapshot[]>([])
+  const [saving, setSaving] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [expandedSnapshot, setExpandedSnapshot] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [weekLabel, setWeekLabel] = useState('')
 
   const supabase = createClient()
 
-  // ===== FETCH FUNCTION WITH PROPER ERROR HANDLING =====
-  async function fetchAnalytics() {
-    setLoading(true)
-    setError(null)
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setLoading(false)
-        return
-      }
-      
-      setUser(user) // ✅ Save user
+  const fetchData = useCallback(async () => {
+    const today = new Date()
+    const weekAgo = new Date(today)
+    weekAgo.setDate(today.getDate() - 7)
+    const from = weekAgo.toISOString().split('T')[0]
+    const to = today.toISOString().split('T')[0]
 
-      const [incomeRes, expensesRes, cropsRes, inventoryRes] = await Promise.all([
-        supabase
-          .from('income')
-          .select('amount, date')
-          .eq('user_id', user.id),
-        supabase
-          .from('expenses')
-          .select('amount, date, category')
-          .eq('user_id', user.id),
-        supabase
-          .from('crops')
-          .select('id', { count: 'exact' })
-          .eq('user_id', user.id)
-          .eq('status', 'active'),
-        supabase
-          .from('inventory_items')
-          .select('id', { count: 'exact' })
-          .eq('user_id', user.id),
-      ])
+    // Set week label
+    setWeekLabel(`${weekAgo.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} – ${today.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}`)
 
-      // ✅ Check for errors
-      if (incomeRes.error) throw new Error('Failed to fetch income: ' + incomeRes.error.message)
-      if (expensesRes.error) throw new Error('Failed to fetch expenses: ' + expensesRes.error.message)
-      if (cropsRes.error) throw new Error('Failed to fetch crops: ' + cropsRes.error.message)
-      if (inventoryRes.error) throw new Error('Failed to fetch inventory: ' + inventoryRes.error.message)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-      const incomeData = incomeRes.data || []
-      const expensesData = expensesRes.data || []
+    const [expRes, incRes, snapshotRes] = await Promise.all([
+      supabase.from('expenses').select('amount, category').gte('date', from).lte('date', to).eq('user_id', user.id),
+      supabase.from('income').select('amount').gte('date', from).lte('date', to).eq('user_id', user.id),
+      supabase.from('cost_snapshots').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+    ])
 
-      const totalInc = incomeData.reduce((sum, r) => sum + Number(r.amount), 0)
-      const totalExp = expensesData.reduce((sum, r) => sum + Number(r.amount), 0)
+    const totalExp = expRes.data?.reduce((s, r) => s + (parseFloat(String(r.amount)) || 0), 0) || 0
+    const totalInc = incRes.data?.reduce((s, r) => s + (parseFloat(String(r.amount)) || 0), 0) || 0
 
-      setTotalIncome(totalInc)
-      setTotalExpenses(totalExp)
-      setActiveCrops(cropsRes.count || 0)
-      setInventoryItems(inventoryRes.count || 0)
+    // Build expense breakdown by category
+    const breakdown: Record<string, number> = {}
+    expRes.data?.forEach(r => {
+      breakdown[r.category] = (breakdown[r.category] || 0) + (parseFloat(String(r.amount)) || 0)
+    })
 
-      // Build monthly data for last 6 months
-      const months: MonthlyData[] = []
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date()
-        d.setMonth(d.getMonth() - i)
-        const monthStr = d.toLocaleString('default', { month: 'short' })
-        const year = d.getFullYear()
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const prefix = `${year}-${month}`
-
-        const monthIncome = incomeData
-          .filter(r => r.date?.startsWith(prefix))
-          .reduce((sum, r) => sum + Number(r.amount), 0)
-
-        const monthExpenses = expensesData
-          .filter(r => r.date?.startsWith(prefix))
-          .reduce((sum, r) => sum + Number(r.amount), 0)
-
-        months.push({
-          month: monthStr,
-          income: monthIncome,
-          expenses: monthExpenses,
-          profit: monthIncome - monthExpenses,
-        })
-      }
-      setMonthlyData(months)
-
-      // Expenses by category
-      const catMap: Record<string, number> = {}
-      expensesData.forEach(r => {
-        if (r.category) {
-          catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount)
-        }
-      })
-      const catArray = Object.entries(catMap)
-        .map(([category, amount]) => ({ category, amount }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 6)
-      setExpensesByCategory(catArray)
-      
-    } catch (err) {
-      console.error('Analytics fetch error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load analytics. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchAnalytics()
+    setActualExpenses(totalExp)
+    setActualIncome(totalInc)
+    setExpenseBreakdown(breakdown)
+    if (snapshotRes.data) setSnapshots(snapshotRes.data)
   }, [])
 
-  const net = totalIncome - totalExpenses
-  const isProfit = net >= 0
+  useEffect(() => { fetchData() }, [fetchData])
 
-  // ===== LOADING STATE =====
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading analytics...</p>
-        </div>
-      </div>
-    )
+  const infraTotal = Object.values(weeklyInfra).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+  const productionTotal = Object.values(weeklyProduction).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+  const estimatedTotal = infraTotal + productionTotal
+  const estimatedMonthly = estimatedTotal * 4.33
+  const estimatedAnnual = estimatedTotal * 52
+  const variance = actualExpenses - estimatedTotal
+  const variancePct = estimatedTotal > 0 ? ((variance / estimatedTotal) * 100).toFixed(1) : '0'
+
+  async function handleSave() {
+    if (estimatedTotal === 0) return
+    setSaving(true)
+    setSaveStatus('idle')
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setSaveStatus('error'); setSaving(false); return }
+
+      const { data, error } = await supabase.from('cost_snapshots').insert([{
+        user_id: user.id,
+        week_start: new Date().toISOString().split('T')[0],
+        infra_electricity: parseFloat(weeklyInfra.electricity) || 0,
+        infra_water: parseFloat(weeklyInfra.water) || 0,
+        infra_fuel: parseFloat(weeklyInfra.fuel) || 0,
+        infra_labour: parseFloat(weeklyInfra.labour) || 0,
+        infra_insurance: parseFloat(weeklyInfra.insurance) || 0,
+        infra_rent: parseFloat(weeklyInfra.rent) || 0,
+        infra_other: parseFloat(weeklyInfra.other) || 0,
+        infra_total: infraTotal,
+        prod_seeds: parseFloat(weeklyProduction.seeds) || 0,
+        prod_fertiliser: parseFloat(weeklyProduction.fertiliser) || 0,
+        prod_chemicals: parseFloat(weeklyProduction.chemicals) || 0,
+        prod_packaging: parseFloat(weeklyProduction.packaging) || 0,
+        prod_transport: parseFloat(weeklyProduction.transport) || 0,
+        prod_other: parseFloat(weeklyProduction.other) || 0,
+        production_total: productionTotal,
+        weekly_total: estimatedTotal,
+        monthly_estimate: estimatedMonthly,
+        annual_estimate: estimatedAnnual,
+      }]).select().single()
+
+      if (error) {
+        console.error(error)
+        setSaveStatus('error')
+      } else if (data) {
+        setSnapshots(prev => [data, ...prev])
+        setSaveStatus('success')
+        setTimeout(() => setSaveStatus('idle'), 3000)
+      }
+    } catch (err) {
+      setSaveStatus('error')
+    }
+    setSaving(false)
   }
 
-  // ===== NOT LOGGED IN =====
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
-        <p className="text-sm text-gray-500">You need to be logged in to see your analytics.</p>
-        <Link href="/login">
-          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
-            Go to Login
-          </Button>
-        </Link>
-      </div>
-    )
+  async function handleDeleteSnapshot(id: string) {
+    const { error } = await supabase.from('cost_snapshots').delete().eq('id', id)
+    if (!error) setSnapshots(prev => prev.filter(s => s.id !== id))
   }
 
-  // ===== ERROR STATE =====
-  if (error) {
-    return (
-      <Card className="shadow-sm border-red-200 bg-red-50">
-        <CardContent className="py-4 px-6">
-          <p className="text-sm text-red-700">❌ {error}</p>
-          <Button 
-            className="mt-3 bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-            onClick={() => fetchAnalytics()}
-          >
-            Try Again
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
+  const INFRA_FIELDS = [
+    { key: 'electricity', label: 'Electricity', icon: '⚡' },
+    { key: 'water', label: 'Water / Irrigation', icon: '💧' },
+    { key: 'fuel', label: 'Fuel / Diesel', icon: '⛽' },
+    { key: 'labour', label: 'Labour / Wages', icon: '👷' },
+    { key: 'insurance', label: 'Insurance', icon: '🛡️' },
+    { key: 'rent', label: 'Land Rent / Bond', icon: '🏡' },
+    { key: 'other', label: 'Other Infrastructure', icon: '📦' },
+  ]
 
-  // ===== ACTUAL PAGE CONTENT =====
+  const PRODUCTION_FIELDS = [
+    { key: 'seeds', label: 'Seeds / Seedlings', icon: '🌱' },
+    { key: 'fertiliser', label: 'Fertiliser', icon: '🧪' },
+    { key: 'chemicals', label: 'Chemicals / Sprays', icon: '🚿' },
+    { key: 'packaging', label: 'Packaging', icon: '📦' },
+    { key: 'transport', label: 'Transport / Delivery', icon: '🚛' },
+    { key: 'other', label: 'Other Production', icon: '🔧' },
+  ]
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#1B4332]">Analytics</h1>
-        <p className="text-gray-500 text-sm mt-1">Farm performance overview</p>
+    <div className="space-y-6 max-w-5xl mx-auto">
+
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1B4332]">Weekly Cost Calculator</h1>
+          <p className="text-gray-500 text-sm mt-1">
+            Estimate costs · Compare to actuals · Track over time
+          </p>
+        </div>
+        <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs px-3 py-1">
+          📅 Week: {weekLabel}
+        </Badge>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-gray-500 flex items-center gap-2">
-              <TrendingUp size={14} className="text-green-500" /> Total Income
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">R{totalIncome.toFixed(0)}</p>
+      {/* Actual this week — from Supabase records */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="shadow-sm border-green-100">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Actual Income</p>
+              <ArrowUpRight size={16} className="text-green-500" />
+            </div>
+            <p className="text-2xl font-bold text-green-600">{fmt(actualIncome)}</p>
+            <p className="text-xs text-gray-400 mt-1">Recorded this week</p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-gray-500 flex items-center gap-2">
-              <TrendingDown size={14} className="text-red-500" /> Total Expenses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-red-500">R{totalExpenses.toFixed(0)}</p>
+        <Card className="shadow-sm border-red-100">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Actual Expenses</p>
+              <ArrowDownRight size={16} className="text-red-500" />
+            </div>
+            <p className="text-2xl font-bold text-red-500">{fmt(actualExpenses)}</p>
+            <p className="text-xs text-gray-400 mt-1">Recorded this week</p>
+            {Object.keys(expenseBreakdown).length > 0 && (
+              <div className="mt-3 space-y-1 border-t border-gray-100 pt-2">
+                {Object.entries(expenseBreakdown)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 3)
+                  .map(([cat, amt]) => (
+                    <div key={cat} className="flex justify-between text-xs">
+                      <span className="text-gray-400 truncate">{cat}</span>
+                      <span className="text-red-400 font-medium ml-2">{fmt(amt)}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-gray-500 flex items-center gap-2">
-              <BarChart2 size={14} className="text-[#2D6A4F]" /> Net {isProfit ? 'Profit' : 'Loss'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
-              R{Math.abs(net).toFixed(0)}
+        <Card className={`shadow-sm ${actualIncome - actualExpenses >= 0 ? 'border-[#52B788]' : 'border-red-200'}`}>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Net This Week</p>
+              <Calculator size={16} className="text-[#2D6A4F]" />
+            </div>
+            <p className={`text-2xl font-bold ${actualIncome - actualExpenses >= 0 ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
+              {fmt(Math.abs(actualIncome - actualExpenses))}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {actualIncome - actualExpenses >= 0 ? '✅ Profit' : '⚠️ Loss'} from records
             </p>
           </CardContent>
         </Card>
+      </div>
 
+      {/* Separator */}
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-gray-200" />
+        <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">Weekly Cost Estimate</p>
+        <div className="h-px flex-1 bg-gray-200" />
+      </div>
+
+      {/* Input grids */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Infrastructure */}
         <Card className="shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-gray-500 flex items-center gap-2">
-              <Leaf size={14} className="text-[#2D6A4F]" /> Active Crops
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <div className="w-7 h-7 bg-orange-100 rounded-lg flex items-center justify-center">
+                <Wrench size={14} className="text-orange-500" />
+              </div>
+              Infrastructure Costs
             </CardTitle>
+            <p className="text-xs text-gray-400">Fixed overhead costs per week</p>
           </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-[#2D6A4F]">{activeCrops}</p>
+          <CardContent className="space-y-2.5">
+            {INFRA_FIELDS.map(({ key, label, icon }) => (
+              <div key={key} className="flex items-center gap-3">
+                <span className="text-base w-6 flex-shrink-0">{icon}</span>
+                <Label className="text-xs text-gray-600 w-36 flex-shrink-0">{label}</Label>
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium">R</span>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    className="pl-7 h-8 text-sm"
+                    value={weeklyInfra[key as keyof typeof weeklyInfra]}
+                    onChange={(e) => setWeeklyInfra(prev => ({
+                      ...prev,
+                      [key]: (e.target as HTMLInputElement).value
+                    }))}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
+              <p className="text-xs font-semibold text-gray-600">Infrastructure Subtotal</p>
+              <p className="text-sm font-bold text-orange-600">{fmt(infraTotal)}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Production */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <div className="w-7 h-7 bg-[#D8F3DC] rounded-lg flex items-center justify-center">
+                <Leaf size={14} className="text-[#2D6A4F]" />
+              </div>
+              Production Costs
+            </CardTitle>
+            <p className="text-xs text-gray-400">Variable input costs per week</p>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {PRODUCTION_FIELDS.map(({ key, label, icon }) => (
+              <div key={key} className="flex items-center gap-3">
+                <span className="text-base w-6 flex-shrink-0">{icon}</span>
+                <Label className="text-xs text-gray-600 w-36 flex-shrink-0">{label}</Label>
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium">R</span>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    className="pl-7 h-8 text-sm"
+                    value={weeklyProduction[key as keyof typeof weeklyProduction]}
+                    onChange={(e) => setWeeklyProduction(prev => ({
+                      ...prev,
+                      [key]: (e.target as HTMLInputElement).value
+                    }))}
+                  />
+                </div>
+              </div>
+            ))}
+            <div className="border-t border-gray-100 pt-3 flex justify-between items-center">
+              <p className="text-xs font-semibold text-gray-600">Production Subtotal</p>
+              <p className="text-sm font-bold text-[#2D6A4F]">{fmt(productionTotal)}</p>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Monthly income vs expenses chart */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Income vs Expenses — Last 6 Months</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {monthlyData.every(d => d.income === 0 && d.expenses === 0) ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-              <BarChart2 size={36} className="mb-3 opacity-30" />
-              <p className="text-sm">Add income and expenses to see your chart</p>
+      {/* Summary card */}
+      <Card className="shadow-sm bg-[#1B4332] text-white">
+        <CardContent className="pt-6 pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+            <div className="sm:col-span-1">
+              <p className="text-xs text-[#52B788] font-semibold uppercase tracking-wide mb-1">Weekly Estimate</p>
+              <p className="text-3xl font-bold text-white">{fmt(estimatedTotal)}</p>
+              <div className="flex gap-1 mt-2 text-xs text-[#D8F3DC]">
+                <span>Infra {fmt(infraTotal)}</span>
+                <span>+</span>
+                <span>Prod {fmt(productionTotal)}</span>
+              </div>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6B7280' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(v) => `R${v}`} />
-                <Tooltip formatter={(value) => [`R${Number(value).toFixed(2)}`, '']} />
-                <Legend />
-                <Bar dataKey="income" name="Income" fill="#52B788" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" name="Expenses" fill="#F87171" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Profit trend */}
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Profit Trend — Last 6 Months</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {monthlyData.every(d => d.profit === 0) ? (
-            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-              <TrendingUp size={36} className="mb-3 opacity-30" />
-              <p className="text-sm">Add income and expenses to see your profit trend</p>
+            <div>
+              <p className="text-xs text-[#52B788] font-semibold uppercase tracking-wide mb-1">Monthly</p>
+              <p className="text-2xl font-bold">{fmt(estimatedMonthly)}</p>
+              <p className="text-xs text-[#D8F3DC] mt-1">× 4.33 weeks</p>
             </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={monthlyData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F3F4F6" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: '#6B7280' }} />
-                <YAxis tick={{ fontSize: 12, fill: '#6B7280' }} tickFormatter={(v) => `R${v}`} />
-                <Tooltip formatter={(value) => [`R${Number(value).toFixed(2)}`, 'Net Profit']} />
-                <Line
-                  type="monotone"
-                  dataKey="profit"
-                  name="Net Profit"
-                  stroke="#2D6A4F"
-                  strokeWidth={2}
-                  dot={{ fill: '#2D6A4F', r: 4 }}
+
+            <div>
+              <p className="text-xs text-[#52B788] font-semibold uppercase tracking-wide mb-1">Annual</p>
+              <p className="text-2xl font-bold">{fmt(estimatedAnnual)}</p>
+              <p className="text-xs text-[#D8F3DC] mt-1">× 52 weeks</p>
+            </div>
+
+            <div>
+              <p className="text-xs text-[#52B788] font-semibold uppercase tracking-wide mb-1">vs Actual</p>
+              {actualExpenses > 0 && estimatedTotal > 0 ? (
+                <>
+                  <p className={`text-2xl font-bold ${Math.abs(variance) < estimatedTotal * 0.1 ? 'text-[#52B788]' : variance > 0 ? 'text-red-300' : 'text-yellow-300'}`}>
+                    {variance > 0 ? '+' : ''}{fmt(variance)}
+                  </p>
+                  <p className="text-xs text-[#D8F3DC] mt-1">
+                    {variance > 0 ? '⚠️ Over estimate' : variance < 0 ? '✅ Under estimate' : '✅ On target'} ({variancePct}%)
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-[#D8F3DC]">Add expenses this week to compare</p>
+              )}
+            </div>
+          </div>
+
+          {/* Comparison bar */}
+          {actualExpenses > 0 && estimatedTotal > 0 && (
+            <div className="mt-6 pt-4 border-t border-[#2D6A4F]">
+              <div className="flex justify-between text-xs text-[#D8F3DC] mb-2">
+                <span>Actual: {fmt(actualExpenses)}</span>
+                <span>Estimate: {fmt(estimatedTotal)}</span>
+              </div>
+              <div className="w-full bg-[#2D6A4F] rounded-full h-2">
+                <div
+                  className={`h-2 rounded-full transition-all ${actualExpenses <= estimatedTotal ? 'bg-[#52B788]' : 'bg-red-400'}`}
+                  style={{ width: `${Math.min((actualExpenses / estimatedTotal) * 100, 100)}%` }}
                 />
-              </LineChart>
-            </ResponsiveContainer>
+              </div>
+              <p className="text-xs text-[#52B788] mt-2 text-center">
+                {actualExpenses <= estimatedTotal
+                  ? `✅ Actual is ${fmt(estimatedTotal - actualExpenses)} below your estimate`
+                  : `⚠️ Actual is ${fmt(actualExpenses - estimatedTotal)} above your estimate`
+                }
+              </p>
+            </div>
           )}
+
+          {/* Save button */}
+          <div className="mt-6 flex items-center gap-3">
+            <Button
+              className={`flex-1 font-semibold transition-all ${
+                saveStatus === 'success'
+                  ? 'bg-[#52B788] text-white'
+                  : saveStatus === 'error'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-white text-[#1B4332] hover:bg-[#D8F3DC]'
+              }`}
+              onClick={handleSave}
+              disabled={saving || estimatedTotal === 0}
+            >
+              {saveStatus === 'success' ? (
+                <><CheckCircle2 size={16} className="mr-2" /> Estimate Saved!</>
+              ) : saveStatus === 'error' ? (
+                <><AlertCircle size={16} className="mr-2" /> Save Failed — Try Again</>
+              ) : (
+                <><Save size={16} className="mr-2" /> {saving ? 'Saving...' : "Save This Week's Estimate"}</>
+              )}
+            </Button>
+          </div>
+          <p className="text-xs text-[#52B788] text-center mt-2">
+            Estimates are saved separately from your actual expense records
+          </p>
         </CardContent>
       </Card>
 
-      {/* Expenses by category */}
-      {expensesByCategory.length > 0 && (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Top Expense Categories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {expensesByCategory.map(({ category, amount }) => {
-                const percent = totalExpenses > 0
-                  ? Math.round((amount / totalExpenses) * 100)
-                  : 0
-                return (
-                  <div key={category}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-700 font-medium">{category}</span>
-                      <span className="text-gray-500">R{amount.toFixed(0)} ({percent}%)</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div
-                        className="bg-[#52B788] h-2 rounded-full transition-all"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* History */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <button
+            className="flex items-center justify-between w-full"
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            <CardTitle className="text-base flex items-center gap-2">
+              <History size={16} className="text-[#2D6A4F]" />
+              Saved Estimates History
+              {snapshots.length > 0 && (
+                <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs ml-2">
+                  {snapshots.length}
+                </Badge>
+              )}
+            </CardTitle>
+            {showHistory ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </button>
+        </CardHeader>
 
-      {/* Farm summary */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card className="shadow-sm">
-          <CardContent className="pt-4 pb-4 text-center">
-            <Leaf size={24} className="text-[#2D6A4F] mx-auto mb-2" />
-            <p className="text-2xl font-bold text-[#2D6A4F]">{activeCrops}</p>
-            <p className="text-xs text-gray-400 mt-1">Active Crops</p>
+        {showHistory && (
+          <CardContent className="p-0">
+            {snapshots.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+                <History size={32} className="mb-2 opacity-30" />
+                <p className="text-sm">No estimates saved yet</p>
+                <p className="text-xs mt-1">Fill in the calculator above and save</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {snapshots.map((snap) => (
+                  <div key={snap.id}>
+                    <div
+                      className="flex items-center justify-between px-6 py-4 hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setExpandedSnapshot(expandedSnapshot === snap.id ? null : snap.id)}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">
+                          Week of {new Date(snap.week_start).toLocaleDateString('en-ZA', {
+                            day: 'numeric', month: 'long', year: 'numeric'
+                          })}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-xs text-orange-500">
+                            Infra: {fmt(Number(snap.infra_total))}
+                          </span>
+                          <span className="text-xs text-[#2D6A4F]">
+                            Prod: {fmt(Number(snap.production_total))}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-[#1B4332]">{fmt(Number(snap.weekly_total))}/wk</p>
+                          <p className="text-xs text-gray-400">{fmt(Number(snap.monthly_estimate))}/mo</p>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSnapshot(snap.id) }}
+                          className="text-gray-300 hover:text-red-400 transition-colors p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        {expandedSnapshot === snap.id
+                          ? <ChevronUp size={14} className="text-gray-400" />
+                          : <ChevronDown size={14} className="text-gray-400" />
+                        }
+                      </div>
+                    </div>
+
+                    {/* Expanded detail */}
+                    {expandedSnapshot === snap.id && (
+                      <div className="px-6 pb-4 bg-gray-50 border-t border-gray-100">
+                        <div className="grid grid-cols-2 gap-6 pt-4">
+                          <div>
+                            <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">
+                              🔧 Infrastructure
+                            </p>
+                            {[
+                              ['Electricity', snap.infra_electricity],
+                              ['Water', snap.infra_water],
+                              ['Fuel', snap.infra_fuel],
+                              ['Labour', snap.infra_labour],
+                              ['Insurance', snap.infra_insurance],
+                              ['Rent', snap.infra_rent],
+                              ['Other', snap.infra_other],
+                            ].filter(([, v]) => Number(v) > 0).map(([label, val]) => (
+                              <div key={String(label)} className="flex justify-between text-xs py-1 border-b border-gray-100">
+                                <span className="text-gray-500">{label}</span>
+                                <span className="font-medium text-gray-700">{fmt(Number(val))}</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between text-xs py-1 font-semibold mt-1">
+                              <span>Subtotal</span>
+                              <span className="text-orange-600">{fmt(Number(snap.infra_total))}</span>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-semibold text-[#2D6A4F] uppercase tracking-wide mb-2">
+                              🌱 Production
+                            </p>
+                            {[
+                              ['Seeds', snap.prod_seeds],
+                              ['Fertiliser', snap.prod_fertiliser],
+                              ['Chemicals', snap.prod_chemicals],
+                              ['Packaging', snap.prod_packaging],
+                              ['Transport', snap.prod_transport],
+                              ['Other', snap.prod_other],
+                            ].filter(([, v]) => Number(v) > 0).map(([label, val]) => (
+                              <div key={String(label)} className="flex justify-between text-xs py-1 border-b border-gray-100">
+                                <span className="text-gray-500">{label}</span>
+                                <span className="font-medium text-gray-700">{fmt(Number(val))}</span>
+                              </div>
+                            ))}
+                            <div className="flex justify-between text-xs py-1 font-semibold mt-1">
+                              <span>Subtotal</span>
+                              <span className="text-[#2D6A4F]">{fmt(Number(snap.production_total))}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 p-3 bg-[#1B4332] rounded-xl">
+                          <div className="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                              <p className="text-xs text-[#52B788]">Weekly</p>
+                              <p className="text-sm font-bold text-white">{fmt(Number(snap.weekly_total))}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[#52B788]">Monthly</p>
+                              <p className="text-sm font-bold text-white">{fmt(Number(snap.monthly_estimate))}</p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-[#52B788]">Annual</p>
+                              <p className="text-sm font-bold text-white">{fmt(Number(snap.annual_estimate))}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
-        </Card>
-        <Card className="shadow-sm">
-          <CardContent className="pt-4 pb-4 text-center">
-            <Package size={24} className="text-[#2D6A4F] mx-auto mb-2" />
-            <p className="text-2xl font-bold text-[#2D6A4F]">{inventoryItems}</p>
-            <p className="text-xs text-gray-400 mt-1">Inventory Items</p>
-          </CardContent>
-        </Card>
-      </div>
+        )}
+      </Card>
+
+      {/* Explainer */}
+      <Card className="shadow-sm border-blue-100 bg-blue-50">
+        <CardContent className="py-4 px-5">
+          <p className="text-sm font-semibold text-blue-800 mb-2">
+            💡 How this calculator works
+          </p>
+          <div className="space-y-1 text-xs text-blue-700">
+            <p>• <strong>Actual Income/Expenses</strong> — pulled directly from your recorded transactions this week</p>
+            <p>• <strong>Weekly Estimate</strong> — your projected costs entered above (not linked to actual records)</p>
+            <p>• <strong>vs Actual</strong> — comparison between your estimate and what you actually spent</p>
+            <p>• <strong>Saved estimates</strong> are stored separately and do not affect your financial reports</p>
+            <p>• To record real expenses, use <a href="/finances/expenses" className="underline font-semibold">Finances → Expenses</a></p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

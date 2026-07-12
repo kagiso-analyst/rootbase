@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link' // 👈 ADD THIS
 
 const CATEGORIES = [
   'Seed', 'Fertiliser', 'Chemicals / Sprays', 'Labour', 'Fuel',
@@ -38,6 +39,7 @@ type Expense = {
 }
 
 export default function ExpensesPage() {
+  // ===== STATE =====
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [open, setOpen] = useState(false)
   const [category, setCategory] = useState('')
@@ -46,20 +48,43 @@ export default function ExpensesPage() {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
 
   const supabase = createClient()
 
+  // ===== FETCH EXPENSES =====
   async function fetchExpenses() {
-  setFetching(true)
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data, error } = await supabase
-    .from('expenses')
-    .select('*')
-    .eq('user_id', user?.id)
-    .order('date', { ascending: false })
-  if (!error && data) setExpenses(data)
-  setFetching(false)
-}
+    setFetching(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
+        setExpenses([])
+        setFetching(false)
+        return
+      }
+      
+      setUser(user)
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+
+      if (error) throw new Error('Failed to fetch expenses: ' + error.message)
+      if (data) setExpenses(data)
+      
+    } catch (err) {
+      console.error('Expenses fetch error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load expenses. Please refresh the page.')
+    } finally {
+      setFetching(false)
+    }
+  }
 
   useEffect(() => {
     fetchExpenses()
@@ -67,42 +92,127 @@ export default function ExpensesPage() {
 
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
+  // ===== ADD EXPENSE =====
   async function handleAdd() {
     if (!category || !description || !amount || !date) return
+    
     setLoading(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to add expenses')
+        setLoading(false)
+        return
+      }
 
-    const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert([{ 
+          category, 
+          description, 
+          amount: parseFloat(amount), 
+          date,
+          user_id: user.id 
+        }])
+        .select()
+        .single()
 
-    const { data, error } = await supabase
-      .from('expenses')
-      .insert([{ 
-        category, 
-        description, 
-        amount: parseFloat(amount), 
-        date,
-        user_id: user?.id 
-      }])
-      .select()
-      .single()
+      if (error) throw new Error('Failed to save expense: ' + error.message)
 
-    if (!error && data) {
-      setExpenses((prev) => [data, ...prev])
-      setCategory('')
-      setDescription('')
-      setAmount('')
-      setDate(new Date().toISOString().split('T')[0])
-      setOpen(false)
+      if (data) {
+        setExpenses((prev) => [data, ...prev])
+        setCategory('')
+        setDescription('')
+        setAmount('')
+        setDate(new Date().toISOString().split('T')[0])
+        setOpen(false)
+      }
+      
+    } catch (err) {
+      console.error('Expense save error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save expense. Please try again.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
+  // ===== DELETE EXPENSE =====
   async function handleDelete(id: string) {
-    const { error } = await supabase.from('expenses').delete().eq('id', id)
-    if (!error) setExpenses((prev) => prev.filter((e) => e.id !== id))
+    if (!confirm('Are you sure you want to delete this expense?')) return
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to delete expenses')
+        return
+      }
+
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
+
+      if (error) throw new Error('Failed to delete expense: ' + error.message)
+
+      setExpenses((prev) => prev.filter((e) => e.id !== id))
+      
+    } catch (err) {
+      console.error('Delete error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete expense')
+    }
   }
 
+  // ===== LOADING STATE =====
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">Loading expenses...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to manage your expenses.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#1B4332]">Expenses</h1>
@@ -172,13 +282,7 @@ export default function ExpensesPage() {
         </Dialog>
       </div>
 
-      {fetching ? (
-        <Card className="shadow-sm">
-          <CardContent className="flex items-center justify-center py-16 text-gray-400">
-            <p className="text-sm">Loading expenses...</p>
-          </CardContent>
-        </Card>
-      ) : expenses.length === 0 ? (
+      {expenses.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Receipt size={40} className="mb-3 opacity-30" />
