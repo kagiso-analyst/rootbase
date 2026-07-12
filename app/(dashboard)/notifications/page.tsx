@@ -22,33 +22,37 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     async function buildNotifications() {
-      try {
-        const alerts: Notification[] = []
-        const today = new Date().toISOString().split('T')[0]
+  try {
+    const alerts: Notification[] = []
+    const today = new Date().toISOString().split('T')[0]
 
-        const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setNotifications([])
+      setLoading(false)
+      return
+    }
 
-        const [tasksRes, inventoryRes, equipmentRes, documentsRes] = await Promise.all([
-          supabase
-            .from('tasks')
-            .select('*')
-            .eq('user_id', user?.id)
-            .eq('status', 'todo')
-            .lt('due_date', today),
-          supabase
-            .from('inventory_items')
-            .select('*')
-            .eq('user_id', user?.id),
-          supabase
-            .from('equipment')
-            .select('*')
-            .eq('user_id', user?.id),
-          supabase
-            .from('documents')
-            .select('*')
-            .eq('user_id', user?.id),
-        ])
-
+    const [tasksRes, inventoryRes, equipmentRes, documentsRes] = await Promise.all([
+      supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .eq('status', 'todo')
+        .lt('due_date', today),
+      supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('user_id', user.id),  // 👈 ADD THIS!
+      supabase
+        .from('equipment')
+        .select('*')
+        .eq('user_id', user.id),  // 👈 ADD THIS!
+      supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', user.id),  // 👈 ADD THIS!
+    ])
         // Overdue tasks
         const overdueTasks = tasksRes.data || []
         overdueTasks.forEach(task => {

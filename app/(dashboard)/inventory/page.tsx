@@ -54,16 +54,28 @@ export default function InventoryPage() {
   const supabase = createClient()
 
   async function fetchItems() {
-    setFetching(true)
+  setFetching(true)
+  try {
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setItems([])
+      setFetching(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from('inventory_items')
       .select('*')
-      .eq('user_id', user?.id)
+      .eq('user_id', user.id)  // 👈 ADD THIS!
       .order('created_at', { ascending: false })
+
     if (!error && data) setItems(data)
+  } catch (err) {
+    console.error('Inventory fetch error:', err)
+  } finally {
     setFetching(false)
   }
+}
 
   useEffect(() => { fetchItems() }, [])
 
@@ -116,9 +128,21 @@ export default function InventoryPage() {
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from('inventory_items').delete().eq('id', id)
-    if (!error) setItems((prev) => prev.filter((i) => i.id !== id))
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error } = await supabase
+      .from('inventory_items')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+
+    if (!error) setItems(prev => prev.filter(i => i.id !== id))
+  } catch (err) {
+    console.error('Delete error:', err)
   }
+}
 
   return (
     <div className="space-y-6">

@@ -85,24 +85,29 @@ export default function SuppliersPage() {
       : suppliers.filter((s) => s.category === filterCategory)
 
   async function fetchSuppliers() {
-    setFetching(true)
+  setFetching(true)
+  try {
     const { data: { user } } = await supabase.auth.getUser()
-    
-    const { data, error } = await supabase
-      .from("suppliers")
-      .select("*")
-      .eq('user_id', user?.id)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      console.error(error)
+    if (!user) {
+      setSuppliers([])
       setFetching(false)
       return
     }
 
-    setSuppliers(data || [])
+    const { data, error } = await supabase
+      .from('suppliers')
+      .select('*')
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+      .order('created_at', { ascending: false })
+
+    if (error) console.error('Suppliers error:', error)
+    if (data) setSuppliers(data)
+  } catch (err) {
+    console.error('Suppliers crash:', err)
+  } finally {
     setFetching(false)
   }
+}
 
   useEffect(() => {
     fetchSuppliers()
@@ -144,15 +149,21 @@ export default function SuppliersPage() {
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase
-      .from("suppliers")
-      .delete()
-      .eq("id", id)
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-    if (!error) {
-      setSuppliers((prev) => prev.filter((s) => s.id !== id))
-    }
+    const { error } = await supabase
+      .from('suppliers')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+
+    if (!error) setSuppliers(prev => prev.filter(s => s.id !== id))
+  } catch (err) {
+    console.error('Delete error:', err)
   }
+}
 
   return (
     <div className="space-y-6">

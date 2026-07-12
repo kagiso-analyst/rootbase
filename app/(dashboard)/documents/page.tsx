@@ -84,6 +84,31 @@ export default function DocumentsPage() {
     return days <= 30 && days >= 0
   })
 
+  async function fetchDocuments() {
+  setFetching(true)
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setDocuments([])
+      setFetching(false)
+      return
+    }
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('user_id', user.id)  // 👈 THIS IS THE LOCK!
+      .order('created_at', { ascending: false })
+
+    if (error) console.error('Documents error:', error)
+    if (data) setDocuments(data)
+  } catch (err) {
+    console.error('Documents crash:', err)
+  } finally {
+    setFetching(false)
+  }
+}
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) setSelectedFile(file)
@@ -110,9 +135,27 @@ export default function DocumentsPage() {
     setOpen(false)
   }
 
-  function handleDelete(id: string) {
-    setDocuments((prev) => prev.filter((d) => d.id !== id))
+  async function handleDelete(id: string) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      console.error('Not logged in!')
+      return
+    }
+
+    const { error } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)  // 👈 MUST CHECK USER!
+
+    if (!error) {
+      setDocuments(prev => prev.filter(d => d.id !== id))
+    }
+  } catch (err) {
+    console.error('Delete error:', err)
   }
+}
 
   return (
     <div className="space-y-6">

@@ -127,22 +127,28 @@ export default function EquipmentPage() {
 
   // FIXED: Combined fetch function with proper type handling
   async function fetchAll() {
-    setFetching(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      const [equipRes, logsRes] = await Promise.all([
-        supabase
-          .from('equipment')
-          .select('*')
-          .eq('user_id', user?.id)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('maintenance_logs')
-          .select('*')
-          .eq('user_id', user?.id)
-          .order('date', { ascending: false }),
-      ])
+  setFetching(true)
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setEquipment([])
+      setMaintenanceLogs([])
+      setFetching(false)
+      return
+    }
+
+    const [equipRes, logsRes] = await Promise.all([
+      supabase
+        .from('equipment')
+        .select('*')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('maintenance_logs')
+        .select('*')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .order('date', { ascending: false }),
+    ])
 
       if (!equipRes.error && equipRes.data) {
         // FIXED: Map the data to ensure purchase_price is a number
@@ -287,42 +293,49 @@ export default function EquipmentPage() {
   }
 
   async function handleDelete(id: string) {
-    try {
-      const { error } = await supabase
-        .from('equipment')
-        .delete()
-        .eq('id', id)
-      if (error) {
-        console.error('Delete error:', error)
-      } else {
-        setEquipment((prev) => prev.filter((e) => e.id !== id))
-        // Also delete associated maintenance logs
-        const { error: logError } = await supabase
-          .from('maintenance_logs')
-          .delete()
-          .eq('equipment_id', id)
-        if (!logError) {
-          setMaintenanceLogs((prev) => prev.filter((log) => log.equipmentId !== id))
-        }
-      }
-    } catch (err) {
-      console.error('Delete crash:', err)
-    }
-  }
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-  async function handleDeleteLog(id: string) {
-    try {
-      const { error } = await supabase
+    const { error } = await supabase
+      .from('equipment')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+
+    if (!error) {
+      setEquipment(prev => prev.filter(e => e.id !== id))
+      // Also delete associated maintenance logs
+      await supabase
         .from('maintenance_logs')
         .delete()
-        .eq('id', id)
-      if (!error) {
-        setMaintenanceLogs((prev) => prev.filter((log) => log.id !== id))
-      }
-    } catch (err) {
-      console.error('Delete log crash:', err)
+        .eq('equipment_id', id)
+        .eq('user_id', user.id)  // 👈 ADD THIS!
     }
+  } catch (err) {
+    console.error('Delete crash:', err)
   }
+}
+
+  async function handleDeleteLog(id: string) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error } = await supabase
+      .from('maintenance_logs')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+
+    if (!error) {
+      setMaintenanceLogs(prev => prev.filter(log => log.id !== id))
+    }
+  } catch (err) {
+    console.error('Delete log crash:', err)
+  }
+}
+
 
   // FIXED: Total value calculation with proper number conversion
   const totalValue = equipment.reduce((sum, e) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // 👈 ADD useEffect
 import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client' // 👈 ADD THIS
 import type { Activity, ActivityType } from '@/types/crops'
 
 const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
@@ -35,7 +36,14 @@ const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
 }
 
 export default function CropDetailPage() {
+  // ===== STATE =====
   const [activities, setActivities] = useState<Activity[]>([])
+  const [loading, setLoading] = useState(true) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [saving, setSaving] = useState(false) // 👈 ADD THIS
+  
+  // Form state
   const [open, setOpen] = useState(false)
   const [activityType, setActivityType] = useState<ActivityType>('Spraying')
   const [description, setDescription] = useState('')
@@ -43,29 +51,173 @@ export default function CropDetailPage() {
   const [rate, setRate] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
 
-  function handleAddActivity() {
-    if (!description || !date) return
+  const supabase = createClient() // 👈 ADD THIS
 
-    const newActivity: Activity = {
-      id: crypto.randomUUID(),
-      cropId: 'current',
-      type: activityType,
-      description,
-      date,
-      product,
-      rate,
+  // ===== FETCH ACTIVITIES =====
+  async function fetchActivities() {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
+        setActivities([])
+        setLoading(false)
+        return
+      }
+      
+      setUser(user)
+
+      // 👇 Fetch activities from database
+      const { data, error } = await supabase
+        .from('crop_activities') // 👈 Change this to your actual table name
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+
+      if (error) throw new Error('Failed to fetch activities: ' + error.message)
+      
+      // 👇 Map database data to your Activity type
+      const mappedActivities: Activity[] = (data || []).map(item => ({
+        id: item.id,
+        cropId: item.crop_id || 'current',
+        type: item.activity_type as ActivityType,
+        description: item.description,
+        date: item.date,
+        product: item.product || '',
+        rate: item.rate || '',
+      }))
+      
+      setActivities(mappedActivities)
+      
+    } catch (err) {
+      console.error('Error fetching activities:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load activities')
+    } finally {
+      setLoading(false)
     }
-
-    setActivities(prev => [newActivity, ...prev])
-    setDescription('')
-    setProduct('')
-    setRate('')
-    setDate(new Date().toISOString().split('T')[0])
-    setOpen(false)
   }
 
+  useEffect(() => {
+    fetchActivities()
+  }, [])
+
+  // ===== ADD ACTIVITY =====
+  async function handleAddActivity() {
+    if (!description || !date) return
+    
+    setSaving(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to save activities')
+        setSaving(false)
+        return
+      }
+
+      // 👇 Save to database
+      const { data, error } = await supabase
+        .from('crop_activities') // 👈 Change this to your actual table name
+        .insert([{
+          crop_id: 'current', // 👈 Change this to the actual crop ID
+          activity_type: activityType,
+          description,
+          product: product || null,
+          rate: rate || null,
+          date,
+          user_id: user.id,
+        }])
+        .select()
+        .single()
+
+      if (error) throw new Error('Failed to save activity: ' + error.message)
+
+      // 👇 Add to local state
+      const newActivity: Activity = {
+        id: data.id,
+        cropId: data.crop_id || 'current',
+        type: data.activity_type as ActivityType,
+        description: data.description,
+        date: data.date,
+        product: data.product || '',
+        rate: data.rate || '',
+      }
+
+      setActivities(prev => [newActivity, ...prev])
+      setDescription('')
+      setProduct('')
+      setRate('')
+      setDate(new Date().toISOString().split('T')[0])
+      setOpen(false)
+      
+    } catch (err) {
+      console.error('Error saving activity:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save activity')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ===== DELETE ACTIVITY =====
+  async function handleDeleteActivity(id: string) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to delete activities')
+        return
+      }
+
+      const { error } = await supabase
+        .from('crop_activities')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
+
+      if (error) throw new Error('Failed to delete activity: ' + error.message)
+      
+      setActivities(prev => prev.filter(a => a.id !== id))
+      
+    } catch (err) {
+      console.error('Error deleting activity:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete activity')
+    }
+  }
+
+  // ===== LOADING STATE =====
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">Loading activities...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to manage crop activities.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center gap-3">
         <Link href="/crops">
           <Button variant="ghost" size="icon">
@@ -77,6 +229,23 @@ export default function CropDetailPage() {
           <p className="text-gray-500 text-sm">Activity log and overview</p>
         </div>
       </div>
+
+      {/* Error message */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="activities">
         <TabsList className="bg-[#D8F3DC]">
@@ -164,9 +333,9 @@ export default function CropDetailPage() {
                   <Button
                     className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                     onClick={handleAddActivity}
-                    disabled={!description || !date}
+                    disabled={!description || !date || saving}
                   >
-                    Save Activity
+                    {saving ? 'Saving...' : 'Save Activity'}
                   </Button>
                 </div>
               </DialogContent>
@@ -186,7 +355,7 @@ export default function CropDetailPage() {
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100">
                   {activities.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-4 px-6 py-4">
+                    <div key={activity.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
                       <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center mt-0.5 flex-shrink-0">
                         {ACTIVITY_ICONS[activity.type]}
                       </div>
@@ -209,6 +378,16 @@ export default function CropDetailPage() {
                           )}
                         </div>
                       </div>
+                      {/* 👇 ADD DELETE BUTTON */}
+                      <button
+                        onClick={() => handleDeleteActivity(activity.id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors mt-1"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 6h18" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
                     </div>
                   ))}
                 </div>

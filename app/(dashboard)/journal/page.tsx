@@ -114,22 +114,29 @@ export default function JournalPage() {
   const supabase = createClient()
 
   async function fetchEntries() {
-    try {
-      setFetching(true)
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data, error } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false })
-      if (error) console.error('Journal fetch error:', error)
-      if (data) setEntries(data)
-    } catch (err) {
-      console.error('Journal crash:', err)
-    } finally {
+  try {
+    setFetching(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setEntries([])
       setFetching(false)
+      return
     }
+
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .select('*')
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+      .order('created_at', { ascending: false })
+
+    if (error) console.error('Journal fetch error:', error)
+    if (data) setEntries(data)
+  } catch (err) {
+    console.error('Journal crash:', err)
+  } finally {
+    setFetching(false)
   }
+}
 
   useEffect(() => {
     fetchEntries()
@@ -191,17 +198,22 @@ export default function JournalPage() {
   }
 
   async function handleDelete(id: string) {
-    try {
-      const { error } = await supabase
-        .from('journal_entries')
-        .delete()
-        .eq('id', id)
-      if (error) console.error('Delete error:', error)
-      else setEntries((prev) => prev.filter((e) => e.id !== id))
-    } catch (err) {
-      console.error('Delete crash:', err)
-    }
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { error } = await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)  // 👈 ADD THIS!
+
+    if (error) console.error('Delete error:', error)
+    else setEntries(prev => prev.filter(e => e.id !== id))
+  } catch (err) {
+    console.error('Delete crash:', err)
   }
+}
 
   const filtered = entries.filter((e) => {
     const q = search.toLowerCase()

@@ -37,54 +37,58 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchDashboardData() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        
-        const now = new Date()
-        const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
-        const [
-          incomeRes,
-          expensesRes,
-          cropsRes,
-          tasksCountRes,
-          tasksRes,
-          journalRes,
-        ] = await Promise.all([
-          supabase
-            .from('income')
-            .select('amount')
-            .eq('user_id', user?.id)
-            .gte('date', firstOfMonth),
-          supabase
-            .from('expenses')
-            .select('amount')
-            .eq('user_id', user?.id)
-            .gte('date', firstOfMonth),
-          supabase
-            .from('crops')
-            .select('id', { count: 'exact' })
-            .eq('user_id', user?.id)
-            .eq('status', 'active'),
-          supabase
-            .from('tasks')
-            .select('id', { count: 'exact' })
-            .eq('user_id', user?.id)
-            .neq('status', 'done'),
-          supabase
-            .from('tasks')
-            .select('*')
-            .eq('user_id', user?.id)
-            .neq('status', 'done')
-            .order('due_date', { ascending: true })
-            .limit(5),
-          supabase
-            .from('journal_entries')
-            .select('*')
-            .eq('user_id', user?.id)
-            .order('created_at', { ascending: false })
-            .limit(3),
-        ])
+    const now = new Date()
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+
+    const [
+      incomeRes,
+      expensesRes,
+      cropsRes,
+      tasksCountRes,
+      tasksRes,
+      journalRes,
+    ] = await Promise.all([
+      supabase
+        .from('income')
+        .select('amount')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .gte('date', firstOfMonth),
+      supabase
+        .from('expenses')
+        .select('amount')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .gte('date', firstOfMonth),
+      supabase
+        .from('crops')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .eq('status', 'active'),
+      supabase
+        .from('tasks')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .neq('status', 'done'),
+      supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .neq('status', 'done')
+        .order('due_date', { ascending: true })
+        .limit(5),
+      supabase
+        .from('journal_entries')
+        .select('*')
+        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .order('created_at', { ascending: false })
+        .limit(3),
+    ])
 
         const totalIncome = incomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
         const totalExpenses = expensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0

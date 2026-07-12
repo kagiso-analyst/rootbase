@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { BarChart2, TrendingUp, TrendingDown, Leaf, Package } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button' // 👈 ADD THIS
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link' // 👈 ADD THIS
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Legend
@@ -17,112 +19,172 @@ type MonthlyData = {
 }
 
 export default function AnalyticsPage() {
+  // ===== STATE =====
   const [totalIncome, setTotalIncome] = useState(0)
   const [totalExpenses, setTotalExpenses] = useState(0)
   const [activeCrops, setActiveCrops] = useState(0)
   const [inventoryItems, setInventoryItems] = useState(0)
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
   const [expensesByCategory, setExpensesByCategory] = useState<{category: string, amount: number}[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true) // ✅ Already have this
+  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
 
   const supabase = createClient()
 
-  useEffect(() => {
-    async function fetchAnalytics() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        
-        const [incomeRes, expensesRes, cropsRes, inventoryRes] = await Promise.all([
-          supabase
-            .from('income')
-            .select('amount, date')
-            .eq('user_id', user?.id),
-          supabase
-            .from('expenses')
-            .select('amount, date, category')
-            .eq('user_id', user?.id),
-          supabase
-            .from('crops')
-            .select('id', { count: 'exact' })
-            .eq('user_id', user?.id)
-            .eq('status', 'active'),
-          supabase
-            .from('inventory_items')
-            .select('id', { count: 'exact' })
-            .eq('user_id', user?.id),
-        ])
-
-        const incomeData = incomeRes.data || []
-        const expensesData = expensesRes.data || []
-
-        const totalInc = incomeData.reduce((sum, r) => sum + Number(r.amount), 0)
-        const totalExp = expensesData.reduce((sum, r) => sum + Number(r.amount), 0)
-
-        setTotalIncome(totalInc)
-        setTotalExpenses(totalExp)
-        setActiveCrops(cropsRes.count || 0)
-        setInventoryItems(inventoryRes.count || 0)
-
-        // Build monthly data for last 6 months
-        const months: MonthlyData[] = []
-        for (let i = 5; i >= 0; i--) {
-          const d = new Date()
-          d.setMonth(d.getMonth() - i)
-          const monthStr = d.toLocaleString('default', { month: 'short' })
-          const year = d.getFullYear()
-          const month = String(d.getMonth() + 1).padStart(2, '0')
-          const prefix = `${year}-${month}`
-
-          const monthIncome = incomeData
-            .filter(r => r.date?.startsWith(prefix))
-            .reduce((sum, r) => sum + Number(r.amount), 0)
-
-          const monthExpenses = expensesData
-            .filter(r => r.date?.startsWith(prefix))
-            .reduce((sum, r) => sum + Number(r.amount), 0)
-
-          months.push({
-            month: monthStr,
-            income: monthIncome,
-            expenses: monthExpenses,
-            profit: monthIncome - monthExpenses,
-          })
-        }
-        setMonthlyData(months)
-
-        // Expenses by category
-        const catMap: Record<string, number> = {}
-        expensesData.forEach(r => {
-          if (r.category) {
-            catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount)
-          }
-        })
-        const catArray = Object.entries(catMap)
-          .map(([category, amount]) => ({ category, amount }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 6)
-        setExpensesByCategory(catArray)
-      } catch (err) {
-        console.error('Analytics fetch error:', err)
-      } finally {
+  // ===== FETCH FUNCTION WITH PROPER ERROR HANDLING =====
+  async function fetchAnalytics() {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
         setLoading(false)
+        return
       }
-    }
+      
+      setUser(user) // ✅ Save user
 
+      const [incomeRes, expensesRes, cropsRes, inventoryRes] = await Promise.all([
+        supabase
+          .from('income')
+          .select('amount, date')
+          .eq('user_id', user.id),
+        supabase
+          .from('expenses')
+          .select('amount, date, category')
+          .eq('user_id', user.id),
+        supabase
+          .from('crops')
+          .select('id', { count: 'exact' })
+          .eq('user_id', user.id)
+          .eq('status', 'active'),
+        supabase
+          .from('inventory_items')
+          .select('id', { count: 'exact' })
+          .eq('user_id', user.id),
+      ])
+
+      // ✅ Check for errors
+      if (incomeRes.error) throw new Error('Failed to fetch income: ' + incomeRes.error.message)
+      if (expensesRes.error) throw new Error('Failed to fetch expenses: ' + expensesRes.error.message)
+      if (cropsRes.error) throw new Error('Failed to fetch crops: ' + cropsRes.error.message)
+      if (inventoryRes.error) throw new Error('Failed to fetch inventory: ' + inventoryRes.error.message)
+
+      const incomeData = incomeRes.data || []
+      const expensesData = expensesRes.data || []
+
+      const totalInc = incomeData.reduce((sum, r) => sum + Number(r.amount), 0)
+      const totalExp = expensesData.reduce((sum, r) => sum + Number(r.amount), 0)
+
+      setTotalIncome(totalInc)
+      setTotalExpenses(totalExp)
+      setActiveCrops(cropsRes.count || 0)
+      setInventoryItems(inventoryRes.count || 0)
+
+      // Build monthly data for last 6 months
+      const months: MonthlyData[] = []
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date()
+        d.setMonth(d.getMonth() - i)
+        const monthStr = d.toLocaleString('default', { month: 'short' })
+        const year = d.getFullYear()
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        const prefix = `${year}-${month}`
+
+        const monthIncome = incomeData
+          .filter(r => r.date?.startsWith(prefix))
+          .reduce((sum, r) => sum + Number(r.amount), 0)
+
+        const monthExpenses = expensesData
+          .filter(r => r.date?.startsWith(prefix))
+          .reduce((sum, r) => sum + Number(r.amount), 0)
+
+        months.push({
+          month: monthStr,
+          income: monthIncome,
+          expenses: monthExpenses,
+          profit: monthIncome - monthExpenses,
+        })
+      }
+      setMonthlyData(months)
+
+      // Expenses by category
+      const catMap: Record<string, number> = {}
+      expensesData.forEach(r => {
+        if (r.category) {
+          catMap[r.category] = (catMap[r.category] || 0) + Number(r.amount)
+        }
+      })
+      const catArray = Object.entries(catMap)
+        .map(([category, amount]) => ({ category, amount }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 6)
+      setExpensesByCategory(catArray)
+      
+    } catch (err) {
+      console.error('Analytics fetch error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load analytics. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
     fetchAnalytics()
   }, [])
 
   const net = totalIncome - totalExpenses
   const isProfit = net >= 0
 
+  // ===== LOADING STATE =====
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">
-        <p className="text-sm">Loading analytics...</p>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">Loading analytics...</p>
+        </div>
       </div>
     )
   }
 
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to see your analytics.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <Card className="shadow-sm border-red-200 bg-red-50">
+        <CardContent className="py-4 px-6">
+          <p className="text-sm text-red-700">❌ {error}</p>
+          <Button 
+            className="mt-3 bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+            onClick={() => fetchAnalytics()}
+          >
+            Try Again
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // ===== ACTUAL PAGE CONTENT =====
   return (
     <div className="space-y-6">
       <div>
