@@ -1,171 +1,119 @@
-// components/ui/dialog.tsx
+'use client'
 
-"use client"
+import * as React from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import { cn } from '@/lib/utils'
 
-import * as React from "react"
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { XIcon } from "lucide-react"
-
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+type DropdownMenuContextValue = {
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
+const DropdownMenuContext = createContext<DropdownMenuContextValue | undefined>(undefined)
+
+function useDropdownMenu() {
+  const context = useContext(DropdownMenuContext)
+  if (!context) {
+    throw new Error('DropdownMenu components must be used within a DropdownMenu provider')
+  }
+  return context
 }
 
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
-}
-
-function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
-}
-
-function DialogOverlay({
-  className,
-  ...props
-}: DialogPrimitive.Backdrop.Props) {
+export function DropdownMenu({ children }: { children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
   return (
-    <DialogPrimitive.Backdrop
-      data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className
-      )}
-      {...props}
-    />
+    <DropdownMenuContext.Provider value={{ open, setOpen }}>
+      <div className="relative">{children}</div>
+    </DropdownMenuContext.Provider>
   )
 }
 
-function DialogContent({
-  className,
+export function DropdownMenuTrigger({
   children,
-  showCloseButton = true,
-  size = "default",
+  asChild = false,
   ...props
-}: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean
-  size?: "default" | "sm" | "lg" | "xl" | "full"
-}) {
-  const sizes = {
-    sm: "max-w-sm",
-    default: "max-w-md",
-    lg: "max-w-lg",
-    xl: "max-w-xl",
-    full: "max-w-[calc(100%-2rem)] sm:max-w-2xl",
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) {
+  const { open, setOpen } = useDropdownMenu()
+
+  if (asChild && React.isValidElement(children)) {
+    return React.cloneElement(children as React.ReactElement<any>, {
+  ...props,
+  onClick: (event: React.MouseEvent) => {
+    props.onClick?.(event as any)
+    setOpen((prev) => !prev)
+  },
+      'aria-expanded': open,
+    })
   }
 
   return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-white p-6 text-sm text-gray-900 shadow-2xl duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          sizes[size],
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="absolute top-3 right-3"
-          >
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="h-8 w-8 rounded-full hover:bg-gray-100"
-            >
-              <XIcon className="h-4 w-4 text-gray-500" />
-              <span className="sr-only">Close</span>
-            </Button>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
-    </DialogPortal>
-  )
-}
-
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-header"
-      className={cn("flex flex-col gap-1.5", className)}
+    <button
+      type="button"
       {...props}
-    />
-  )
-}
-
-function DialogFooter({
-  className,
-  showCloseButton = false,
-  children,
-  ...props
-}: React.ComponentProps<"div"> & {
-  showCloseButton?: boolean
-}) {
-  return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(
-        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-xl border-t border-gray-100 bg-gray-50/50 p-4 sm:flex-row sm:justify-end",
-        className
-      )}
-      {...props}
+      aria-expanded={open}
+      onClick={(event) => {
+        props.onClick?.(event)
+        setOpen((prev) => !prev)
+      }}
     >
       {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close>
-          <Button variant="outline">Close</Button>
-        </DialogPrimitive.Close>
+    </button>
+  )
+}
+
+export function DropdownMenuContent({
+  children,
+  className,
+  align = 'end',
+}: React.HTMLAttributes<HTMLDivElement> & { align?: 'start' | 'end' | 'center' }) {
+  const { open, setOpen } = useDropdownMenu()
+
+  useEffect(() => {
+    if (!open) return
+    const handlePointerDown = () => setOpen(false)
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => window.removeEventListener('pointerdown', handlePointerDown)
+  }, [open, setOpen])
+
+  if (!open) return null
+
+  return (
+    <div
+      className={cn(
+        'absolute z-50 mt-2 min-w-[12rem] rounded-md border border-gray-200 bg-white p-1 shadow-lg',
+        align === 'end' ? 'right-0' : align === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2',
+        className,
       )}
+    >
+      {children}
     </div>
   )
 }
 
-function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
-  return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn(
-        "text-lg font-semibold leading-none tracking-tight text-[#1B4332]",
-        className
-      )}
-      {...props}
-    />
-  )
+export function DropdownMenuLabel({ children, className }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('px-2 py-1.5 text-sm', className)}>{children}</div>
 }
 
-function DialogDescription({
+export function DropdownMenuSeparator() {
+  return <div className="my-1 h-px bg-gray-100" />
+}
+
+export function DropdownMenuItem({
+  children,
   className,
+  onClick,
   ...props
-}: DialogPrimitive.Description.Props) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <DialogPrimitive.Description
-      data-slot="dialog-description"
-      className={cn(
-        "text-sm text-gray-500",
-        className
-      )}
+    <button
+      type="button"
+      className={cn('flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50', className)}
+      onClick={(event) => {
+        onClick?.(event)
+      }}
       {...props}
-    />
+    >
+      {children}
+    </button>
   )
-}
-
-export {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-  DialogTrigger,
 }
