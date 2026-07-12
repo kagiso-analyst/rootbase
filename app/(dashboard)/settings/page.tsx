@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Save, User, Bell, Shield, Palette, Import } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -16,8 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { createClient } from '@/lib/supabase/client'
 
 export default function SettingsPage() {
+  const supabase = createClient()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -28,10 +30,80 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState('ZAR')
   const [language, setLanguage] = useState('en')
   const [saved, setSaved] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  // Load existing farm data
+  useEffect(() => {
+    async function loadFarmData() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const { data: farm } = await supabase
+        .from('farms')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single()
+
+      if (farm) {
+        setFarmName(farm.name || '')
+        setProvince(farm.province || '')
+        setFarmType(farm.farm_type || '')
+        setTotalHectares(farm.total_hectares?.toString() || '')
+      }
+    }
+
+    loadFarmData()
+  }, [])
 
   function handleSave() {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function handleFarmSave() {
+    setLoading(true)
+    setSaved(false)
+    
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('No user found')
+        return
+      }
+
+      const { data: existing } = await supabase
+        .from('farms')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('name', farmName)
+        .single()
+
+      if (existing) {
+        await supabase.from('farms').update({
+          farm_type: farmType,
+          province,
+          total_hectares: parseFloat(totalHectares) || 0,
+        }).eq('id', existing.id)
+      } else {
+        await supabase.from('farms').insert([{
+          user_id: user.id,
+          name: farmName,
+          farm_type: farmType,
+          province,
+          total_hectares: parseFloat(totalHectares) || 0,
+          is_active: true,
+        }])
+      }
+
+      setSaved(true)
+    } catch (error) {
+      console.error('Error saving farm:', error)
+    } finally {
+      setLoading(false)
+      setTimeout(() => setSaved(false), 2000)
+    }
   }
 
   return (
@@ -193,10 +265,11 @@ export default function SettingsPage() {
               </div>
               <Button
                 className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-                onClick={handleSave}
+                onClick={handleFarmSave}
+                disabled={loading}
               >
                 <Save size={15} className="mr-2" />
-                {saved ? 'Saved!' : 'Save Changes'}
+                {loading ? 'Saving...' : saved ? 'Saved!' : 'Save Changes'}
               </Button>
             </CardContent>
           </Card>

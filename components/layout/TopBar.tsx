@@ -22,6 +22,7 @@ export default function TopBar() {
   const [userName, setUserName] = useState('')
   const [greeting, setGreeting] = useState('Good morning')
   const { currentFarm, farms, switchFarm } = useFarm()
+  
 
   useEffect(() => {
     const hour = new Date().getHours()
@@ -39,9 +40,9 @@ export default function TopBar() {
   }, [])
 
   async function handleSignOut() {
-  await supabase.auth.signOut()
-  router.push('/')
-}
+    await supabase.auth.signOut()
+    router.push('/')
+  }
 
   return (
     <header className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6 md:px-6 pl-16 md:pl-6">
@@ -54,34 +55,50 @@ export default function TopBar() {
         {farms.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="hidden md:flex items-center gap-2 border-[#2D6A4F] text-[#2D6A4F] h-8"
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:flex items-center gap-2 border-[#2D6A4F] text-[#2D6A4F] h-8 text-xs"
               >
                 <Leaf size={12} />
-                <span className="text-xs font-medium max-w-32 truncate">
+                <span className="max-w-28 truncate">
                   {currentFarm?.name || 'Select Farm'}
                 </span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Your Farms</DropdownMenuLabel>
+            <DropdownMenuContent align="start" className="w-60">
+              <DropdownMenuLabel className="text-xs text-gray-400 uppercase tracking-wide">
+                Your Farms
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
               {farms.map(farm => (
                 <DropdownMenuItem
                   key={farm.id}
                   onClick={() => switchFarm(farm.id)}
-                  className={farm.is_active ? 'bg-[#D8F3DC] text-[#1B4332]' : ''}
+                  className={`cursor-pointer ${farm.is_active ? 'bg-[#D8F3DC] text-[#1B4332] font-medium' : ''}`}
                 >
-                  <Leaf size={12} className="mr-2" />
-                  {farm.name}
-                  {farm.is_active && <span className="ml-auto text-xs text-[#2D6A4F]">Active</span>}
+                  <div className="flex items-center gap-2 w-full">
+                    <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${farm.is_active ? 'bg-[#2D6A4F]' : 'bg-gray-100'}`}>
+                      <Leaf size={11} className={farm.is_active ? 'text-white' : 'text-gray-400'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{farm.name}</p>
+                      {farm.farm_type && (
+                        <p className="text-xs text-gray-400">{farm.farm_type}</p>
+                      )}
+                    </div>
+                    {farm.is_active && (
+                      <div className="w-2 h-2 bg-[#52B788] rounded-full flex-shrink-0" />
+                    )}
+                  </div>
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push('/settings')}>
-                + Add New Farm
+              <DropdownMenuItem
+                onClick={() => router.push('/settings')}
+                className="text-[#2D6A4F] cursor-pointer"
+              >
+                <span className="text-sm">+ Add New Farm</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
