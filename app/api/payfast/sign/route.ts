@@ -1,42 +1,62 @@
-import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
+// app/api/payfast/sign/route.ts
 
-export async function POST(request: NextRequest) {
+import { NextResponse } from 'next/server'
+import { buildPayFastData } from '@/lib/payfast'
+
+export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const passphrase = process.env.PAYFAST_PASSPHRASE || ''
+    // ✅ These are read on the SERVER, never sent to client
+    const merchantId = process.env.PAYFAST_MERCHANT_ID
+    const merchantKey = process.env.PAYFAST_MERCHANT_KEY
+    const passphrase = process.env.PAYFAST_PASSPHRASE
+    
+    // ✅ Validate server-side credentials
+    if (!merchantId || !merchantKey) {
+      console.error('PayFast credentials not configured on server')
+      return NextResponse.json(
+        { error: 'Payment configuration error' },
+        { status: 500 }
+      )
+    }
 
-    const data: Record<string, string> = {
-      merchant_id: process.env.PAYFAST_MERCHANT_ID!,
-      merchant_key: process.env.PAYFAST_MERCHANT_KEY!,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/cancel`,
-      notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
+    const notifyUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`
+
+    // Parse request body
+    const body = await request.json()
+
+    // Validate required fields
+    if (!body.email_address || !body.amount) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // ✅ Build PayFast data with server-side credentials
+    // The private keys NEVER leave the server
+    const data = buildPayFastData({
+      merchantId,
+      merchantKey,
+      passphrase: passphrase || '',
+      notifyUrl,
       name_first: body.name_first || 'Farmer',
       name_last: body.name_last || 'User',
       email_address: body.email_address,
-      amount: parseFloat(body.amount).toFixed(2),
-      item_name: body.item_name,
+      amount: body.amount,
+      item_name: body.item_name || 'RootBase Subscription',
       item_description: body.item_description || '',
-    }
+      m_payment_id: body.m_payment_id || `sub_${Date.now()}`,
+    })
 
-    // Remove empty values
-    Object.keys(data).forEach(k => { if (!data[k]) delete data[k] })
-
-    // Build signature string
-    const sortedKeys = Object.keys(data).sort()
-    let queryString = sortedKeys
-      .map(k => `${k}=${encodeURIComponent(data[k]).replace(/%20/g, '+')}`)
-      .join('&')
-
-    if (passphrase) {
-      queryString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`
-    }
-
-    const signature = crypto.createHash('md5').update(queryString).digest('hex')
-
-    return NextResponse.json({ data: { ...data, signature } })
-  } catch (err) {
-    return NextResponse.json({ error: 'Signing failed' }, { status: 500 })
+    // ✅ Return ONLY the payment data (signature included)
+    // The private keys are NOT in this response
+    return NextResponse.json({ data })
+    
+  } catch (error) {
+    console.error('PayFast sign error:', error)
+    return NextResponse.json(
+      { error: 'Failed to create payment' },
+      { status: 500 }
+    )
   }
 }

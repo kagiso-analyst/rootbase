@@ -26,9 +26,14 @@ export type ForecastDay = {
 
 export async function fetchWeather(lat: number, lon: number): Promise<WeatherData | null> {
   try {
-    const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}`)
+    // Add timestamp to prevent caching issues
+    const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}&_=${Date.now()}`)
     const json = await res.json()
-    if (!json.current || json.current.cod !== 200) return null
+    
+    if (!json.current || json.current.cod !== 200) {
+      console.warn('Weather API returned error:', json)
+      return null
+    }
 
     const current = json.current
     const forecastData = json.forecast

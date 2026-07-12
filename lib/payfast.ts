@@ -1,40 +1,135 @@
+// lib/payfast.ts
+
 import md5 from 'md5'
 
+// ===== PUBLIC CONFIG (Safe for client) =====
 export const PAYFAST_CONFIG = {
-  merchantId: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_ID || '10000100',
-  merchantKey: process.env.NEXT_PUBLIC_PAYFAST_MERCHANT_KEY || '46f0cd694581a',
-  passphrase: process.env.NEXT_PUBLIC_PAYFAST_PASSPHRASE || '',
   sandbox: process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true',
   returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/success`,
   cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/subscription/cancel`,
-  notifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/payfast/notify`,
 }
 
-export function getPayFastUrl() {
+// ===== GET PAYFAST URL =====
+export function getPayFastUrl(): string {
   return PAYFAST_CONFIG.sandbox
     ? 'https://sandbox.payfast.co.za/eng/process'
     : 'https://www.payfast.co.za/eng/process'
 }
 
+// ===== GENERATE SIGNATURE (Server-side only!) =====
 export function generateSignature(data: Record<string, string>, passphrase?: string): string {
-  // Step 1 — sort params alphabetically
   const sortedKeys = Object.keys(data).sort()
 
-  // Step 2 — build query string
   let queryString = sortedKeys
-    .filter(key => data[key] !== '' && data[key] !== undefined)
+    .filter(key => data[key] !== '' && data[key] !== undefined && data[key] !== null)
     .map(key => `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}`)
     .join('&')
 
-  // Step 3 — append passphrase if set
   if (passphrase && passphrase !== '') {
     queryString += `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`
   }
 
-  // Step 4 — MD5 hash
   return md5(queryString)
 }
 
+// ===== PAYFAST DATA INTERFACE =====
+export interface PayFastData {
+  merchant_id: string
+  merchant_key: string
+  return_url: string
+  cancel_url: string
+  notify_url: string
+  name_first: string
+  name_last: string
+  email_address: string
+  m_payment_id?: string
+  amount: string
+  item_name: string
+  item_description?: string
+  custom_int1?: string
+  custom_str1?: string
+  custom_str2?: string
+  signature: string
+}
+
+interface BuildPayFastDataParams {
+  merchantId: string
+  merchantKey: string
+  passphrase?: string
+  notifyUrl: string
+  name_first: string
+  name_last: string
+  email_address: string
+  amount: string
+  item_name: string
+  item_description?: string
+  m_payment_id?: string
+  custom_int1?: string
+  custom_str1?: string
+  custom_str2?: string
+}
+
+// ===== BUILD PAYFAST DATA =====
+export function buildPayFastData(params: BuildPayFastDataParams): PayFastData {
+  // Build the data object with all required fields
+  const data: Record<string, string> = {
+    merchant_id: params.merchantId,
+    merchant_key: params.merchantKey,
+    return_url: PAYFAST_CONFIG.returnUrl,
+    cancel_url: PAYFAST_CONFIG.cancelUrl,
+    notify_url: params.notifyUrl,
+    name_first: params.name_first || 'Farmer',
+    name_last: params.name_last || 'User',
+    email_address: params.email_address || '',
+    amount: params.amount || '0.00',
+    item_name: params.item_name || 'RootBase Subscription',
+  }
+
+  // Add optional fields
+  if (params.item_description) {
+    data.item_description = params.item_description
+  }
+  
+  if (params.m_payment_id) {
+    data.m_payment_id = params.m_payment_id
+  }
+  
+  if (params.custom_int1) {
+    data.custom_int1 = params.custom_int1
+  }
+  
+  if (params.custom_str1) {
+    data.custom_str1 = params.custom_str1
+  }
+  
+  if (params.custom_str2) {
+    data.custom_str2 = params.custom_str2
+  }
+
+  // Generate signature
+  const signature = generateSignature(data, params.passphrase)
+  data.signature = signature
+
+  // ✅ FIX: Type assertion with explicit validation
+  return data as unknown as PayFastData
+}
+
+// ===== VERIFY PAYFAST NOTIFICATION =====
+export function verifyPayFastNotification(
+  data: Record<string, string>, 
+  passphrase?: string
+): boolean {
+  if (!data.signature) {
+    return false
+  }
+
+  const { signature, ...dataWithoutSignature } = data
+  const calculatedSignature = generateSignature(dataWithoutSignature, passphrase)
+
+  return signature === calculatedSignature
+}
+
+// ===== PLANS (Safe for client) =====
 export const PLANS = [
   {
     id: 'free',
@@ -111,3 +206,31 @@ export const PLANS = [
     highlighted: false,
   },
 ]
+
+// ===== HELPER FUNCTIONS =====
+export function getPlanById(id: string) {
+  return PLANS.find(plan => plan.id === id)
+}
+
+export function getPlanPrice(planId: string): number {
+  const plan = getPlanById(planId)
+  return plan?.price || 0
+}
+
+export function isFreePlan(planId: string): boolean {
+  return planId === 'free' || getPlanPrice(planId) === 0
+}
+
+export function getPlanFeatures(planId: string): string[] {
+  const plan = getPlanById(planId)
+  return plan?.features || []
+}
+
+export function getPlanCta(planId: string): string {
+  const plan = getPlanById(planId)
+  return plan?.cta || 'Subscribe'
+}
+
+export function getPayFastEnvironment(): 'sandbox' | 'production' {
+  return PAYFAST_CONFIG.sandbox ? 'sandbox' : 'production'
+}
