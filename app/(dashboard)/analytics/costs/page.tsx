@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link' // 👈 ADD THIS for the login link
+
 
 type Snapshot = {
   id: string
@@ -21,13 +21,6 @@ type Snapshot = {
 }
 
 export default function CostCalculatorPage() {
-  // ===== STATE =====
-  // ✅ ADD loading and error states
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null) // 👈 Track user
-
-  // Your existing state
   const [weeklyInfra, setWeeklyInfra] = useState({
     electricity: '', water: '', fuel: '', labour: '',
     insurance: '', rent: '', other: '',
@@ -45,12 +38,8 @@ export default function CostCalculatorPage() {
 
   const supabase = createClient()
 
-  // ===== FETCH FUNCTION WITH PROPER ERROR HANDLING =====
-  async function fetchData() {
-    setLoading(true)
-    setError(null)
-    
-    try {
+  useEffect(() => {
+    async function fetchData() {
       const today = new Date()
       const weekAgo = new Date(today)
       weekAgo.setDate(today.getDate() - 7)
@@ -58,16 +47,7 @@ export default function CostCalculatorPage() {
       const to = today.toISOString().split('T')[0]
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setActualExpenses(0)
-        setActualIncome(0)
-        setSnapshots([])
-        setLoading(false)
-        return
-      }
-      
-      setUser(user) // ✅ Save user
+      if (!user) return
 
       const [expRes, incRes, snapshotRes] = await Promise.all([
         supabase.from('expenses').select('amount').gte('date', from).lte('date', to).eq('user_id', user.id),
@@ -75,35 +55,19 @@ export default function CostCalculatorPage() {
         supabase.from('cost_snapshots').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
       ])
 
-      // ✅ Check for errors
-      if (expRes.error) throw new Error('Failed to fetch expenses: ' + expRes.error.message)
-      if (incRes.error) throw new Error('Failed to fetch income: ' + incRes.error.message)
-      if (snapshotRes.error) throw new Error('Failed to fetch snapshots: ' + snapshotRes.error.message)
-
       setActualExpenses(expRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0)
       setActualIncome(incRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0)
       if (snapshotRes.data) setSnapshots(snapshotRes.data)
-      
-    } catch (err) {
-      console.error('Error fetching data:', err)
-      setError('Failed to load your data. Please refresh the page.')
-    } finally {
-      setLoading(false) // ✅ Always turn off loading
     }
-  }
-
-  useEffect(() => {
     fetchData()
   }, [])
 
-  // ===== CALCULATIONS (unchanged) =====
   const infraTotal = Object.values(weeklyInfra).reduce((s, v) => s + (parseFloat(v) || 0), 0)
   const productionTotal = Object.values(weeklyProduction).reduce((s, v) => s + (parseFloat(v) || 0), 0)
   const estimatedTotal = infraTotal + productionTotal
   const estimatedMonthly = estimatedTotal * 4.33
   const estimatedAnnual = estimatedTotal * 52
 
-  // ===== SAVE FUNCTION WITH BETTER ERROR HANDLING =====
   async function handleSave() {
     if (estimatedTotal === 0) {
       setSaveMessage('Please enter some costs before saving.')
@@ -144,20 +108,18 @@ export default function CostCalculatorPage() {
       }]).select().single()
 
       if (error) {
-        throw new Error(error.message) // ✅ Throw error to be caught
+        setSaveMessage('Error: ' + error.message)
       } else if (data) {
         setSnapshots((prev) => [data, ...prev])
         setSaveMessage('✅ Estimate saved successfully!')
         setTimeout(() => setSaveMessage(''), 3000)
       }
     } catch (err) {
-      console.error('Save error:', err)
-      setSaveMessage('Error: ' + (err instanceof Error ? err.message : 'Something went wrong. Try again.'))
+      setSaveMessage('Unexpected error. Try again.')
     }
     setSaving(false)
   }
 
-  // ===== INFRA & PRODUCTION FIELDS (unchanged) =====
   const INFRA_FIELDS = [
     { key: 'electricity', label: 'Electricity' },
     { key: 'water', label: 'Water / Irrigation' },
@@ -177,52 +139,6 @@ export default function CostCalculatorPage() {
     { key: 'other', label: 'Other Production' },
   ]
 
-  // ===== LOADING STATE =====
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading your costs...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // ===== NOT LOGGED IN =====
-  if (!user) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
-        <p className="text-sm text-gray-500">You need to be logged in to see your cost calculator.</p>
-        <Link href="/login">
-          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
-            Go to Login
-          </Button>
-        </Link>
-      </div>
-    )
-  }
-
-  // ===== ERROR STATE =====
-  if (error) {
-    return (
-      <Card className="shadow-sm border-red-200 bg-red-50">
-        <CardContent className="py-4 px-6">
-          <p className="text-sm text-red-700">❌ {error}</p>
-          <Button 
-            className="mt-3 bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-            onClick={() => fetchData()}
-          >
-            Try Again
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // ===== ACTUAL PAGE CONTENT =====
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">

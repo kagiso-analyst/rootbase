@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import Link from 'next/link' // 👈 ADD THIS
 
 type Equipment = {
   id: string
@@ -94,12 +95,17 @@ function isServiceDue(equipment: Equipment): boolean {
 }
 
 export default function EquipmentPage() {
+  // ===== STATE =====
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([])
   const [equipOpen, setEquipOpen] = useState(false)
   const [serviceOpen, setServiceOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [loading, setLoading] = useState(false)
 
+  // Equipment form
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [make, setMake] = useState('')
@@ -114,44 +120,52 @@ export default function EquipmentPage() {
   const [insuranceExpiry, setInsuranceExpiry] = useState('')
   const [notes, setNotes] = useState('')
 
+  // Service form
   const [selectedEquipId, setSelectedEquipId] = useState('')
   const [serviceType, setServiceType] = useState('')
   const [serviceDesc, setServiceDesc] = useState('')
   const [serviceCost, setServiceCost] = useState('')
   const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0])
   const [serviceHours, setServiceHours] = useState('')
-  const [loading, setLoading] = useState(false)
 
-  const dueSoon = equipment.filter(isServiceDue)
   const supabase = createClient()
+  const dueSoon = equipment.filter(isServiceDue)
 
-  // FIXED: Combined fetch function with proper type handling
+  // ===== FETCH ALL DATA =====
   async function fetchAll() {
-  setFetching(true)
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setEquipment([])
-      setMaintenanceLogs([])
-      setFetching(false)
-      return
-    }
+    setFetching(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
+        setEquipment([])
+        setMaintenanceLogs([])
+        setFetching(false)
+        return
+      }
+      
+      setUser(user)
 
-    const [equipRes, logsRes] = await Promise.all([
-      supabase
-        .from('equipment')
-        .select('*')
-        .eq('user_id', user.id)  // 👈 ADD THIS!
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('maintenance_logs')
-        .select('*')
-        .eq('user_id', user.id)  // 👈 ADD THIS!
-        .order('date', { ascending: false }),
-    ])
+      const [equipRes, logsRes] = await Promise.all([
+        supabase
+          .from('equipment')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('maintenance_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false }),
+      ])
 
-      if (!equipRes.error && equipRes.data) {
-        // FIXED: Map the data to ensure purchase_price is a number
+      // 👇 Check for errors
+      if (equipRes.error) throw new Error('Failed to fetch equipment: ' + equipRes.error.message)
+      if (logsRes.error) throw new Error('Failed to fetch maintenance logs: ' + logsRes.error.message)
+
+      if (equipRes.data) {
         const mappedEquipment = equipRes.data.map((item: any) => ({
           ...item,
           purchasePrice: parseFloat(String(item.purchase_price)) || 0,
@@ -161,8 +175,7 @@ export default function EquipmentPage() {
         setEquipment(mappedEquipment)
       }
 
-      if (!logsRes.error && logsRes.data) {
-        // FIXED: Map the data to ensure cost is a number
+      if (logsRes.data) {
         const mappedLogs = logsRes.data.map((item: any) => ({
           ...item,
           equipmentId: item.equipment_id,
@@ -173,8 +186,10 @@ export default function EquipmentPage() {
         }))
         setMaintenanceLogs(mappedLogs)
       }
+      
     } catch (err) {
       console.error('Fetch error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load equipment. Please refresh the page.')
     } finally {
       setFetching(false)
     }
@@ -184,11 +199,20 @@ export default function EquipmentPage() {
     fetchAll()
   }, [])
 
+  // ===== ADD EQUIPMENT =====
   async function handleAddEquipment() {
     if (!name || !category) return
+    
     setLoading(true)
+    setError(null)
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to add equipment')
+        setLoading(false)
+        return
+      }
       
       const { data, error } = await supabase
         .from('equipment')
@@ -206,14 +230,14 @@ export default function EquipmentPage() {
           next_service_hours: parseFloat(nextServiceHours) || 0,
           insurance_expiry: insuranceExpiry || null,
           notes: notes || null,
-          user_id: user?.id
+          user_id: user.id
         }])
         .select()
         .single()
-      if (error) {
-        console.error('Equipment insert error:', error)
-      } else if (data) {
-        // FIXED: Ensure the returned data has correct types
+      
+      if (error) throw new Error('Failed to save equipment: ' + error.message)
+      
+      if (data) {
         const newEquipment = {
           ...data,
           purchasePrice: parseFloat(String(data.purchase_price)) || 0,
@@ -221,6 +245,7 @@ export default function EquipmentPage() {
           nextServiceHours: parseFloat(String(data.next_service_hours)) || 0,
         }
         setEquipment((prev) => [newEquipment, ...prev])
+        // Reset form
         setName('')
         setCategory('')
         setMake('')
@@ -236,20 +261,31 @@ export default function EquipmentPage() {
         setNotes('')
         setEquipOpen(false)
       }
+      
     } catch (err) {
-      console.error('Equipment crash:', err)
+      console.error('Equipment save error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save equipment. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+  // ===== ADD SERVICE =====
   async function handleAddService() {
     if (!selectedEquipId || !serviceType || !serviceDesc) return
+    
+    setLoading(true)
+    setError(null)
     
     const equip = equipment.find((e) => e.id === selectedEquipId)
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to log services')
+        setLoading(false)
+        return
+      }
       
       const { data, error } = await supabase
         .from('maintenance_logs')
@@ -261,15 +297,14 @@ export default function EquipmentPage() {
           cost: parseFloat(serviceCost) || 0,
           date: serviceDate,
           hours_at_service: parseFloat(serviceHours) || 0,
-          user_id: user?.id
+          user_id: user.id
         }])
         .select()
         .single()
       
-      if (error) {
-        console.error('Maintenance log insert error:', error)
-      } else if (data) {
-        // FIXED: Ensure the returned data has correct types
+      if (error) throw new Error('Failed to save service: ' + error.message)
+      
+      if (data) {
         const newLog = {
           ...data,
           equipmentId: data.equipment_id,
@@ -279,6 +314,7 @@ export default function EquipmentPage() {
           cost: parseFloat(String(data.cost)) || 0,
         }
         setMaintenanceLogs((prev) => [newLog, ...prev])
+        // Reset form
         setSelectedEquipId('')
         setServiceType('')
         setServiceDesc('')
@@ -287,64 +323,129 @@ export default function EquipmentPage() {
         setServiceDate(new Date().toISOString().split('T')[0])
         setServiceOpen(false)
       }
+      
     } catch (err) {
-      console.error('Maintenance log crash:', err)
+      console.error('Service save error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save service. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
+  // ===== DELETE EQUIPMENT =====
   async function handleDelete(id: string) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!confirm('Are you sure you want to delete this equipment and all its service logs?')) return
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to delete equipment')
+        return
+      }
 
-    const { error } = await supabase
-      .from('equipment')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id)  // 👈 ADD THIS!
+      const { error } = await supabase
+        .from('equipment')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
 
-    if (!error) {
+      if (error) throw new Error('Failed to delete equipment: ' + error.message)
+
       setEquipment(prev => prev.filter(e => e.id !== id))
       // Also delete associated maintenance logs
       await supabase
         .from('maintenance_logs')
         .delete()
         .eq('equipment_id', id)
-        .eq('user_id', user.id)  // 👈 ADD THIS!
+        .eq('user_id', user.id)
+      setMaintenanceLogs(prev => prev.filter(log => log.equipmentId !== id))
+      
+    } catch (err) {
+      console.error('Delete error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete equipment')
     }
-  } catch (err) {
-    console.error('Delete crash:', err)
   }
-}
 
+  // ===== DELETE SERVICE LOG =====
   async function handleDeleteLog(id: string) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!confirm('Are you sure you want to delete this service log?')) return
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to delete service logs')
+        return
+      }
 
-    const { error } = await supabase
-      .from('maintenance_logs')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id)  // 👈 ADD THIS!
+      const { error } = await supabase
+        .from('maintenance_logs')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
 
-    if (!error) {
+      if (error) throw new Error('Failed to delete service log: ' + error.message)
+
       setMaintenanceLogs(prev => prev.filter(log => log.id !== id))
+      
+    } catch (err) {
+      console.error('Delete log error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete service log')
     }
-  } catch (err) {
-    console.error('Delete log crash:', err)
   }
-}
 
-
-  // FIXED: Total value calculation with proper number conversion
   const totalValue = equipment.reduce((sum, e) => {
     const price = parseFloat(String(e.purchasePrice)) || 0
     return sum + price
   }, 0)
 
+  // ===== LOADING STATE =====
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">Loading equipment...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to manage your equipment.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#1B4332]">Equipment</h1>
@@ -584,13 +685,7 @@ export default function EquipmentPage() {
         </Card>
       )}
 
-      {fetching ? (
-        <Card className="shadow-sm">
-          <CardContent className="flex items-center justify-center py-16 text-gray-400">
-            <p className="text-sm">Loading equipment...</p>
-          </CardContent>
-        </Card>
-      ) : equipment.length === 0 ? (
+      {equipment.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Wrench size={40} className="mb-3 opacity-30" />
