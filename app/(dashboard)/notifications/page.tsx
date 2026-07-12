@@ -28,7 +28,7 @@ export default function NotificationsPage() {
 
         const { data: { user } } = await supabase.auth.getUser()
 
-        const [tasksRes, inventoryRes, equipmentRes] = await Promise.all([
+        const [tasksRes, inventoryRes, equipmentRes, documentsRes] = await Promise.all([
           supabase
             .from('tasks')
             .select('*')
@@ -41,6 +41,10 @@ export default function NotificationsPage() {
             .eq('user_id', user?.id),
           supabase
             .from('equipment')
+            .select('*')
+            .eq('user_id', user?.id),
+          supabase
+            .from('documents')
             .select('*')
             .eq('user_id', user?.id),
         ])
@@ -89,6 +93,26 @@ export default function NotificationsPage() {
                 severity: days <= 0 ? 'urgent' : 'warning',
               })
             }
+          }
+        })
+
+        // Document expiry — wire it in properly
+        const documents = documentsRes.data || []
+        documents.forEach(doc => {
+          if (!doc.expiry_date) return
+          const days = Math.ceil(
+            (new Date(doc.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          )
+          if (days <= 30) {
+            alerts.push({
+              id: `doc-${doc.id}`,
+              type: 'expiry',
+              title: `Document expiring: ${doc.name}`,
+              description: days <= 0
+                ? `Expired on ${doc.expiry_date} — renew immediately`
+                : `Expires in ${days} day${days !== 1 ? 's' : ''} on ${doc.expiry_date}`,
+              severity: days <= 7 ? 'urgent' : 'warning',
+            })
           }
         })
 

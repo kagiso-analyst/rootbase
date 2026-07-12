@@ -5,7 +5,7 @@ import { Check, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
-import { PLANS, PAYFAST_CONFIG, getPayFastUrl, generateSignature } from '@/lib/payfast'
+import { PLANS, PAYFAST_CONFIG, getPayFastUrl } from '@/lib/payfast'
 
 export default function SubscriptionPage() {
   const [userEmail, setUserEmail] = useState('')
@@ -34,52 +34,55 @@ export default function SubscriptionPage() {
     fetchUser()
   }, [])
 
-  function handleSubscribe(plan: typeof PLANS[0]) {
-  if (plan.price === 0 || plan.id === currentPlan) return
-  setLoading(true)
+  async function handleSubscribe(plan: typeof PLANS[0]) {
+    if (plan.price === 0 || plan.id === currentPlan) return
+    setLoading(true)
 
-  // Build the data object — order matters for signature
-  const data: Record<string, string> = {
-    merchant_id: PAYFAST_CONFIG.merchantId,
-    merchant_key: PAYFAST_CONFIG.merchantKey,
-    return_url: PAYFAST_CONFIG.returnUrl,
-    cancel_url: PAYFAST_CONFIG.cancelUrl,
-    notify_url: PAYFAST_CONFIG.notifyUrl,
-    name_first: userName.split(' ')[0] || 'Farmer',
-    name_last: userName.split(' ').slice(1).join(' ') || 'User',
-    email_address: userEmail,
-    amount: plan.price.toFixed(2),
-    item_name: `RootBase ${plan.name} Plan`,
-    item_description: `Monthly subscription to RootBase ${plan.name} - billed monthly`,
+    try {
+      const res = await fetch('/api/payfast/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name_first: userName.split(' ')[0] || 'Farmer',
+          name_last: userName.split(' ').slice(1).join(' ') || 'User',
+          email_address: userEmail,
+          amount: plan.price.toFixed(2),
+          item_name: `RootBase ${plan.name} Plan`,
+          item_description: `Monthly subscription to RootBase ${plan.name}`,
+        }),
+      })
+
+      const { data, error } = await res.json()
+      if (error || !data) {
+        alert('Payment setup failed. Try again.')
+        setLoading(false)
+        return
+      }
+
+      const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
+      const action = isSandbox
+        ? 'https://sandbox.payfast.co.za/eng/process'
+        : 'https://www.payfast.co.za/eng/process'
+
+      const form = document.createElement('form')
+      form.method = 'POST'
+      form.action = action
+
+      Object.entries(data).forEach(([key, value]) => {
+        const input = document.createElement('input')
+        input.type = 'hidden'
+        input.name = key
+        input.value = String(value)
+        form.appendChild(input)
+      })
+
+      document.body.appendChild(form)
+      form.submit()
+    } catch (err) {
+      alert('Unexpected error. Try again.')
+      setLoading(false)
+    }
   }
-
-  // Remove empty values
-  Object.keys(data).forEach(key => {
-    if (!data[key] || data[key] === '') delete data[key]
-  })
-
-  // Generate signature
-  const signature = generateSignature(data, PAYFAST_CONFIG.passphrase)
-
-  // Add signature to data
-  const finalData = { ...data, signature }
-
-  // Build and submit form
-  const form = document.createElement('form')
-  form.method = 'POST'
-  form.action = getPayFastUrl()
-
-  Object.entries(finalData).forEach(([key, value]) => {
-    const input = document.createElement('input')
-    input.type = 'hidden'
-    input.name = key
-    input.value = value
-    form.appendChild(input)
-  })
-
-  document.body.appendChild(form)
-  form.submit()
-}
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] py-12 px-6">
