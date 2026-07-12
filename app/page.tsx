@@ -48,7 +48,6 @@ export default function LandingPage() {
             Sign In
           </Link>
         </div>
-        <p className="text-xs text-gray-400 mt-4">No credit card required · Free forever plan available</p>
 
         {/* Dashboard preview */}
         <div className="mt-16 relative">
@@ -363,7 +362,6 @@ export default function LandingPage() {
           <Link href="/register" className="inline-block bg-[#52B788] text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-[#2D6A4F] transition-colors shadow-lg">
             Start for Free Today
           </Link>
-          <p className="text-[#52B788] text-xs mt-4">Free forever plan · No credit card required</p>
         </div>
       </section>
 

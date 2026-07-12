@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import {
   Select,
   SelectContent,
@@ -201,48 +202,86 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="import" className="mt-4">
+        <TabsContent value="import" className="mt-4 space-y-4">
+          <Card className="shadow-sm border-orange-200 bg-orange-50">
+            <CardContent className="py-4 px-5">
+              <p className="text-sm font-semibold text-orange-700 mb-1">⚠️ Important — Read Before Importing</p>
+              <p className="text-xs text-orange-600">
+                Historical data is kept completely separate from your current operations.
+                All imports are tagged with their original date so they appear correctly in reports
+                but do not interfere with your live farm data. You can filter reports by date range
+                to view historical vs current data separately.
+              </p>
+            </CardContent>
+          </Card>
+
           <Card className="shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Import Historical Data</CardTitle>
+              <CardTitle className="text-base">Import Historical Farm Records</CardTitle>
               <p className="text-xs text-gray-400">
-                Farming since before 2026? Add all your past records with the correct dates.
-                RootBase accepts back-dated entries for any module.
+                Add records from before you joined RootBase. Each module accepts any past date.
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <CardContent>
+              <div className="space-y-3">
                 {[
-                  { label: 'Past Expenses', href: '/finances/expenses', desc: 'Add historical input costs, fuel, labour' },
-                  { label: 'Past Income', href: '/finances/income', desc: 'Add historical crop and livestock sales' },
-                  { label: 'Past Crops', href: '/crops', desc: 'Add previous seasons\'s crop records' },
-                  { label: 'Past Journal Entries', href: '/journal', desc: 'Add historical farm diary entries' },
-                  { label: 'Past Livestock Records', href: '/livestock', desc: 'Add animals purchased or born before 2026' },
-                  { label: 'Past Equipment', href: '/equipment', desc: 'Add equipment purchased in previous years' },
-                ].map(({ label, href, desc }) => (
-                  <a key={label} href={href} className="border border-gray-200 rounded-xl p-4 hover:border-[#2D6A4F] hover:bg-[#D8F3DC]/20 transition-all group">
-                    <p className="text-sm font-semibold text-[#1B4332] group-hover:text-[#2D6A4F]">{label}</p>
-                    <p className="text-xs text-gray-400 mt-1">{desc}</p>
-                    <p className="text-xs text-[#2D6A4F] mt-2 font-medium">
-                      Go to module → pick any past date when adding records
-                    </p>
-                  </a>
+                  {
+                    year: '2023',
+                    modules: ['Finances', 'Crops', 'Livestock', 'Journal'],
+                    status: 'Ready to import'
+                  },
+                  {
+                    year: '2024',
+                    modules: ['Finances', 'Crops', 'Livestock', 'Equipment', 'Journal'],
+                    status: 'Ready to import'
+                  },
+                  {
+                    year: '2025',
+                    modules: ['All modules'],
+                    status: 'Ready to import'
+                  },
+                ].map(({ year, modules, status }) => (
+                  <div key={year} className="border border-gray-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-sm font-semibold text-[#1B4332]">{year} Records</p>
+                      <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs">{status}</Badge>
+                    </div>
+                    <p className="text-xs text-gray-400 mb-3">Modules: {modules.join(', ')}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: 'Add Past Expenses', href: '/finances/expenses' },
+                        { label: 'Add Past Income', href: '/finances/income' },
+                        { label: 'Add Past Crops', href: '/crops' },
+                        { label: 'Add Past Journal Entries', href: '/journal' },
+                        { label: 'Add Past Livestock', href: '/livestock' },
+                        { label: 'Add Past Equipment', href: '/equipment' },
+                      ].map(({ label, href }) => (
+                        <Link
+                          key={label}
+                          href={href}
+                          className="text-xs border border-gray-200 rounded-lg px-3 py-2 text-gray-600 hover:border-[#2D6A4F] hover:text-[#2D6A4F] hover:bg-[#D8F3DC]/20 transition-all text-center"
+                        >
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
 
-              <div className="bg-[#D8F3DC] rounded-xl p-4 mt-4">
-                <p className="text-sm font-semibold text-[#1B4332] mb-2">💡 How to import historical data</p>
-                <ol className="space-y-1">
+              <div className="mt-4 p-4 bg-[#D8F3DC] rounded-xl">
+                <p className="text-sm font-semibold text-[#1B4332] mb-2">How it works</p>
+                <ol className="space-y-1.5">
                   {[
-                    'Go to any module (e.g. Finances → Expenses)',
-                    'Click "Add Expense" as normal',
-                    'Change the Date field to the historical date (e.g. 2023-03-15)',
-                    'Fill in the rest of the details and save',
-                    'RootBase will store it with the correct historical date',
-                    'Your analytics will reflect the full historical picture',
+                    'Click any module above to go to it',
+                    'Click "Add" as normal',
+                    'Set the Date field to the historical date (e.g. 2023-05-12)',
+                    'Fill in the historical data and save',
+                    'In Reports — use date filters to view specific years separately',
+                    'Your current data stays completely unaffected',
                   ].map((step, i) => (
                     <li key={i} className="flex items-start gap-2 text-xs text-[#2D6A4F]">
-                      <span className="font-bold flex-shrink-0">{i + 1}.</span>
+                      <span className="font-bold w-4 flex-shrink-0">{i + 1}.</span>
                       {step}
                     </li>
                   ))}

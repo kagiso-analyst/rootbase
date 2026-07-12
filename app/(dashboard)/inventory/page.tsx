@@ -73,7 +73,11 @@ export default function InventoryPage() {
 
   const lowStockItems = items.filter(isLowStock)
   const filtered = filterCategory === 'All' ? items : items.filter((i) => i.category === filterCategory)
-  const totalValue = items.reduce((sum, i) => sum + (i.current_quantity * i.unit_cost), 0)
+  const totalValue = items.reduce((sum, i) => {
+  const qty = parseFloat(String(i.current_quantity)) || 0
+  const cost = parseFloat(String(i.unit_cost)) || 0
+  return sum + (qty * cost)
+}, 0)
 
   async function handleAdd() {
     if (!name || !category || !unit) return

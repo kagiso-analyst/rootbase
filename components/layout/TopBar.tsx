@@ -39,9 +39,9 @@ export default function TopBar() {
   }, [])
 
   async function handleSignOut() {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
+  await supabase.auth.signOut()
+  router.push('/')
+}
 
   return (
     <header className="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6 md:px-6 pl-16 md:pl-6">
