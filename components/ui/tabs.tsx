@@ -1,3 +1,5 @@
+// components/ui/tabs.tsx
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +13,7 @@ const tabsRootVariants = cva(
     variants: {
       orientation: {
         horizontal: "data-[orientation=horizontal]:flex-col",
-        vertical: "data-[orientation=vertical]:flex-row",
+        vertical: "data-[orientation=vertical]:flex-row data-[orientation=vertical]:gap-4",
       },
     },
     defaultVariants: {
@@ -41,13 +43,14 @@ function Tabs({
 }
 
 const tabsListVariants = cva(
-  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-[3px] text-muted-foreground data-[orientation=horizontal]:h-8 data-[orientation=vertical]:h-fit data-[orientation=vertical]:flex-col data-[variant=line]:rounded-none",
+  "group/tabs-list inline-flex w-fit items-center justify-center rounded-lg p-1 text-gray-500 data-[orientation=horizontal]:h-10 data-[orientation=horizontal]:flex-row data-[orientation=vertical]:h-fit data-[orientation=vertical]:flex-col data-[variant=line]:rounded-none",
   {
     variants: {
       variant: {
-        default: "bg-gray-100",
-        line: "gap-1 bg-transparent",
+        default: "bg-gray-100/80 backdrop-blur-sm",
+        line: "gap-2 bg-transparent border-b border-gray-200 data-[orientation=vertical]:border-b-0 data-[orientation=vertical]:border-r",
         pills: "gap-1 bg-transparent",
+        underline: "gap-0 bg-transparent border-b-2 border-gray-200/50",
       },
     },
     defaultVariants: {
@@ -73,25 +76,30 @@ function TabsList({
 }
 
 const tabsTriggerVariants = cva(
-  "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-sm font-medium whitespace-nowrap text-gray-600 transition-all data-[orientation=vertical]:w-full data-[orientation=vertical]:justify-start hover:text-gray-900 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:text-gray-900 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "relative inline-flex h-full items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-all data-[orientation=vertical]:w-full data-[orientation=vertical]:justify-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D6A4F] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:text-gray-900 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: [
+          "text-gray-600 hover:text-gray-900 hover:bg-white/50",
           "data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm",
-          "dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-gray-100",
         ],
         line: [
-          "rounded-none bg-transparent data-[state=active]:bg-transparent",
-          "after:absolute after:bg-gray-900 after:opacity-0 after:transition-opacity",
-          "data-[orientation=horizontal]:after:inset-x-0 data-[orientation=horizontal]:after:bottom-[-5px] data-[orientation=horizontal]:after:h-0.5",
+          "rounded-none bg-transparent text-gray-500 hover:text-gray-700",
+          "data-[state=active]:bg-transparent data-[state=active]:text-[#2D6A4F]",
+          "after:absolute after:bg-[#2D6A4F] after:opacity-0 after:transition-all after:duration-200",
+          "data-[orientation=horizontal]:after:inset-x-0 data-[orientation=horizontal]:after:bottom-[-2px] data-[orientation=horizontal]:after:h-0.5",
           "data-[orientation=vertical]:after:inset-y-0 data-[orientation=vertical]:after:-right-1 data-[orientation=vertical]:after:w-0.5",
           "data-[state=active]:after:opacity-100",
-          "dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-transparent",
         ],
         pills: [
+          "text-gray-600 hover:text-gray-900 hover:bg-gray-100/50",
           "data-[state=active]:bg-white data-[state=active]:text-gray-900 data-[state=active]:shadow-sm",
-          "dark:data-[state=active]:bg-gray-800 dark:data-[state=active]:text-gray-100",
+        ],
+        underline: [
+          "rounded-none bg-transparent text-gray-500 hover:text-gray-700 data-[state=active]:text-[#2D6A4F]",
+          "after:absolute after:inset-x-0 after:bottom-[-2px] after:h-0.5 after:bg-[#2D6A4F] after:scale-x-0 after:transition-transform after:duration-200",
+          "data-[state=active]:after:scale-x-100",
         ],
       },
     },
@@ -125,7 +133,7 @@ function TabsContent({
     <TabsPrimitive.Panel
       data-slot="tabs-content"
       className={cn(
-        "flex-1 text-sm outline-none",
+        "flex-1 text-sm outline-none pt-2",
         "animate-in fade-in-0 data-[state=active]:animate-in",
         className
       )}

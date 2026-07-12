@@ -1,8 +1,9 @@
+// components/ui/dialog.tsx
+
 "use client"
 
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
-
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
@@ -31,7 +32,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -43,17 +44,28 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size = "default",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  size?: "default" | "sm" | "lg" | "xl" | "full"
 }) {
+  const sizes = {
+    sm: "max-w-sm",
+    default: "max-w-md",
+    lg: "max-w-lg",
+    xl: "max-w-xl",
+    full: "max-w-[calc(100%-2rem)] sm:max-w-2xl",
+  }
+
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-white p-4 text-sm text-gray-900 ring-1 ring-gray-200/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-white p-6 text-sm text-gray-900 shadow-2xl duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          sizes[size],
           className
         )}
         {...props}
@@ -62,14 +74,14 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="absolute top-2 right-2"
+            className="absolute top-3 right-3"
           >
             <Button
               variant="ghost"
-              size="icon"
-              className="h-7 w-7"
+              size="icon-sm"
+              className="h-8 w-8 rounded-full hover:bg-gray-100"
             >
-              <XIcon className="h-4 w-4" />
+              <XIcon className="h-4 w-4 text-gray-500" />
               <span className="sr-only">Close</span>
             </Button>
           </DialogPrimitive.Close>
@@ -83,7 +95,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      className={cn("flex flex-col gap-1.5", className)}
       {...props}
     />
   )
@@ -101,7 +113,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t border-gray-100 bg-gray-50/50 p-4 sm:flex-row sm:justify-end",
+        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-xl border-t border-gray-100 bg-gray-50/50 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -121,7 +133,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "font-heading text-base leading-none font-medium",
+        "text-lg font-semibold leading-none tracking-tight text-[#1B4332]",
         className
       )}
       {...props}
@@ -137,7 +149,7 @@ function DialogDescription({
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-sm text-gray-500 *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-gray-900",
+        "text-sm text-gray-500",
         className
       )}
       {...props}

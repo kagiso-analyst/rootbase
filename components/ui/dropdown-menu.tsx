@@ -1,280 +1,171 @@
-'use client'
+// components/ui/dialog.tsx
 
-import * as React from 'react'
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { cn } from '@/lib/utils'
+"use client"
 
-type DropdownMenuContextValue = {
-  open: boolean
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
-  triggerRef: React.RefObject<HTMLButtonElement | null>
-  contentRef: React.RefObject<HTMLDivElement | null>
+import * as React from "react"
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { XIcon } from "lucide-react"
+
+function Dialog({ ...props }: DialogPrimitive.Root.Props) {
+  return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
-const DropdownMenuContext = createContext<DropdownMenuContextValue | undefined>(undefined)
-
-function useDropdownMenu() {
-  const context = useContext(DropdownMenuContext)
-  if (!context) {
-    throw new Error('DropdownMenu components must be used within a DropdownMenu provider')
-  }
-  return context
+function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
+  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
-export function DropdownMenu({ 
-  children, 
-  defaultOpen = false 
-}: { 
-  children: React.ReactNode
-  defaultOpen?: boolean 
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
-
-  // Handle escape key
-  useEffect(() => {
-    if (!open) return
-    
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false)
-        triggerRef.current?.focus()
-      }
-    }
-    
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open])
-
-  return (
-    <DropdownMenuContext.Provider value={{ open, setOpen, triggerRef, contentRef }}>
-      <div className="relative inline-block">{children}</div>
-    </DropdownMenuContext.Provider>
-  )
+function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
+  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 
-export function DropdownMenuTrigger({
-  children,
-  asChild = false,
+function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
+  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
+}
+
+function DialogOverlay({
   className,
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) {
-  const { open, setOpen, triggerRef } = useDropdownMenu()
-
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    props.onClick?.(event)
-    setOpen((prev) => !prev)
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      setOpen((prev) => !prev)
-    }
-  }
-
-  if (asChild && React.isValidElement(children)) {
-    // Clone the child with our props, casting the event types
-    const childProps = {
-      ...props,
-      ref: triggerRef,
-      onClick: handleClick,
-      onKeyDown: handleKeyDown,
-      'aria-expanded': open,
-      'aria-haspopup': true,
-    }
-    return React.cloneElement(children as React.ReactElement<any>, childProps)
-  }
-
+}: DialogPrimitive.Backdrop.Props) {
   return (
-    <button
-      ref={triggerRef}
-      type="button"
+    <DialogPrimitive.Backdrop
+      data-slot="dialog-overlay"
       className={cn(
-        "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D6A4F] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+        "fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
-      aria-expanded={open}
-      aria-haspopup={true}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-}
-
-export function DropdownMenuContent({
-  children,
-  className,
-  align = 'end',
-  sideOffset = 8,
-}: React.HTMLAttributes<HTMLDivElement> & { 
-  align?: 'start' | 'end' | 'center'
-  sideOffset?: number 
-}) {
-  const { open, setOpen, triggerRef, contentRef } = useDropdownMenu()
-
-  // Handle click outside
-  useEffect(() => {
-    if (!open) return
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (
-        contentRef.current?.contains(target) ||
-        triggerRef.current?.contains(target)
-      ) {
-        return
-      }
-      setOpen(false)
-    }
-
-    // Use pointerdown for better mobile support
-    document.addEventListener('pointerdown', handlePointerDown)
-    return () => document.removeEventListener('pointerdown', handlePointerDown)
-  }, [open, setOpen, contentRef, triggerRef])
-
-  // Handle focus trap
-  useEffect(() => {
-    if (!open) return
-
-    const focusableElements = contentRef.current?.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    )
-    const firstElement = focusableElements?.[0] as HTMLElement
-    const lastElement = focusableElements?.[focusableElements.length - 1] as HTMLElement
-
-    const handleTabKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return
-      
-      if (e.shiftKey) {
-        if (document.activeElement === firstElement) {
-          e.preventDefault()
-          lastElement?.focus()
-        }
-      } else {
-        if (document.activeElement === lastElement) {
-          e.preventDefault()
-          firstElement?.focus()
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleTabKey)
-    // Focus first element when opened
-    setTimeout(() => firstElement?.focus(), 0)
-    
-    return () => document.removeEventListener('keydown', handleTabKey)
-  }, [open, contentRef])
-
-  if (!open) return null
-
-  const alignClasses = {
-    start: 'left-0',
-    end: 'right-0',
-    center: 'left-1/2 -translate-x-1/2',
-  }
-
-  return (
-    <div
-      ref={contentRef}
-      className={cn(
-        'absolute z-50 min-w-[12rem] rounded-md border border-gray-200 bg-white p-1 shadow-lg',
-        'animate-in fade-in-0 zoom-in-95 data-[state=open]:animate-in',
-        alignClasses[align],
-        className
-      )}
-      style={{ marginTop: sideOffset }}
-      role="menu"
-      aria-orientation="vertical"
-    >
-      {children}
-    </div>
-  )
-}
-
-export function DropdownMenuLabel({ 
-  children, 
-  className,
-  inset,
-}: React.HTMLAttributes<HTMLDivElement> & { inset?: boolean }) {
-  return (
-    <div 
-      className={cn(
-        'px-2 py-1.5 text-sm font-semibold text-gray-900',
-        inset && 'pl-8',
-        className
-      )}
-      role="presentation"
-    >
-      {children}
-    </div>
-  )
-}
-
-export function DropdownMenuSeparator({ className }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('my-1 h-px bg-gray-200', className)} role="separator" />
-}
-
-export function DropdownMenuItem({
-  children,
-  className,
-  onClick,
-  disabled,
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const { setOpen } = useDropdownMenu()
-
-  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (disabled) return
-    onClick?.(event)
-    setOpen(false)
-  }
-
-  return (
-    <button
-      type="button"
-      className={cn(
-        'flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-gray-700',
-        'hover:bg-gray-100 focus:bg-gray-100 focus:outline-none',
-        'disabled:pointer-events-none disabled:opacity-50',
-        className
-      )}
-      role="menuitem"
-      onClick={handleClick}
-      disabled={disabled}
-      {...props}
-    >
-      {children}
-    </button>
-  )
-}
-
-// Add dropdown menu group for better organization
-export function DropdownMenuGroup({ 
-  children,
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={cn('py-1', className)} role="group" {...props}>
-      {children}
-    </div>
-  )
-}
-
-// Add dropdown menu shortcut
-export function DropdownMenuShortcut({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) {
-  return (
-    <span
-      className={cn('ml-auto text-xs tracking-widest text-gray-400', className)}
       {...props}
     />
   )
+}
+
+function DialogContent({
+  className,
+  children,
+  showCloseButton = true,
+  size = "default",
+  ...props
+}: DialogPrimitive.Popup.Props & {
+  showCloseButton?: boolean
+  size?: "default" | "sm" | "lg" | "xl" | "full"
+}) {
+  const sizes = {
+    sm: "max-w-sm",
+    default: "max-w-md",
+    lg: "max-w-lg",
+    xl: "max-w-xl",
+    full: "max-w-[calc(100%-2rem)] sm:max-w-2xl",
+  }
+
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Popup
+        data-slot="dialog-content"
+        className={cn(
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-white p-6 text-sm text-gray-900 shadow-2xl duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          sizes[size],
+          className
+        )}
+        {...props}
+      >
+        {children}
+        {showCloseButton && (
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            className="absolute top-3 right-3"
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8 rounded-full hover:bg-gray-100"
+            >
+              <XIcon className="h-4 w-4 text-gray-500" />
+              <span className="sr-only">Close</span>
+            </Button>
+          </DialogPrimitive.Close>
+        )}
+      </DialogPrimitive.Popup>
+    </DialogPortal>
+  )
+}
+
+function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-header"
+      className={cn("flex flex-col gap-1.5", className)}
+      {...props}
+    />
+  )
+}
+
+function DialogFooter({
+  className,
+  showCloseButton = false,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & {
+  showCloseButton?: boolean
+}) {
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn(
+        "-mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-xl border-t border-gray-100 bg-gray-50/50 p-4 sm:flex-row sm:justify-end",
+        className
+      )}
+      {...props}
+    >
+      {children}
+      {showCloseButton && (
+        <DialogPrimitive.Close>
+          <Button variant="outline">Close</Button>
+        </DialogPrimitive.Close>
+      )}
+    </div>
+  )
+}
+
+function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
+  return (
+    <DialogPrimitive.Title
+      data-slot="dialog-title"
+      className={cn(
+        "text-lg font-semibold leading-none tracking-tight text-[#1B4332]",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function DialogDescription({
+  className,
+  ...props
+}: DialogPrimitive.Description.Props) {
+  return (
+    <DialogPrimitive.Description
+      data-slot="dialog-description"
+      className={cn(
+        "text-sm text-gray-500",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogOverlay,
+  DialogPortal,
+  DialogTitle,
+  DialogTrigger,
 }

@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/Sidebar'
-import TopBar from '@/components/layout/TopBar'
+// 👇 Change from default import to named import
+// OR
+// import { TopBar } from '@/components/layout/TopBar' // This works with named export
 import { FarmProvider } from '@/lib/farm-context'
-import { Loader2 } from 'lucide-react' // 👈 ADD THIS
+import { Loader2 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true)
@@ -88,7 +90,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex h-screen bg-[#F9FAFB]">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <TopBar />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
             {children}
           </main>
