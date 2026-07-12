@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // 👈 ADD useEffect
 import { Plus, FolderOpen, Trash2, FileText, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { createClient } from '@/lib/supabase/client' // 👈 ADD THIS
+import Link from 'next/link' // 👈 ADD THIS
 
 type Document = {
   id: string
@@ -30,6 +32,7 @@ type Document = {
   fileName: string
   uploadedAt: string
   expiryDate: string
+  user_id: string // 👈 ADD THIS
 }
 
 const CATEGORIES = [
@@ -61,15 +64,23 @@ const CATEGORY_COLOURS: Record<string, string> = {
 }
 
 export default function DocumentsPage() {
+  // ===== STATE =====
   const [documents, setDocuments] = useState<Document[]>([])
   const [open, setOpen] = useState(false)
   const [filterCategory, setFilterCategory] = useState('All')
+  const [fetching, setFetching] = useState(true) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [saving, setSaving] = useState(false) // 👈 ADD THIS
 
+  // Form state
   const [name, setName] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+
+  const supabase = createClient() // 👈 ADD THIS
 
   const filtered =
     filterCategory === 'All'
@@ -84,81 +95,187 @@ export default function DocumentsPage() {
     return days <= 30 && days >= 0
   })
 
+  // ===== FETCH DOCUMENTS =====
   async function fetchDocuments() {
-  setFetching(true)
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setDocuments([])
+    setFetching(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
+        setDocuments([])
+        setFetching(false)
+        return
+      }
+      
+      setUser(user)
+
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw new Error('Failed to fetch documents: ' + error.message)
+      if (data) setDocuments(data)
+      
+    } catch (err) {
+      console.error('Documents error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load documents. Please refresh the page.')
+    } finally {
       setFetching(false)
-      return
     }
-
-    const { data, error } = await supabase
-      .from('documents')
-      .select('*')
-      .eq('user_id', user.id)  // 👈 THIS IS THE LOCK!
-      .order('created_at', { ascending: false })
-
-    if (error) console.error('Documents error:', error)
-    if (data) setDocuments(data)
-  } catch (err) {
-    console.error('Documents crash:', err)
-  } finally {
-    setFetching(false)
   }
-}
+
+  useEffect(() => {
+    fetchDocuments()
+  }, [])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) setSelectedFile(file)
   }
 
-  function handleAdd() {
+  // ===== ADD DOCUMENT =====
+  async function handleAdd() {
     if (!name || !category) return
-    const newDoc: Document = {
-      id: crypto.randomUUID(),
-      name,
-      category,
-      description,
-      fileUrl: selectedFile ? URL.createObjectURL(selectedFile) : '',
-      fileName: selectedFile?.name || '',
-      uploadedAt: new Date().toISOString().split('T')[0],
-      expiryDate,
+    
+    setSaving(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to add documents')
+        setSaving(false)
+        return
+      }
+
+      // 👇 Create the document data
+      const docData = {
+        name,
+        category,
+        description: description || null,
+        expiry_date: expiryDate || null,
+        file_name: selectedFile?.name || null,
+        file_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
+        uploaded_at: new Date().toISOString().split('T')[0],
+        user_id: user.id,
+      }
+
+      const { data, error } = await supabase
+        .from('documents')
+        .insert([docData])
+        .select()
+        .single()
+
+      if (error) throw new Error('Failed to save document: ' + error.message)
+
+      // 👇 Map to our Document type
+      const newDoc: Document = {
+        id: data.id,
+        name: data.name,
+        category: data.category,
+        description: data.description || '',
+        fileUrl: data.file_url || '',
+        fileName: data.file_name || '',
+        uploadedAt: data.uploaded_at || new Date().toISOString().split('T')[0],
+        expiryDate: data.expiry_date || '',
+        user_id: data.user_id,
+      }
+
+      setDocuments((prev) => [newDoc, ...prev])
+      setName('')
+      setCategory('')
+      setDescription('')
+      setExpiryDate('')
+      setSelectedFile(null)
+      setOpen(false)
+      
+    } catch (err) {
+      console.error('Add document error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save document. Please try again.')
+    } finally {
+      setSaving(false)
     }
-    setDocuments((prev) => [newDoc, ...prev])
-    setName('')
-    setCategory('')
-    setDescription('')
-    setExpiryDate('')
-    setSelectedFile(null)
-    setOpen(false)
   }
 
+  // ===== DELETE DOCUMENT =====
   async function handleDelete(id: string) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      console.error('Not logged in!')
-      return
-    }
+    if (!confirm('Are you sure you want to delete this document?')) return
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to delete documents')
+        return
+      }
 
-    const { error } = await supabase
-      .from('documents')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', user.id)  // 👈 MUST CHECK USER!
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id)
 
-    if (!error) {
+      if (error) throw new Error('Failed to delete document: ' + error.message)
+
       setDocuments(prev => prev.filter(d => d.id !== id))
+      
+    } catch (err) {
+      console.error('Delete error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete document')
     }
-  } catch (err) {
-    console.error('Delete error:', err)
   }
-}
 
+  // ===== LOADING STATE =====
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">Loading documents...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to manage your documents.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#1B4332]">Documents</h1>
@@ -236,9 +353,9 @@ export default function DocumentsPage() {
               <Button
                 className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
                 onClick={handleAdd}
-                disabled={!name || !category}
+                disabled={!name || !category || saving}
               >
-                Save Document
+                {saving ? 'Saving...' : 'Save Document'}
               </Button>
             </div>
           </DialogContent>
