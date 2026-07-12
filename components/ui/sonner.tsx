@@ -10,7 +10,6 @@ import {
   TriangleAlertIcon, 
   OctagonXIcon, 
   Loader2Icon,
-  BellIcon
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -26,43 +25,46 @@ const Toaster = ({
   const { theme = "system" } = useTheme()
 
   return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className={cn("toaster group", className)}
-      position={position}
-      expand={expand}
-      richColors={richColors}
-      closeButton={closeButton}
-      visibleToasts={visibleToasts}
-      icons={{
-        success: <CircleCheckIcon className="size-4" />,
-        info: <InfoIcon className="size-4" />,
-        warning: <TriangleAlertIcon className="size-4" />,
-        error: <OctagonXIcon className="size-4" />,
-        loading: <Loader2Icon className="size-4 animate-spin" />,
-      }}
-      toastOptions={{
-        classNames: {
-          toast: cn(
-            "group toast group-[.toaster]:bg-white group-[.toaster]:text-gray-900 group-[.toaster]:border-gray-200 group-[.toaster]:shadow-lg group-[.toaster]:rounded-xl",
-            "group-[.toaster]:border group-[.toaster]:border-gray-200/80",
-            "group-[.toaster]:backdrop-blur-sm"
-          ),
-          title: "group-[.toast]:font-semibold group-[.toast]:text-sm",
-          description: "group-[.toast]:text-gray-500 group-[.toast]:text-xs",
-          actionButton: "group-[.toast]:bg-[#2D6A4F] group-[.toast]:text-white group-[.toast]:rounded-lg group-[.toast]:px-3 group-[.toast]:py-1.5 group-[.toast]:text-xs group-[.toast]:font-medium hover:group-[.toast]:bg-[#1B4332]",
-          cancelButton: "group-[.toast]:bg-gray-100 group-[.toast]:text-gray-700 group-[.toast]:rounded-lg group-[.toast]:px-3 group-[.toast]:py-1.5 group-[.toast]:text-xs group-[.toast]:font-medium hover:group-[.toast]:bg-gray-200",
-          closeButton: "group-[.toast]:bg-white group-[.toast]:text-gray-400 group-[.toast]:border group-[.toast]:border-gray-200 group-[.toast]:rounded-full group-[.toast]:h-6 group-[.toast]:w-6 group-[.toast]:p-0 hover:group-[.toast]:bg-gray-100",
-        },
-        style: {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "var(--radius)",
-        } as React.CSSProperties,
-      }}
-      {...props}
-    />
+    // ✅ Wrap Sonner in a div to prevent hydration issues
+    <div className="fixed z-50 top-0 right-0 w-full pointer-events-none">
+      <Sonner
+        theme={theme as ToasterProps["theme"]}
+        className={cn("toaster group", className)}
+        position={position}
+        expand={expand}
+        richColors={richColors}
+        closeButton={closeButton}
+        visibleToasts={visibleToasts}
+        icons={{
+          success: <CircleCheckIcon className="size-4" />,
+          info: <InfoIcon className="size-4" />,
+          warning: <TriangleAlertIcon className="size-4" />,
+          error: <OctagonXIcon className="size-4" />,
+          loading: <Loader2Icon className="size-4 animate-spin" />,
+        }}
+        toastOptions={{
+          classNames: {
+            toast: cn(
+              "group toast group-[.toaster]:bg-white group-[.toaster]:text-gray-900 group-[.toaster]:border-gray-200 group-[.toaster]:shadow-lg group-[.toaster]:rounded-xl",
+              "group-[.toaster]:border group-[.toaster]:border-gray-200/80",
+              "group-[.toaster]:backdrop-blur-sm pointer-events-auto"
+            ),
+            title: "group-[.toast]:font-semibold group-[.toast]:text-sm",
+            description: "group-[.toast]:text-gray-500 group-[.toast]:text-xs",
+            actionButton: "group-[.toast]:bg-[#2D6A4F] group-[.toast]:text-white group-[.toast]:rounded-lg group-[.toast]:px-3 group-[.toast]:py-1.5 group-[.toast]:text-xs group-[.toast]:font-medium hover:group-[.toast]:bg-[#1B4332]",
+            cancelButton: "group-[.toast]:bg-gray-100 group-[.toast]:text-gray-700 group-[.toast]:rounded-lg group-[.toast]:px-3 group-[.toast]:py-1.5 group-[.toast]:text-xs group-[.toast]:font-medium hover:group-[.toast]:bg-gray-200",
+            closeButton: "group-[.toast]:bg-white group-[.toast]:text-gray-400 group-[.toast]:border group-[.toast]:border-gray-200 group-[.toast]:rounded-full group-[.toast]:h-6 group-[.toast]:w-6 group-[.toast]:p-0 hover:group-[.toast]:bg-gray-100",
+          },
+          style: {
+            "--normal-bg": "var(--popover)",
+            "--normal-text": "var(--popover-foreground)",
+            "--normal-border": "var(--border)",
+            "--border-radius": "var(--radius)",
+          } as React.CSSProperties,
+        }}
+        {...props}
+      />
+    </div>
   )
 }
 
