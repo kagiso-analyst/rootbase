@@ -59,11 +59,15 @@ function progressPercent(plantingDate: string, expectedDate: string): number {
 }
 
 export default function CropsPage() {
+  // ===== STATE =====
   const [crops, setCrops] = useState<Crop[]>([])
   const [open, setOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
 
+  // Form state
   const [cropName, setCropName] = useState('')
   const [variety, setVariety] = useState('')
   const [fieldName, setFieldName] = useState('')
@@ -76,74 +80,179 @@ export default function CropsPage() {
 
   const supabase = createClient()
 
+  // ===== FETCH CROPS =====
   async function fetchCrops() {
-  setFetching(true)
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setCrops([])
-      return
+    setFetching(true)
+    setError(null) // 👈 Clear old errors
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
+        setCrops([])
+        setFetching(false)
+        return
+      }
+      
+      setUser(user) // 👈 Save user
+
+      const { data, error } = await supabase
+        .from('crops')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+      
+      if (error) throw new Error('Failed to fetch crops: ' + error.message) // 👈 Throw error
+      if (data) setCrops(data)
+      
+    } catch (err) {
+      console.error('Crops error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load crops. Please refresh the page.')
+    } finally {
+      setFetching(false)
     }
-
-    const { data, error } = await supabase
-      .from('crops')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-    if (error) console.error('Crops error:', error)
-    if (data) setCrops(data)
-  } catch (err) {
-    console.error('Crops crash:', err)
-  } finally {
-    setFetching(false)
   }
-}
 
+  useEffect(() => {
+    fetchCrops()
+  }, [])
+
+  // ===== ADD CROP =====
   async function handleAdd() {
-  if (!cropName || !plantingDate || !expectedHarvestDate) return
-  setLoading(true)
+    if (!cropName || !plantingDate || !expectedHarvestDate) return
+    
+    setLoading(true)
+    setError(null) // 👈 Clear old errors
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to add crops')
+        setLoading(false)
+        return
+      }
+      
+      const { data, error } = await supabase
+        .from('crops')
+        .insert([{
+          crop_name: cropName,
+          variety,
+          field_name: fieldName,
+          season,
+          planting_date: plantingDate,
+          expected_harvest_date: expectedHarvestDate,
+          area_planted_ha: parseFloat(areaPlantedHa) || 0,
+          status,
+          notes,
+          user_id: user.id
+        }])
+        .select()
+        .single()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  const { data, error } = await supabase
-    .from('crops')
-    .insert([{
-      crop_name: cropName,
-      variety,
-      field_name: fieldName,
-      season,
-      planting_date: plantingDate,
-      expected_harvest_date: expectedHarvestDate,
-      area_planted_ha: parseFloat(areaPlantedHa) || 0,
-      status,
-      notes,
-      user_id: user?.id
-    }])
-    .select()
-    .single()
+      if (error) throw new Error('Failed to save crop: ' + error.message) // 👈 Throw error
 
-  if (!error && data) {
-    setCrops((prev) => [data, ...prev])
-    setCropName('')
-    setVariety('')
-    setFieldName('')
-    setSeason('')
-    setPlantingDate('')
-    setExpectedHarvestDate('')
-    setAreaPlantedHa('')
-    setStatus('active')
-    setNotes('')
-    setOpen(false)
+      if (data) {
+        setCrops((prev) => [data, ...prev])
+        // Reset form
+        setCropName('')
+        setVariety('')
+        setFieldName('')
+        setSeason('')
+        setPlantingDate('')
+        setExpectedHarvestDate('')
+        setAreaPlantedHa('')
+        setStatus('active')
+        setNotes('')
+        setOpen(false)
+      }
+      
+    } catch (err) {
+      console.error('Crop save error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to save crop. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
-  setLoading(false)
-}
+
+  // ===== DELETE CROP =====
+  async function handleDeleteCrop(id: string) {
+    if (!confirm('Are you sure you want to delete this crop?')) return // 👈 Add confirmation
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to delete crops')
+        return
+      }
+
+      const { error } = await supabase
+        .from('crops')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id) // 👈 Important! Check user_id
+
+      if (error) throw new Error('Failed to delete crop: ' + error.message)
+      
+      setCrops(prev => prev.filter(c => c.id !== id))
+      
+    } catch (err) {
+      console.error('Delete error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete crop')
+    }
+  }
 
   const activeCrops = crops.filter((c) => c.status === 'active').length
   const plannedCrops = crops.filter((c) => c.status === 'planned').length
   const harvestedCrops = crops.filter((c) => c.status === 'harvested').length
 
+  // ===== LOADING STATE =====
+  if (fetching) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">Loading crops...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to manage your crops.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-[#1B4332]">Crops</h1>
@@ -244,13 +353,7 @@ export default function CropsPage() {
         </Dialog>
       </div>
 
-      {fetching ? (
-        <Card className="shadow-sm">
-          <CardContent className="flex items-center justify-center py-16 text-gray-400">
-            <p className="text-sm">Loading crops...</p>
-          </CardContent>
-        </Card>
-      ) : crops.length === 0 ? (
+      {crops.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
             <Leaf size={40} className="mb-3 opacity-30" />
@@ -264,50 +367,63 @@ export default function CropsPage() {
             const days = daysToHarvest(crop.expected_harvest_date)
             const progress = progressPercent(crop.planting_date, crop.expected_harvest_date)
             return (
-              <Link key={crop.id} href={`/crops/${crop.id}`}>
-                <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-[#D8F3DC] flex items-center justify-center">
-                          <Leaf size={15} className="text-[#2D6A4F]" />
+              <div key={crop.id} className="relative group">
+                <Link href={`/crops/${crop.id}`}>
+                  <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-[#D8F3DC] flex items-center justify-center">
+                            <Leaf size={15} className="text-[#2D6A4F]" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-sm font-semibold text-gray-800">
+                              {crop.crop_name}
+                            </CardTitle>
+                            {crop.variety && <p className="text-xs text-gray-400">{crop.variety}</p>}
+                          </div>
                         </div>
-                        <div>
-                          <CardTitle className="text-sm font-semibold text-gray-800">
-                            {crop.crop_name}
-                          </CardTitle>
-                          {crop.variety && <p className="text-xs text-gray-400">{crop.variety}</p>}
-                        </div>
+                        <Badge className={`text-xs ${STATUS_COLOURS[crop.status]}`}>
+                          {crop.status}
+                        </Badge>
                       </div>
-                      <Badge className={`text-xs ${STATUS_COLOURS[crop.status]}`}>
-                        {crop.status}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {crop.field_name && (
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {crop.field_name && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <MapPin size={12} /> {crop.field_name}
+                          {crop.area_planted_ha > 0 && ` · ${crop.area_planted_ha} ha`}
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <MapPin size={12} /> {crop.field_name}
-                        {crop.area_planted_ha > 0 && ` · ${crop.area_planted_ha} ha`}
+                        <Calendar size={12} /> Planted {crop.planting_date}
                       </div>
-                    )}
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                      <Calendar size={12} /> Planted {crop.planting_date}
-                    </div>
-                    {crop.status === 'active' && (
-                      <div>
-                        <div className="flex justify-between text-xs text-gray-400 mb-1">
-                          <span>Progress</span>
-                          <span>{days > 0 ? `${days} days to harvest` : 'Ready!'}</span>
+                      {crop.status === 'active' && (
+                        <div>
+                          <div className="flex justify-between text-xs text-gray-400 mb-1">
+                            <span>Progress</span>
+                            <span>{days > 0 ? `${days} days to harvest` : 'Ready!'}</span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-1.5">
+                            <div className="bg-[#52B788] h-1.5 rounded-full" style={{ width: `${progress}%` }} />
+                          </div>
                         </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5">
-                          <div className="bg-[#52B788] h-1.5 rounded-full" style={{ width: `${progress}%` }} />
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </Link>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Link>
+                {/* 👇 ADD DELETE BUTTON */}
+                <button
+                  onClick={() => handleDeleteCrop(crop.id)}
+                  className="absolute top-2 right-2 p-1.5 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"
+                  title="Delete crop"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 hover:text-red-500">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  </svg>
+                </button>
+              </div>
             )
           })}
         </div>
