@@ -1,18 +1,18 @@
+// app/(dashboard)/layout.tsx
+
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/Sidebar'
-// 👇 Change from default import to named import
-// OR
-// import { TopBar } from '@/components/layout/TopBar' // This works with named export
+import TopBar from '@/components/layout/TopBar'  // ✅ ADD THIS BACK
 import { FarmProvider } from '@/lib/farm-context'
 import { Loader2 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [checking, setChecking] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -24,7 +24,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (authError) {
           console.error('Auth error:', authError)
           setError('Authentication error. Please try logging in again.')
-          // Still redirect to login after a moment
           setTimeout(() => router.replace('/login'), 2000)
           return
         }
@@ -50,7 +49,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]">
         <div className="text-center">
           <div className="relative">
-            {/* Decorative circle */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-24 h-24 rounded-full border-4 border-[#D8F3DC] border-t-[#2D6A4F] animate-spin"></div>
             </div>
@@ -90,6 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex h-screen bg-[#F9FAFB]">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
+          <TopBar />  {/* ✅ ADD THIS BACK - This shows the greeting, farm switcher, and logout button */}
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
             {children}
           </main>
