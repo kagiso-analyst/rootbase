@@ -1,13 +1,15 @@
+// app/subscription/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, Zap, Loader2, AlertCircle } from 'lucide-react' // 👈 ADD Loader2, AlertCircle
+import { Check, Zap, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
-import { PLANS, PAYFAST_CONFIG, getPayFastUrl } from '@/lib/payfast'
-import Link from 'next/link' // 👈 ADD THIS
-import { useRouter } from 'next/navigation' // 👈 ADD THIS
+import { PLANS, PAYFAST_CONFIG } from '@/lib/payfast'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function SubscriptionPage() {
   // ===== STATE =====
@@ -15,9 +17,9 @@ export default function SubscriptionPage() {
   const [userName, setUserName] = useState('')
   const [currentPlan, setCurrentPlan] = useState('free')
   const [loading, setLoading] = useState(false)
-  const [fetching, setFetching] = useState(true) // 👈 ADD THIS
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [processingPlan, setProcessingPlan] = useState<string | null>(null) // 👈 ADD THIS
+  const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [processingPlan, setProcessingPlan] = useState<string | null>(null)
   
   const supabase = createClient()
   const router = useRouter()
@@ -75,11 +77,12 @@ export default function SubscriptionPage() {
     setError(null)
     
     try {
-      // Validate user data
       if (!userEmail) {
         throw new Error('Please log in with an email address to subscribe.')
       }
 
+      console.log('📤 Sending subscription request for plan:', plan.id)
+      
       const res = await fetch('/api/payfast/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -93,8 +96,12 @@ export default function SubscriptionPage() {
         }),
       })
 
+      console.log('📥 Response status:', res.status)
+
       if (!res.ok) {
-        throw new Error(`Payment setup failed: ${res.status} ${res.statusText}`)
+        const errorText = await res.text()
+        console.error('❌ API Error:', errorText)
+        throw new Error(`Payment setup failed: ${res.status} - ${errorText}`)
       }
 
       const { data, error: apiError } = await res.json()
@@ -103,7 +110,9 @@ export default function SubscriptionPage() {
         throw new Error(apiError || 'Payment setup failed. Please try again.')
       }
 
-      const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
+      console.log('✅ Payment data received, redirecting to PayFast...')
+
+      const isSandbox = PAYFAST_CONFIG.sandbox
       const action = isSandbox
         ? 'https://sandbox.payfast.co.za/eng/process'
         : 'https://www.payfast.co.za/eng/process'
@@ -125,7 +134,7 @@ export default function SubscriptionPage() {
       form.submit()
       
     } catch (err) {
-      console.error('Subscription error:', err)
+      console.error('❌ Subscription error:', err)
       setError(err instanceof Error ? err.message : 'Unexpected error. Please try again.')
       setLoading(false)
       setProcessingPlan(null)

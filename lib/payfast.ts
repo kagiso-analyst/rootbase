@@ -1,5 +1,3 @@
-// lib/payfast.ts
-
 import md5 from 'md5'
 
 // ===== PUBLIC CONFIG (Safe for client) =====
