@@ -2,9 +2,7 @@
 
 > The all-in-one digital farm manager built for African farmers. Track finances, crops, livestock, weather, tasks, and more — beautifully, in one place.
 
-![RootBase Live](https://rootbase.vercel.app)
-
-## 🚀 Live Demo
+## Live Demo
 
 [![Vercel](https://img.shields.io/badge/Visit-RootBase-2D6A4F?style=for-the-badge&logo=vercel)](https://rootbase.vercel.app)
 
