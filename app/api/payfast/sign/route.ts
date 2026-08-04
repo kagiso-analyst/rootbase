@@ -58,6 +58,15 @@ export async function POST(request: Request) {
       )
     }
 
+    if (typeof body.amount !== 'string' && typeof body.amount !== 'number') {
+      return NextResponse.json(
+        { error: 'amount must be a number or numeric string' },
+        { status: 400 }
+      )
+    }
+
+    const normalizedAmount = String(body.amount)
+
     // ✅ Build PayFast data
     const data = buildPayFastData({
       merchantId,
@@ -67,10 +76,12 @@ export async function POST(request: Request) {
       name_first: body.name_first || 'Farmer',
       name_last: body.name_last || 'User',
       email_address: body.email_address,
-      amount: body.amount,
+      amount: normalizedAmount,
       item_name: body.item_name || 'RootBase Subscription',
       item_description: body.item_description || '',
       m_payment_id: body.m_payment_id || `sub_${Date.now()}`,
+      custom_str1: body.plan_id || body.custom_str1 || 'free',
+      custom_str2: body.user_id || body.custom_str2 || body.email_address,
     })
 
     console.log('✅ PayFast data built successfully')

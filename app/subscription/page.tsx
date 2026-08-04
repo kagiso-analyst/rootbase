@@ -93,6 +93,8 @@ export default function SubscriptionPage() {
           amount: plan.price.toFixed(2),
           item_name: `RootBase ${plan.name} Plan`,
           item_description: `Monthly subscription to RootBase ${plan.name}`,
+          plan_id: plan.id,
+          user_id: (await supabase.auth.getUser()).data.user?.id || '',
         }),
       })
 

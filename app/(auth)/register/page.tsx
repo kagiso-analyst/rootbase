@@ -20,6 +20,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('') // 👈 ADD THIS
   const [error, setError] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [passwordStrength, setPasswordStrength] = useState(0) // 👈 ADD THIS
   const [acceptedTerms, setAcceptedTerms] = useState(false) // 👈 ADD THIS
@@ -49,12 +50,14 @@ export default function RegisterPage() {
   }, [password])
 
   async function handleRegister() {
-    // Validate
-    if (!fullName.trim()) {
+    const trimmedName = fullName.trim()
+    const trimmedEmail = email.trim().toLowerCase()
+
+    if (!trimmedName) {
       setError('Please enter your full name')
       return
     }
-    if (!email) {
+    if (!trimmedEmail) {
       setError('Please enter your email address')
       return
     }
@@ -73,23 +76,75 @@ export default function RegisterPage() {
 
     setLoading(true)
     setError('')
-    
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { 
-        data: { 
-          full_name: fullName,
-          plan: 'free'
-        } 
+    setSuccessMessage('')
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login?message=verified`,
+          data: {
+            full_name: trimmedName,
+            plan: 'free',
+          },
+        },
+      })
+
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+        return
       }
-    })
-    
-    if (error) {
-      setError(error.message)
+
+      const user = data?.user
+      const session = data?.session
+
+      if (user && session) {
+        try {
+          await supabase.from('profiles').upsert(
+            {
+              user_id: user.id,
+              full_name: trimmedName,
+              email: trimmedEmail,
+              phone: '',
+              avatar_url: null,
+              role: 'user',
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'user_id' }
+          )
+        } catch (profileError) {
+          console.warn('Profile setup skipped:', profileError)
+        }
+
+        try {
+          await supabase.from('farms').insert([
+            {
+              user_id: user.id,
+              name: `${trimmedName.split(' ')[0] || 'My'} Farm`,
+              farm_type: null,
+              province: null,
+              total_hectares: 0,
+              is_active: true,
+            },
+          ])
+        } catch (farmError) {
+          console.warn('Default farm setup skipped:', farmError)
+        }
+
+        router.push('/dashboard')
+        return
+      }
+
+      setSuccessMessage('Account created. Please check your inbox to confirm your email before signing in.')
+      setPassword('')
+      setConfirmPassword('')
+    } catch (signupError) {
+      console.error('Registration error:', signupError)
+      setError('We could not create your account right now. Please try again.')
+    } finally {
       setLoading(false)
-    } else {
-      router.push('/dashboard')
     }
   }
 
@@ -135,6 +190,13 @@ export default function RegisterPage() {
               <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-start gap-2">
                 <AlertCircle size={16} className="text-red-400 flex-shrink-0 mt-0.5" />
                 <span>{error}</span>
+              </div>
+            )}
+
+            {successMessage && (
+              <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-lg flex items-start gap-2">
+                <CheckCircle size={16} className="text-green-400 flex-shrink-0 mt-0.5" />
+                <span>{successMessage}</span>
               </div>
             )}
 
