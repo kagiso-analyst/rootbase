@@ -14,18 +14,29 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const supabase = createClient()
 
   useEffect(() => {
+    let isMounted = true
+
     async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user ?? null
+
       if (user && (pathname === '/login' || pathname === '/register')) {
-        router.replace('/dashboard')
+        if (isMounted) {
+          router.replace('/dashboard')
+        }
         return
       }
-      
-      setLoading(false)
+
+      if (isMounted) {
+        setLoading(false)
+      }
     }
-    
+
     checkAuth()
+
+    return () => {
+      isMounted = false
+    }
   }, [pathname, router, supabase])
 
   if (loading) {

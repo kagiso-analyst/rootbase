@@ -9,6 +9,18 @@ export function createClient() {
   )
 }
 
+export async function getCurrentSession() {
+  const supabase = createClient()
+  const { data: { session }, error } = await supabase.auth.getSession()
+
+  if (error) {
+    console.error('Session error:', error)
+    return null
+  }
+
+  return session
+}
+
 // ===== HELPER: Get current user ID =====
 export async function getCurrentUserId(): Promise<string | null> {
   const supabase = createClient()

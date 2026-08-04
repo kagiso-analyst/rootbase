@@ -17,30 +17,47 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const supabase = createClient()
 
   useEffect(() => {
+    let isMounted = true
+
     async function checkAuth() {
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
-        if (authError) {
-          console.error('Auth error:', authError)
-          setError('Authentication error. Please try logging in again.')
-          setTimeout(() => router.replace('/login'), 2000)
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          if (isMounted) {
+            setError('Authentication error. Please try logging in again.')
+            setTimeout(() => router.replace('/login'), 2000)
+          }
           return
         }
-        
+
+        const user = session?.user ?? null
+
         if (!user) {
-          router.replace('/login')
-        } else {
+          if (isMounted) {
+            router.replace('/login')
+          }
+          return
+        }
+
+        if (isMounted) {
           setChecking(false)
         }
       } catch (err) {
         console.error('Auth check error:', err)
-        setError('Something went wrong. Please refresh the page.')
-        setTimeout(() => router.replace('/login'), 2000)
+        if (isMounted) {
+          setError('Something went wrong. Please refresh the page.')
+          setTimeout(() => router.replace('/login'), 2000)
+        }
       }
     }
-    
+
     checkAuth()
+
+    return () => {
+      isMounted = false
+    }
   }, [router, supabase])
 
   // ===== LOADING STATE =====
