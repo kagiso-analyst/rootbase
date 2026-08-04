@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { 
   Plus, BookOpen, Trash2, Tag, MapPin, Leaf, Search, RefreshCw, Sparkles 
 } from 'lucide-react'
@@ -116,10 +116,12 @@ export default function JournalPage() {
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [greeting, setGreeting] = useState('')
 
   const { currentFarm, loading: farmLoading } = useFarm()
+  const supabase = createClient()
 
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
@@ -133,11 +135,32 @@ export default function JournalPage() {
   const [entryDate, setEntryDate] = useState(
     new Date().toISOString().split('T')[0]
   )
-  
-  const supabase = createClient()
 
-  async function fetchEntries() {
-    if (!currentFarm) {
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        if (user) {
+          const seasonal = getSeasonalGreeting(
+            user.user_metadata?.full_name?.split(' ')[0] || 'Farmer'
+          )
+          setGreeting(seasonal.greeting)
+        }
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
+
+  // ===== FETCH ENTRIES =====
+  const fetchEntries = useCallback(async () => {
+    if (!currentFarm || !user) {
       setEntries([])
       setFetching(false)
       return
@@ -147,19 +170,6 @@ export default function JournalPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setEntries([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
-      const seasonal = getSeasonalGreeting(user.user_metadata?.full_name?.split(' ')[0] || 'Farmer')
-      setGreeting(seasonal.greeting)
-
       const { data, error } = await supabase
         .from('journal_entries')
         .select('*')
@@ -169,7 +179,7 @@ export default function JournalPage() {
 
       if (error) throw new Error('Failed to fetch journal entries: ' + error.message)
       if (data) {
-        const mappedEntries = (data as Array<Partial<JournalEntry>>).map((item) => ({
+        const mappedEntries = data.map((item: any) => ({
           ...item,
           title: item.title ?? null,
           field_name: item.field_name ?? null,
@@ -188,17 +198,21 @@ export default function JournalPage() {
       setFetching(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchEntries()
-  }, [currentFarm])
+    if (authChecked && user) {
+      fetchEntries()
+    }
+  }, [authChecked, user, fetchEntries])
 
+  // ===== REFRESH =====
   const handleRefresh = async () => {
     setIsRefreshing(true)
     await fetchEntries()
   }
 
+  // ===== TAGS =====
   function handleAddTag() {
     const trimmed = tagInput.trim()
     if (trimmed && !tags.includes(trimmed)) {
@@ -211,9 +225,10 @@ export default function JournalPage() {
     setTags((prev) => prev.filter((t) => t !== tag))
   }
 
+  // ===== ADD ENTRY =====
   async function handleAdd() {
     if (!content) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -222,13 +237,6 @@ export default function JournalPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add journal entries')
-        setLoading(false)
-        return
-      }
-      
       const { data, error } = await supabase
         .from('journal_entries')
         .insert([{
@@ -272,17 +280,12 @@ export default function JournalPage() {
     }
   }
 
+  // ===== DELETE ENTRY =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this journal entry?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete entries')
-        return
-      }
-
       const { error } = await supabase
         .from('journal_entries')
         .delete()
@@ -300,14 +303,15 @@ export default function JournalPage() {
     }
   }
 
+  // ===== FILTERING =====
   const filtered = entries.filter((e) => {
     const q = search.toLowerCase()
     return (
       e.content.toLowerCase().includes(q) ||
-      e.title.toLowerCase().includes(q) ||
-      e.field_name.toLowerCase().includes(q) ||
-      e.crop_name.toLowerCase().includes(q) ||
-      e.tags.some((t) => t.toLowerCase().includes(q))
+      (e.title && e.title.toLowerCase().includes(q)) ||
+      (e.field_name && e.field_name.toLowerCase().includes(q)) ||
+      (e.crop_name && e.crop_name.toLowerCase().includes(q)) ||
+      (e.tags && e.tags.some((t) => t.toLowerCase().includes(q)))
     )
   })
 
@@ -322,17 +326,22 @@ export default function JournalPage() {
     (a, b) => new Date(b).getTime() - new Date(a).getTime()
   )
 
-  if (farmLoading || (fetching && !isRefreshing)) {
+  // ===== LOADING STATE =====
+  if (!authChecked || farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading journal entries...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading journal entries...'}
+          </p>
         </div>
       </div>
     )
   }
 
+  // ===== NOT LOGGED IN =====
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -348,6 +357,7 @@ export default function JournalPage() {
     )
   }
 
+  // ===== NO FARM SELECTED =====
   if (!currentFarm) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -363,6 +373,7 @@ export default function JournalPage() {
     )
   }
 
+  // ===== ERROR STATE =====
   if (error && !fetching) {
     return (
       <div className="space-y-6">
@@ -392,8 +403,10 @@ export default function JournalPage() {
     )
   }
 
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
@@ -611,6 +624,7 @@ export default function JournalPage() {
         </div>
       </div>
 
+      {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
@@ -627,6 +641,7 @@ export default function JournalPage() {
         </Card>
       )}
 
+      {/* Search */}
       {entries.length > 0 && (
         <div className="relative">
           <Search
@@ -650,6 +665,7 @@ export default function JournalPage() {
         </div>
       )}
 
+      {/* Empty State */}
       {entries.length === 0 ? (
         <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
@@ -719,7 +735,7 @@ export default function JournalPage() {
                               {entry.weather_conditions}
                             </span>
                           )}
-                          {entry.tags.length > 0 && (
+                          {entry.tags && entry.tags.length > 0 && (
                             <span className="text-xs text-gray-400">
                               · {entry.tags.length} tag{entry.tags.length !== 1 ? 's' : ''}
                             </span>
@@ -758,7 +774,7 @@ export default function JournalPage() {
                         </div>
                       )}
 
-                      {entry.tags.length > 0 && (
+                      {entry.tags && entry.tags.length > 0 && (
                         <div className="flex items-center gap-1.5 flex-wrap pt-1">
                           <Tag size={11} className="text-gray-300" />
                           {entry.tags.map((tag) => (
