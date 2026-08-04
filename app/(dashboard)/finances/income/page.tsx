@@ -2,13 +2,13 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, TrendingUp, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Trash2, TrendingUp, Sparkles, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge' // 👈 ADD THIS
+import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -23,9 +23,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import { cn, formatCurrency } from '@/lib/utils' // 👈 ADD THIS
-import Link from 'next/link' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn, formatCurrency } from '@/lib/utils'
+import Link from 'next/link'
 
 const CATEGORIES = [
   'Crop Sales', 'Livestock Sales', 'Wool / Fibre', 'Eggs / Dairy',
@@ -45,7 +45,16 @@ type Income = {
 }
 
 export default function IncomePage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [incomes, setIncomes] = useState<Income[]>([])
   const [open, setOpen] = useState(false)
   const [category, setCategory] = useState('')
@@ -55,18 +64,27 @@ export default function IncomePage() {
   const [buyerName, setBuyerName] = useState('')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
 
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
-
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH INCOME =====
-  async function fetchIncome() {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
+  const fetchIncome = useCallback(async () => {
+    if (!currentFarm || !user) {
       setIncomes([])
       setFetching(false)
       return
@@ -76,26 +94,16 @@ export default function IncomePage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setIncomes([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const { data, error } = await supabase
         .from('income')
         .select('*')
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch income: ' + error.message)
       if (data) {
-        const mappedIncome = (data as Array<Partial<Income>>).map((item) => ({
+        const mappedIncome = data.map((item: any) => ({
           ...item,
           amount: Number(item.amount) || 0,
           description: item.description ?? '',
@@ -111,18 +119,20 @@ export default function IncomePage() {
     } finally {
       setFetching(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchIncome()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
+    if (authChecked && user) {
+      fetchIncome()
+    }
+  }, [authChecked, user, fetchIncome])
 
   const total = incomes.reduce((sum, i) => sum + Number(i.amount), 0)
 
   // ===== ADD INCOME =====
   async function handleAdd() {
     if (!category || !description || !amount || !date) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -131,13 +141,6 @@ export default function IncomePage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add income')
-        setLoading(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('income')
         .insert([{
@@ -147,7 +150,7 @@ export default function IncomePage() {
           date,
           buyer_name: buyerName || null,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ADD farm_id
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -175,21 +178,15 @@ export default function IncomePage() {
   // ===== DELETE INCOME =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this income record?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete income records')
-        return
-      }
-
       const { error } = await supabase
         .from('income')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete income: ' + error.message)
 
@@ -202,12 +199,15 @@ export default function IncomePage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || fetching) {
+  if (!authChecked || farmLoading || fetching) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading income records...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading income records...'}
+          </p>
         </div>
       </div>
     )
@@ -245,10 +245,43 @@ export default function IncomePage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Income</h1>
+            <p className="text-gray-500 text-sm mt-1">Track your farm income</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                setError(null)
+                fetchIncome()
+              }}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">

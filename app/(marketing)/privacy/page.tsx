@@ -1,3 +1,5 @@
+// app/(marketing)/privacy/page.tsx
+
 'use client'
 
 import Link from 'next/link'
@@ -7,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-[linear-gradient(135deg,#f8fbf9_0%,#eef8f1_100%)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl rounded-3xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[#2D6A4F]">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-[#2D6A4F] hover:underline">
           <ArrowLeft size={16} /> Back home
         </Link>
 
@@ -43,6 +45,11 @@ export default function PrivacyPage() {
           <p className="mt-2 text-sm text-gray-600">
             We use secure storage practices and encrypted transport where available to protect your data.
           </p>
+        </div>
+
+        <div className="mt-8 border-t border-gray-200 pt-6 text-xs text-gray-400">
+          <p>Last updated: January 2025</p>
+          <p className="mt-1">RootBase is committed to protecting your privacy and ensuring the security of your farm data.</p>
         </div>
       </div>
     </div>

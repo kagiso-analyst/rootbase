@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, PawPrint, Trash2, Heart, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -81,7 +81,16 @@ const HEALTH_EVENT_TYPES = [
 ]
 
 export default function LivestockPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [animals, setAnimals] = useState<Animal[]>([])
   const [healthEvents, setHealthEvents] = useState<HealthEvent[]>([])
   const [animalOpen, setAnimalOpen] = useState(false)
@@ -89,11 +98,7 @@ export default function LivestockPage() {
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
-
-  // Get current farm
-  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Animal form
   const [tagNumber, setTagNumber] = useState('')
@@ -114,13 +119,25 @@ export default function LivestockPage() {
   const [eventProduct, setEventProduct] = useState('')
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0])
 
-  const supabase = createClient()
-
-  const activeAnimals = animals.filter((a) => a.status === 'active')
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH ANIMALS =====
-  async function fetchAnimals() {
-    if (!currentFarm) {
+  const fetchAnimals = useCallback(async () => {
+    if (!currentFarm || !user) {
       setAnimals([])
       setFetching(false)
       return
@@ -130,16 +147,6 @@ export default function LivestockPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setAnimals([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const { data, error } = await supabase
         .from('livestock')
         .select('*')
@@ -157,16 +164,13 @@ export default function LivestockPage() {
       setFetching(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   // ===== FETCH HEALTH EVENTS =====
-  async function fetchHealthEvents() {
-    if (!currentFarm) return
+  const fetchHealthEvents = useCallback(async () => {
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
       const { data, error } = await supabase
         .from('health_events')
         .select('*')
@@ -180,7 +184,14 @@ export default function LivestockPage() {
     } catch (err) {
       console.error('Health events fetch error:', err)
     }
-  }
+  }, [currentFarm, user, supabase])
+
+  useEffect(() => {
+    if (authChecked && user) {
+      fetchAnimals()
+      fetchHealthEvents()
+    }
+  }, [authChecked, user, fetchAnimals, fetchHealthEvents])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -189,15 +200,10 @@ export default function LivestockPage() {
     await fetchHealthEvents()
   }
 
-  useEffect(() => {
-    fetchAnimals()
-    fetchHealthEvents()
-  }, [currentFarm])
-
   // ===== ADD ANIMAL =====
   async function handleAddAnimal() {
     if (!species) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -206,13 +212,6 @@ export default function LivestockPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add animals')
-        setLoading(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('livestock')
         .insert([{
@@ -260,19 +259,12 @@ export default function LivestockPage() {
   // ===== ADD HEALTH EVENT =====
   async function handleAddHealthEvent() {
     if (!selectedAnimalId || !eventType || !eventDescription) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     setLoading(true)
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to log health events')
-        setLoading(false)
-        return
-      }
-
       const animal = animals.find((a) => a.id === selectedAnimalId)
 
       const { data, error } = await supabase
@@ -313,15 +305,9 @@ export default function LivestockPage() {
   // ===== DELETE ANIMAL =====
   async function handleDeleteAnimal(id: string) {
     if (!confirm('Are you sure you want to delete this animal? This will also delete all associated health events.')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete animals')
-        return
-      }
-
       const { error } = await supabase
         .from('livestock')
         .delete()
@@ -343,15 +329,9 @@ export default function LivestockPage() {
   // ===== DELETE HEALTH EVENT =====
   async function handleDeleteHealthEvent(id: string) {
     if (!confirm('Are you sure you want to delete this health event?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete health events')
-        return
-      }
-
       const { error } = await supabase
         .from('health_events')
         .delete()
@@ -369,6 +349,7 @@ export default function LivestockPage() {
     }
   }
 
+  const activeAnimals = animals.filter((a) => a.status === 'active')
   const speciesGroups = animals.reduce((groups, animal) => {
     if (!groups[animal.species]) groups[animal.species] = 0
     if (animal.status === 'active') groups[animal.species]++
@@ -376,12 +357,15 @@ export default function LivestockPage() {
   }, {} as Record<string, number>)
 
   // ===== LOADING STATE =====
-  if (farmLoading || (fetching && !isRefreshing)) {
+  if (!authChecked || farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading livestock...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading livestock...'}
+          </p>
         </div>
       </div>
     )
@@ -452,6 +436,23 @@ export default function LivestockPage() {
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
+      {/* Error message inline */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -680,23 +681,6 @@ export default function LivestockPage() {
           </div>
         </div>
       </div>
-
-      {/* Error message */}
-      {error && (
-        <Card className="shadow-sm border-red-200 bg-red-50">
-          <CardContent className="py-3 px-4 flex items-center justify-between">
-            <p className="text-sm text-red-700">❌ {error}</p>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setError(null)}
-              className="text-red-700 hover:bg-red-100"
-            >
-              Dismiss
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Herd summary */}
       {Object.keys(speciesGroups).length > 0 && (

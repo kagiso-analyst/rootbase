@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, CheckSquare, Trash2, Calendar, Flag, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -80,7 +80,16 @@ function isOverdue(dueDate: string, status: Status): boolean {
 }
 
 export default function TasksPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [tasks, setTasks] = useState<Task[]>([])
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -91,22 +100,27 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Get current farm
-  const { currentFarm, loading: farmLoading } = useFarm()
-
-  const supabase = createClient()
-
-  const todoTasks = tasks.filter(t => t.status === 'todo')
-  const doneTasks = tasks.filter(t => t.status === 'done')
-  const overdueTasks = todoTasks.filter(t => t.due_date && isOverdue(t.due_date, t.status))
-  const urgentCount = todoTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH TASKS =====
-  async function fetchTasks() {
-    if (!currentFarm) {
+  const fetchTasks = useCallback(async () => {
+    if (!currentFarm || !user) {
       setTasks([])
       setFetching(false)
       return
@@ -116,16 +130,6 @@ export default function TasksPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setTasks([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const { data, error } = await supabase
         .from('tasks')
         .select('*')
@@ -143,11 +147,13 @@ export default function TasksPage() {
       setFetching(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchTasks()
-  }, [currentFarm])
+    if (authChecked && user) {
+      fetchTasks()
+    }
+  }, [authChecked, user, fetchTasks])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -155,10 +161,15 @@ export default function TasksPage() {
     await fetchTasks()
   }
 
+  const todoTasks = tasks.filter(t => t.status === 'todo')
+  const doneTasks = tasks.filter(t => t.status === 'done')
+  const overdueTasks = todoTasks.filter(t => t.due_date && isOverdue(t.due_date, t.status))
+  const urgentCount = todoTasks.filter(t => t.priority === 'urgent' || t.priority === 'high').length
+
   // ===== ADD TASK =====
   async function handleAdd() {
     if (!title) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -167,13 +178,6 @@ export default function TasksPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add tasks')
-        setLoading(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('tasks')
         .insert([{ 
@@ -243,15 +247,15 @@ export default function TasksPage() {
   // ===== DELETE TASK =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this task?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
       const { error } = await supabase
         .from('tasks')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id)
-        .eq('farm_id', currentFarm?.id)
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete task: ' + error.message)
 
@@ -317,12 +321,15 @@ export default function TasksPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || (fetching && !isRefreshing)) {
+  if (!authChecked || farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading tasks...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading tasks...'}
+          </p>
         </div>
       </div>
     )
@@ -380,7 +387,10 @@ export default function TasksPage() {
             </div>
             <Button 
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleRefresh}
+              onClick={() => {
+                setError(null)
+                fetchTasks()
+              }}
             >
               <RefreshCw size={14} className="mr-2" /> Try Again
             </Button>
@@ -393,6 +403,23 @@ export default function TasksPage() {
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
+      {/* Error message inline */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -513,23 +540,6 @@ export default function TasksPage() {
           </Dialog>
         </div>
       </div>
-
-      {/* Error message */}
-      {error && (
-        <Card className="shadow-sm border-red-200 bg-red-50">
-          <CardContent className="py-3 px-4 flex items-center justify-between">
-            <p className="text-sm text-red-700">❌ {error}</p>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setError(null)}
-              className="text-red-700 hover:bg-red-100"
-            >
-              Dismiss
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">

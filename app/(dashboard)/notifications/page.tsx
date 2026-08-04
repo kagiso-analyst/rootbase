@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Bell, AlertTriangle, CheckSquare, Package, Wrench, RefreshCw, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -21,18 +21,47 @@ type Notification = {
 }
 
 export default function NotificationsPage() {
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [greeting, setGreeting] = useState('')
 
-  const { currentFarm, loading: farmLoading } = useFarm()
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        if (user) {
+          const seasonal = getSeasonalGreeting(
+            user.user_metadata?.full_name?.split(' ')[0] || 'Farmer'
+          )
+          setGreeting(seasonal.greeting)
+        }
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
-  async function buildNotifications() {
-    if (!currentFarm) {
+  // ===== BUILD NOTIFICATIONS =====
+  const buildNotifications = useCallback(async () => {
+    if (!currentFarm || !user) {
       setNotifications([])
       setLoading(false)
       return
@@ -44,19 +73,6 @@ export default function NotificationsPage() {
     try {
       const alerts: Notification[] = []
       const today = new Date().toISOString().split('T')[0]
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setNotifications([])
-        setLoading(false)
-        return
-      }
-      
-      setUser(user)
-
-      const seasonal = getSeasonalGreeting(user.user_metadata?.full_name?.split(' ')[0] || 'Farmer')
-      setGreeting(seasonal.greeting)
 
       const [tasksRes, inventoryRes, equipmentRes, documentsRes] = await Promise.all([
         supabase
@@ -88,6 +104,7 @@ export default function NotificationsPage() {
       if (equipmentRes.error) throw new Error('Failed to fetch equipment: ' + equipmentRes.error.message)
       if (documentsRes.error) throw new Error('Failed to fetch documents: ' + documentsRes.error.message)
 
+      // Overdue tasks
       const overdueTasks = tasksRes.data || []
       overdueTasks.forEach(task => {
         alerts.push({
@@ -99,6 +116,7 @@ export default function NotificationsPage() {
         })
       })
 
+      // Low stock
       const inventoryItems = inventoryRes.data || []
       inventoryItems
         .filter(i => i.reorder_level > 0 && i.current_quantity <= i.reorder_level)
@@ -112,6 +130,7 @@ export default function NotificationsPage() {
           })
         })
 
+      // Service due
       const equipment = equipmentRes.data || []
       equipment.forEach(equip => {
         if (equip.next_service_date) {
@@ -132,6 +151,7 @@ export default function NotificationsPage() {
         }
       })
 
+      // Document expiry
       const documents = documentsRes.data || []
       documents.forEach(doc => {
         if (!doc.expiry_date) return
@@ -151,6 +171,7 @@ export default function NotificationsPage() {
         }
       })
 
+      // Sort by severity
       const order = { urgent: 0, warning: 1, info: 2 }
       alerts.sort((a, b) => order[a.severity] - order[b.severity])
 
@@ -163,12 +184,15 @@ export default function NotificationsPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    buildNotifications()
-  }, [currentFarm])
+    if (authChecked && user) {
+      buildNotifications()
+    }
+  }, [authChecked, user, buildNotifications])
 
+  // ===== REFRESH =====
   const handleRefresh = async () => {
     setIsRefreshing(true)
     await buildNotifications()
@@ -202,17 +226,22 @@ export default function NotificationsPage() {
     expiry:       AlertTriangle,
   }
 
-  if (farmLoading || (loading && !isRefreshing)) {
+  // ===== LOADING STATE =====
+  if (!authChecked || farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Checking for alerts...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Checking for alerts...'}
+          </p>
         </div>
       </div>
     )
   }
 
+  // ===== NOT LOGGED IN =====
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -228,6 +257,7 @@ export default function NotificationsPage() {
     )
   }
 
+  // ===== NO FARM SELECTED =====
   if (!currentFarm) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -243,6 +273,7 @@ export default function NotificationsPage() {
     )
   }
 
+  // ===== ERROR STATE =====
   if (error && !loading) {
     return (
       <div className="space-y-6">
@@ -262,7 +293,10 @@ export default function NotificationsPage() {
             </div>
             <Button 
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleRefresh}
+              onClick={() => {
+                setError(null)
+                buildNotifications()
+              }}
             >
               <RefreshCw size={14} className="mr-2" /> Try Again
             </Button>
@@ -272,6 +306,7 @@ export default function NotificationsPage() {
     )
   }
 
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -298,6 +333,7 @@ export default function NotificationsPage() {
         </Button>
       </div>
 
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">

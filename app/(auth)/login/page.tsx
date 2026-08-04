@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Logo } from '@/components/ui/Logo' // 👈 ADD THIS
-import { getSeasonalGreeting } from '@/lib/utils' // 👈 ADD THIS
-import { Leaf, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
+import { Logo } from '@/components/ui/Logo'
+import { getSeasonalGreeting } from '@/lib/utils'
+import { Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -22,6 +22,7 @@ export default function LoginPage() {
   const [greeting, setGreeting] = useState('Welcome back, Farmer')
   const [greetingEmoji, setGreetingEmoji] = useState('🌱')
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     const seasonal = getSeasonalGreeting('Farmer')
@@ -32,20 +33,28 @@ export default function LoginPage() {
   async function handleLogin() {
     setLoading(true)
     setError('')
-    const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
+    
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ 
+        email: email.trim(), 
+        password 
+      })
+      
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      } else {
+        router.push('/dashboard')
+      }
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.')
       setLoading(false)
-    } else {
-      router.push('/dashboard')
     }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]/30 px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-6">
             <Logo size="lg" />
@@ -72,21 +81,21 @@ export default function LoginPage() {
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email" required>Email address</Label>
+              <Label htmlFor="email">Email address</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@farm.com"
                 value={email}
-                onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
-                onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 autoFocus
               />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" required>Password</Label>
+                <Label htmlFor="password">Password</Label>
                 <Link href="/forgot-password" className="text-xs text-[#2D6A4F] hover:underline">
                   Forgot password?
                 </Link>
@@ -96,10 +105,9 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
-                onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                 className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
-                showPasswordToggle
               />
             </div>
             <Button
@@ -138,7 +146,6 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        {/* Farm emoji decoration */}
         <div className="mt-4 text-center text-xs uppercase tracking-[0.3em] text-gray-400">
           Secure farm management
         </div>

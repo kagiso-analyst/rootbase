@@ -2,13 +2,13 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Trash2, Receipt, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Trash2, Receipt, Sparkles, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge' // 👈 ADD THIS
+import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
@@ -23,8 +23,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import { cn, formatCurrency } from '@/lib/utils' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn, formatCurrency } from '@/lib/utils'
 import Link from 'next/link'
 
 const CATEGORIES = [
@@ -45,7 +45,16 @@ type Expense = {
 }
 
 export default function ExpensesPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [open, setOpen] = useState(false)
   const [category, setCategory] = useState('')
@@ -55,17 +64,26 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
 
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
-
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH EXPENSES =====
-  async function fetchExpenses() {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
+  const fetchExpenses = useCallback(async () => {
+    if (!currentFarm || !user) {
       setExpenses([])
       setFetching(false)
       return
@@ -75,26 +93,16 @@ export default function ExpensesPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setExpenses([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const { data, error } = await supabase
         .from('expenses')
         .select('*')
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch expenses: ' + error.message)
       if (data) {
-        const mappedExpenses = (data as Array<Partial<Expense>>).map((item) => ({
+        const mappedExpenses = data.map((item: any) => ({
           ...item,
           amount: Number(item.amount) || 0,
           description: item.description ?? '',
@@ -109,18 +117,20 @@ export default function ExpensesPage() {
     } finally {
       setFetching(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchExpenses()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
+    if (authChecked && user) {
+      fetchExpenses()
+    }
+  }, [authChecked, user, fetchExpenses])
 
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
 
   // ===== ADD EXPENSE =====
   async function handleAdd() {
     if (!category || !description || !amount || !date) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -129,13 +139,6 @@ export default function ExpensesPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add expenses')
-        setLoading(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('expenses')
         .insert([{ 
@@ -144,7 +147,7 @@ export default function ExpensesPage() {
           amount: parseFloat(amount), 
           date,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ADD farm_id
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -171,21 +174,15 @@ export default function ExpensesPage() {
   // ===== DELETE EXPENSE =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this expense?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete expenses')
-        return
-      }
-
       const { error } = await supabase
         .from('expenses')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete expense: ' + error.message)
 
@@ -198,12 +195,15 @@ export default function ExpensesPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || fetching) {
+  if (!authChecked || farmLoading || fetching) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading expenses...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading expenses...'}
+          </p>
         </div>
       </div>
     )
@@ -241,10 +241,43 @@ export default function ExpensesPage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Expenses</h1>
+            <p className="text-gray-500 text-sm mt-1">Track your farm expenses</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                setError(null)
+                fetchExpenses()
+              }}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">

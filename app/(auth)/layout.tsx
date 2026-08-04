@@ -17,18 +17,25 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     let isMounted = true
 
     async function checkAuth() {
-      const { data: { session } } = await supabase.auth.getSession()
-      const user = session?.user ?? null
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const user = session?.user ?? null
 
-      if (user && (pathname === '/login' || pathname === '/register')) {
-        if (isMounted) {
-          router.replace('/dashboard')
+        if (user && (pathname === '/login' || pathname === '/register')) {
+          if (isMounted) {
+            router.replace('/dashboard')
+          }
+          return
         }
-        return
-      }
 
-      if (isMounted) {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
+      } catch (err) {
+        console.error('Auth check error:', err)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 

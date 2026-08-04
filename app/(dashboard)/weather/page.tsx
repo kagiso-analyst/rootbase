@@ -21,6 +21,8 @@ import {
 } from '@/lib/weather'
 import { useFarm } from '@/lib/farm-context'
 import { cn, getSeasonalGreeting } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
 
 function formatTime(unix: number): string {
   return new Date(unix * 1000).toLocaleTimeString('en-ZA', {
@@ -29,6 +31,15 @@ function formatTime(unix: number): string {
 }
 
 export default function WeatherPage() {
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== WEATHER STATE =====
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,7 +50,27 @@ export default function WeatherPage() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [greeting, setGreeting] = useState('')
 
-  const { currentFarm, loading: farmLoading } = useFarm()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        if (user) {
+          const seasonal = getSeasonalGreeting(
+            user.user_metadata?.full_name?.split(' ')[0] || 'Farmer'
+          )
+          setGreeting(seasonal.greeting)
+        }
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   async function loadWeatherByGPS() {
     setLoading(true)
@@ -178,23 +209,63 @@ export default function WeatherPage() {
     setError('')
   }
 
+  // Initial load
   useEffect(() => {
-    loadWeatherByGPS()
-  }, [])
+    if (authChecked && user) {
+      loadWeatherByGPS()
+    }
+  }, [authChecked, user])
 
   const advice = weather ? getFarmingAdvice(weather) : []
 
-  if (loading && !isRefreshing) {
+  // ===== LOADING STATE =====
+  if (!authChecked || farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading weather data...</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading weather data...'}
+          </p>
         </div>
       </div>
     )
   }
 
+  // ===== NOT LOGGED IN =====
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
+        <p className="text-sm text-gray-500">You need to be logged in to view weather data.</p>
+        <Link href="/login">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to view weather data.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -202,7 +273,7 @@ export default function WeatherPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Farm Weather</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              🌤️ {currentFarm?.name || 'Farm'}
+              {currentFarm?.name || 'Farm'}
             </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1">
@@ -218,7 +289,7 @@ export default function WeatherPage() {
             if (val) loadWeatherByCity(val)
           }}>
             <SelectTrigger className="w-48 border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]">
-              <SelectValue placeholder={usingGPS ? '📍 My Location' : 'Select city'} />
+              <SelectValue placeholder={usingGPS ? 'My Location' : 'Select city'} />
             </SelectTrigger>
             <SelectContent>
               {SA_CITIES.map(city => (
@@ -361,7 +432,7 @@ export default function WeatherPage() {
             <Card className="shadow-sm border-[#52B788] bg-gradient-to-br from-white to-[#D8F3DC]/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base text-[#1B4332] flex items-center gap-2">
-                  <span>🌱</span> Today's Farming Advice
+                  <span>Today's Farming Advice</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>

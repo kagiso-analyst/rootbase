@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Building2, Trash2, Phone, Mail, MapPin, RefreshCw, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -68,19 +68,24 @@ const CATEGORY_COLOURS: Record<string, string> = {
 }
 
 export default function SuppliersPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [open, setOpen] = useState(false)
   const [filterCategory, setFilterCategory] = useState('All')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-
-  // Get current farm
-  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
   const [name, setName] = useState('')
@@ -91,11 +96,25 @@ export default function SuppliersPage() {
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
 
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH SUPPLIERS =====
-  async function fetchSuppliers() {
-    if (!currentFarm) {
+  const fetchSuppliers = useCallback(async () => {
+    if (!currentFarm || !user) {
       setSuppliers([])
       setFetching(false)
       return
@@ -105,16 +124,6 @@ export default function SuppliersPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setSuppliers([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
@@ -132,11 +141,13 @@ export default function SuppliersPage() {
       setFetching(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchSuppliers()
-  }, [currentFarm])
+    if (authChecked && user) {
+      fetchSuppliers()
+    }
+  }, [authChecked, user, fetchSuppliers])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -156,7 +167,7 @@ export default function SuppliersPage() {
   // ===== ADD SUPPLIER =====
   async function handleAdd() {
     if (!name || !category) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -165,13 +176,6 @@ export default function SuppliersPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add suppliers')
-        setLoading(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('suppliers')
         .insert([{ 
@@ -213,15 +217,9 @@ export default function SuppliersPage() {
   // ===== DELETE SUPPLIER =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this supplier?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete suppliers')
-        return
-      }
-
       const { error } = await supabase
         .from('suppliers')
         .delete()
@@ -240,12 +238,15 @@ export default function SuppliersPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || (fetching && !isRefreshing)) {
+  if (!authChecked || farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading suppliers...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading suppliers...'}
+          </p>
         </div>
       </div>
     )
@@ -303,7 +304,10 @@ export default function SuppliersPage() {
             </div>
             <Button 
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={handleRefresh}
+              onClick={() => {
+                setError(null)
+                fetchSuppliers()
+              }}
             >
               <RefreshCw size={14} className="mr-2" /> Try Again
             </Button>
@@ -316,6 +320,23 @@ export default function SuppliersPage() {
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
+      {/* Error message inline */}
+      {error && (
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-3 px-4 flex items-center justify-between">
+            <p className="text-sm text-red-700">❌ {error}</p>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={() => setError(null)}
+              className="text-red-700 hover:bg-red-100"
+            >
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -439,23 +460,6 @@ export default function SuppliersPage() {
           </Dialog>
         </div>
       </div>
-
-      {/* Error message */}
-      {error && (
-        <Card className="shadow-sm border-red-200 bg-red-50">
-          <CardContent className="py-3 px-4 flex items-center justify-between">
-            <p className="text-sm text-red-700">❌ {error}</p>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => setError(null)}
-              className="text-red-700 hover:bg-red-100"
-            >
-              Dismiss
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Search and Filter */}
       {suppliers.length > 0 && (

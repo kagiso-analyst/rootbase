@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Package, Trash2, AlertTriangle, RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,19 +41,24 @@ const CATEGORIES = [
 const UNITS = ['kg', 'g', 'ton', 'litre', 'ml', 'bag', 'box', 'unit', 'roll', 'each']
 
 export default function InventoryPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [items, setItems] = useState<InventoryItem[]>([])
   const [open, setOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [filterCategory, setFilterCategory] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
-
-  // Get current farm
-  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
   const [name, setName] = useState('')
@@ -65,11 +70,25 @@ export default function InventoryPage() {
   const [storageLocation, setStorageLocation] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
 
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH ITEMS =====
-  async function fetchItems() {
-    if (!currentFarm) {
+  const fetchItems = useCallback(async () => {
+    if (!currentFarm || !user) {
       setItems([])
       setFetching(false)
       return
@@ -79,16 +98,6 @@ export default function InventoryPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setItems([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const { data, error } = await supabase
         .from('inventory_items')
         .select('*')
@@ -98,7 +107,7 @@ export default function InventoryPage() {
 
       if (error) throw new Error('Failed to fetch inventory: ' + error.message)
       if (data) {
-        const mappedItems = (data as Array<Partial<InventoryItem>>).map((item) => ({
+        const mappedItems = data.map((item: any) => ({
           ...item,
           current_quantity: Number(item.current_quantity) || 0,
           reorder_level: Number(item.reorder_level) || 0,
@@ -116,11 +125,13 @@ export default function InventoryPage() {
       setFetching(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
-  useEffect(() => { 
-    fetchItems() 
-  }, [currentFarm])
+  useEffect(() => {
+    if (authChecked && user) {
+      fetchItems()
+    }
+  }, [authChecked, user, fetchItems])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -159,7 +170,7 @@ export default function InventoryPage() {
   // ===== ADD ITEM =====
   async function handleAdd() {
     if (!name || !category || !unit) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -168,13 +179,6 @@ export default function InventoryPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add items')
-        setLoading(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('inventory_items')
         .insert([{
@@ -218,15 +222,9 @@ export default function InventoryPage() {
   // ===== DELETE ITEM =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this item?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete items')
-        return
-      }
-
       const { error } = await supabase
         .from('inventory_items')
         .delete()
@@ -245,12 +243,15 @@ export default function InventoryPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || (fetching && !isRefreshing)) {
+  if (!authChecked || farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading inventory...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading inventory...'}
+          </p>
         </div>
       </div>
     )
@@ -288,10 +289,40 @@ export default function InventoryPage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Inventory</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage your farm inventory</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleRefresh}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">

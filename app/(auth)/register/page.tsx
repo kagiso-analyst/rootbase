@@ -9,21 +9,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Logo } from '@/components/ui/Logo' // 👈 ADD THIS
-import { getSeasonalGreeting } from '@/lib/utils' // 👈 ADD THIS
-import { Sparkles, CheckCircle, AlertCircle } from 'lucide-react' // 👈 ADD THESE
+import { Logo } from '@/components/ui/Logo'
+import { getSeasonalGreeting } from '@/lib/utils'
+import { Sparkles, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('') // 👈 ADD THIS
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(0) // 👈 ADD THIS
-  const [acceptedTerms, setAcceptedTerms] = useState(false) // 👈 ADD THIS
+  const [passwordStrength, setPasswordStrength] = useState(0)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [greeting, setGreeting] = useState('Start your farming journey')
   const [greetingEmoji, setGreetingEmoji] = useState('🌱')
   const router = useRouter()
@@ -166,7 +166,6 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]/30 px-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-block mb-4">
             <Logo size="lg" />
@@ -201,41 +200,39 @@ export default function RegisterPage() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="name" required>Full Name</Label>
+              <Label htmlFor="name">Full Name</Label>
               <Input
                 id="name"
                 placeholder="Your name"
                 value={fullName}
-                onChange={(e) => setFullName((e.target as HTMLInputElement).value)}
+                onChange={(e) => setFullName(e.target.value)}
                 className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 autoFocus
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email" required>Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@farm.com"
                 value={email}
-                onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                onChange={(e) => setEmail(e.target.value)}
                 className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" required>Password</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="Min 8 characters"
                 value={password}
-                onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
+                onChange={(e) => setPassword(e.target.value)}
                 className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
-                showPasswordToggle
               />
-              {/* Password strength bar */}
               {password && (
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -261,9 +258,8 @@ export default function RegisterPage() {
                 type="password"
                 placeholder="Confirm your password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword((e.target as HTMLInputElement).value)}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
-                showPasswordToggle
               />
               {password && confirmPassword && password !== confirmPassword && (
                 <p className="text-xs text-red-500">Passwords do not match</p>
@@ -275,7 +271,6 @@ export default function RegisterPage() {
               )}
             </div>
 
-            {/* Terms */}
             <div className="flex items-start gap-2 pt-1">
               <input
                 type="checkbox"
@@ -332,7 +327,6 @@ export default function RegisterPage() {
           </Link>
         </p>
 
-        {/* Farm emoji decoration */}
         <div className="mt-4 text-center text-xs uppercase tracking-[0.3em] text-gray-400">
           Secure farm management
         </div>

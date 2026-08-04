@@ -2,13 +2,13 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { BarChart2, TrendingUp, TrendingDown, DollarSign, RefreshCw, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
+import { useState, useEffect, useCallback } from 'react'
+import { BarChart2, TrendingUp, TrendingDown, DollarSign, RefreshCw, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge' // 👈 ADD THIS
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
 
 const sections = [
@@ -42,23 +42,41 @@ const sections = [
 ]
 
 export default function FinancesPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [income, setIncome] = useState(0)
   const [expenses, setExpenses] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
-
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH DATA =====
-  async function fetchMonthData() {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
+  const fetchMonthData = useCallback(async () => {
+    if (!currentFarm || !user) {
       setIncome(0)
       setExpenses(0)
       setLoading(false)
@@ -69,17 +87,6 @@ export default function FinancesPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setIncome(0)
-        setExpenses(0)
-        setLoading(false)
-        return
-      }
-      
-      setUser(user)
-
       const now = new Date()
       const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
@@ -89,14 +96,14 @@ export default function FinancesPage() {
           .from('income')
           .select('amount')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+          .eq('farm_id', currentFarm.id)
           .gte('date', firstOfMonth)
           .lte('date', endOfMonth),
         supabase
           .from('expenses')
           .select('amount')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+          .eq('farm_id', currentFarm.id)
           .gte('date', firstOfMonth)
           .lte('date', endOfMonth),
       ])
@@ -116,11 +123,13 @@ export default function FinancesPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchMonthData()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
+    if (authChecked && user) {
+      fetchMonthData()
+    }
+  }, [authChecked, user, fetchMonthData])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -132,12 +141,15 @@ export default function FinancesPage() {
   const isProfit = net >= 0
 
   // ===== LOADING STATE =====
-  if (farmLoading || (loading && !isRefreshing)) {
+  if (!authChecked || farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading finances...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading finances...'}
+          </p>
         </div>
       </div>
     )
@@ -207,7 +219,7 @@ export default function FinancesPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

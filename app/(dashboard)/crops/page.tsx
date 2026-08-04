@@ -3,7 +3,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Leaf, Calendar, MapPin, Sparkles, Image } from 'lucide-react' // 👈 ADD Sparkles, Image
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,25 +16,27 @@ import {
 } from '@/components/ui/select'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import { cn, getSeasonalGreeting } from '@/lib/utils' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn, getSeasonalGreeting } from '@/lib/utils'
+// Add RefreshCw to the import
+import { Plus, Leaf, Calendar, MapPin, Sparkles, Image, RefreshCw } from 'lucide-react'
 
 type CropStatus = 'planned' | 'active' | 'harvested' | 'failed'
 
 type Crop = {
   id: string
   crop_name: string
-  variety: string
-  field_name: string
-  season: string
+  variety: string | null
+  field_name: string | null
+  season: string | null
   planting_date: string
   expected_harvest_date: string
   area_planted_ha: number
   status: CropStatus
-  notes: string
+  notes: string | null
   created_at: string
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string
 }
 
 const STATUS_COLOURS: Record<CropStatus, string> = {
@@ -65,17 +66,22 @@ function progressPercent(plantingDate: string, expectedDate: string): number {
 }
 
 export default function CropsPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [crops, setCrops] = useState<Crop[]>([])
   const [open, setOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [greeting, setGreeting] = useState('')
-
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
   const [cropName, setCropName] = useState('')
@@ -88,12 +94,31 @@ export default function CropsPage() {
   const [status, setStatus] = useState<CropStatus>('active')
   const [notes, setNotes] = useState('')
 
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        if (user) {
+          const seasonal = getSeasonalGreeting(
+            user.user_metadata?.full_name?.split(' ')[0] || 'Farmer'
+          )
+          setGreeting(seasonal.greeting)
+        }
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH CROPS =====
   const fetchCrops = useCallback(async () => {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setCrops([])
       setFetching(false)
       return
@@ -103,25 +128,11 @@ export default function CropsPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setCrops([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
-      // Set seasonal greeting
-      const seasonal = getSeasonalGreeting(user.user_metadata?.full_name?.split(' ')[0] || 'Farmer')
-      setGreeting(seasonal.greeting)
-
       const { data, error } = await supabase
         .from('crops')
         .select('*')
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
         .order('created_at', { ascending: false })
       
       if (error) throw new Error('Failed to fetch crops: ' + error.message)
@@ -133,16 +144,18 @@ export default function CropsPage() {
     } finally {
       setFetching(false)
     }
-  }, [currentFarm, supabase])
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchCrops()
-  }, [fetchCrops])
+    if (authChecked && user) {
+      fetchCrops()
+    }
+  }, [authChecked, user, fetchCrops])
 
   // ===== ADD CROP =====
   async function handleAdd() {
     if (!cropName || !plantingDate || !expectedHarvestDate) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -151,13 +164,6 @@ export default function CropsPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add crops')
-        setLoading(false)
-        return
-      }
-      
       const { data, error } = await supabase
         .from('crops')
         .insert([{
@@ -171,7 +177,7 @@ export default function CropsPage() {
           status,
           notes: notes || null,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ADD farm_id
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -204,20 +210,15 @@ export default function CropsPage() {
   // ===== DELETE CROP =====
   async function handleDeleteCrop(id: string) {
     if (!confirm('Are you sure you want to delete this crop?')) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete crops')
-        return
-      }
-
       const { error } = await supabase
         .from('crops')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete crop: ' + error.message)
       
@@ -234,12 +235,15 @@ export default function CropsPage() {
   const harvestedCrops = crops.filter((c) => c.status === 'harvested').length
 
   // ===== LOADING STATE =====
-  if (farmLoading || (fetching)) {
+  if (!authChecked || farmLoading || (fetching)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading crops...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading crops...'}
+          </p>
         </div>
       </div>
     )
@@ -277,10 +281,43 @@ export default function CropsPage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Crops</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage your crops and planting records</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                setError(null)
+                fetchCrops()
+              }}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">

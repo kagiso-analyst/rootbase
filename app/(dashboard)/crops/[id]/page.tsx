@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
+import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors, Sparkles, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,11 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Link from 'next/link'
-import { useParams } from 'next/navigation' // 👈 ADD THIS
+import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import { cn } from '@/lib/utils' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn } from '@/lib/utils'
 import type { Activity, ActivityType } from '@/types/crops'
+
 
 const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
   Spraying:    <Droplets size={14} className="text-blue-500" />,
@@ -41,21 +42,26 @@ const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
 }
 
 export default function CropDetailPage() {
-  // ===== STATE =====
-  const [activities, setActivities] = useState<Activity[]>([])
-  const [crop, setCrop] = useState<any>(null) // 👈 ADD THIS
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // ===== AUTH STATE =====
   const [user, setUser] = useState<any>(null)
-  const [saving, setSaving] = useState(false)
-  
-  // 👇 GET CROP ID FROM URL
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== ROUTE PARAMS =====
   const params = useParams()
   const cropId = params.id as string
-  
-  // 👇 GET CURRENT FARM
+
+  // ===== FARM CONTEXT =====
   const { currentFarm, loading: farmLoading } = useFarm()
-  
+
+  // ===== DATA STATE =====
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [crop, setCrop] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
   // Form state
   const [open, setOpen] = useState(false)
   const [activityType, setActivityType] = useState<ActivityType>('Spraying')
@@ -64,11 +70,25 @@ export default function CropDetailPage() {
   const [rate, setRate] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
 
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH CROP AND ACTIVITIES =====
   const fetchData = useCallback(async () => {
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setLoading(false)
       return
     }
@@ -77,23 +97,13 @@ export default function CropDetailPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setActivities([])
-        setLoading(false)
-        return
-      }
-      
-      setUser(user)
-
-      // 👇 Fetch crop details
+      // Fetch crop details
       const { data: cropData, error: cropError } = await supabase
         .from('crops')
         .select('*')
         .eq('id', cropId)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
         .single()
 
       if (cropError && cropError.code !== 'PGRST116') {
@@ -102,13 +112,13 @@ export default function CropDetailPage() {
       
       setCrop(cropData)
 
-      // 👇 Fetch activities from database
+      // Fetch activities from database
       const { data, error } = await supabase
         .from('crop_activities')
         .select('*')
         .eq('crop_id', cropId)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch activities: ' + error.message)
@@ -131,18 +141,18 @@ export default function CropDetailPage() {
     } finally {
       setLoading(false)
     }
-  }, [cropId, currentFarm, supabase])
+  }, [cropId, currentFarm, user, supabase])
 
   useEffect(() => {
-    if (cropId) {
+    if (authChecked && user && cropId) {
       fetchData()
     }
-  }, [cropId, fetchData])
+  }, [authChecked, user, cropId, fetchData])
 
   // ===== ADD ACTIVITY =====
   async function handleAddActivity() {
     if (!description || !date) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -151,13 +161,6 @@ export default function CropDetailPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to save activities')
-        setSaving(false)
-        return
-      }
-
       const { data, error } = await supabase
         .from('crop_activities')
         .insert([{
@@ -168,7 +171,7 @@ export default function CropDetailPage() {
           rate: rate || null,
           date,
           user_id: user.id,
-          farm_id: currentFarm.id, // 👈 ADD farm_id
+          farm_id: currentFarm.id,
         }])
         .select()
         .single()
@@ -202,21 +205,16 @@ export default function CropDetailPage() {
 
   // ===== DELETE ACTIVITY =====
   async function handleDeleteActivity(id: string) {
-    if (!confirm('Are you sure you want to delete this activity?')) return // 👈 ADD CONFIRMATION
+    if (!confirm('Are you sure you want to delete this activity?')) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete activities')
-        return
-      }
-
       const { error } = await supabase
         .from('crop_activities')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete activity: ' + error.message)
       
@@ -229,12 +227,15 @@ export default function CropDetailPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || loading) {
+  if (!authChecked || farmLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading crop details...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading crop details...'}
+          </p>
         </div>
       </div>
     )
@@ -288,6 +289,39 @@ export default function CropDetailPage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Crop Details</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage crop activities and information</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                setError(null)
+                fetchData()
+              }}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
@@ -300,7 +334,7 @@ export default function CropDetailPage() {
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-[#1B4332]">
                 {crop.crop_name}
               </h1>
@@ -326,7 +360,7 @@ export default function CropDetailPage() {
         </div>
       </div>
 
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
@@ -354,7 +388,7 @@ export default function CropDetailPage() {
         </TabsList>
 
         <TabsContent value="activities" className="space-y-4 mt-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-2">
             <p className="text-sm text-gray-500">
               {activities.length} activit{activities.length !== 1 ? 'ies' : 'y'} logged
             </p>

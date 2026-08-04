@@ -2,10 +2,10 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, Wrench, Trash2, AlertTriangle, Calendar, Sparkles } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, Wrench, Trash2, AlertTriangle, Calendar, Sparkles, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -100,18 +100,23 @@ function isServiceDue(equipment: Equipment): boolean {
 }
 
 export default function EquipmentPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [equipment, setEquipment] = useState<Equipment[]>([])
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLog[]>([])
   const [equipOpen, setEquipOpen] = useState(false)
   const [serviceOpen, setServiceOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(false)
-
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Equipment form
   const [name, setName] = useState('')
@@ -136,13 +141,25 @@ export default function EquipmentPage() {
   const [serviceDate, setServiceDate] = useState(new Date().toISOString().split('T')[0])
   const [serviceHours, setServiceHours] = useState('')
 
-  const supabase = createClient()
-  const dueSoon = equipment.filter(isServiceDue)
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH ALL DATA =====
-  async function fetchAll() {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
+  const fetchAll = useCallback(async () => {
+    if (!currentFarm || !user) {
       setEquipment([])
       setMaintenanceLogs([])
       setFetching(false)
@@ -153,29 +170,18 @@ export default function EquipmentPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setEquipment([])
-        setMaintenanceLogs([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
       const [equipRes, logsRes] = await Promise.all([
         supabase
           .from('equipment')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+          .eq('farm_id', currentFarm.id)
           .order('created_at', { ascending: false }),
         supabase
           .from('maintenance_logs')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+          .eq('farm_id', currentFarm.id)
           .order('date', { ascending: false }),
       ])
 
@@ -210,16 +216,18 @@ export default function EquipmentPage() {
     } finally {
       setFetching(false)
     }
-  }
+  }, [currentFarm, user, supabase])
 
   useEffect(() => {
-    fetchAll()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
+    if (authChecked && user) {
+      fetchAll()
+    }
+  }, [authChecked, user, fetchAll])
 
   // ===== ADD EQUIPMENT =====
   async function handleAddEquipment() {
     if (!name || !category) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -228,13 +236,6 @@ export default function EquipmentPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add equipment')
-        setLoading(false)
-        return
-      }
-      
       const { data, error } = await supabase
         .from('equipment')
         .insert([{
@@ -252,7 +253,7 @@ export default function EquipmentPage() {
           insurance_expiry: insuranceExpiry || null,
           notes: notes || null,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ADD farm_id
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -295,7 +296,7 @@ export default function EquipmentPage() {
   // ===== ADD SERVICE =====
   async function handleAddService() {
     if (!selectedEquipId || !serviceType || !serviceDesc) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     setLoading(true)
     setError(null)
@@ -303,13 +304,6 @@ export default function EquipmentPage() {
     const equip = equipment.find((e) => e.id === selectedEquipId)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to log services')
-        setLoading(false)
-        return
-      }
-      
       const { data, error } = await supabase
         .from('maintenance_logs')
         .insert([{
@@ -321,7 +315,7 @@ export default function EquipmentPage() {
           date: serviceDate,
           hours_at_service: parseFloat(serviceHours) || 0,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ADD farm_id
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -359,21 +353,15 @@ export default function EquipmentPage() {
   // ===== DELETE EQUIPMENT =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this equipment and all its service logs?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete equipment')
-        return
-      }
-
       const { error } = await supabase
         .from('equipment')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete equipment: ' + error.message)
 
@@ -384,7 +372,7 @@ export default function EquipmentPage() {
         .delete()
         .eq('equipment_id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
       setMaintenanceLogs(prev => prev.filter(log => log.equipmentId !== id))
       
     } catch (err) {
@@ -396,21 +384,15 @@ export default function EquipmentPage() {
   // ===== DELETE SERVICE LOG =====
   async function handleDeleteLog(id: string) {
     if (!confirm('Are you sure you want to delete this service log?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete service logs')
-        return
-      }
-
       const { error } = await supabase
         .from('maintenance_logs')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete service log: ' + error.message)
 
@@ -427,13 +409,18 @@ export default function EquipmentPage() {
     return sum + price
   }, 0)
 
+  const dueSoon = equipment.filter(isServiceDue)
+
   // ===== LOADING STATE =====
-  if (farmLoading || fetching) {
+  if (!authChecked || farmLoading || fetching) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading equipment...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading equipment...'}
+          </p>
         </div>
       </div>
     )
@@ -471,10 +458,43 @@ export default function EquipmentPage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Equipment</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage your farm equipment</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                setError(null)
+                fetchAll()
+              }}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
@@ -506,7 +526,7 @@ export default function EquipmentPage() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {/* Service Dialog */}
           <Dialog open={serviceOpen} onOpenChange={setServiceOpen}>
             <Button

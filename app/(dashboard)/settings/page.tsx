@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Save, User, Bell, Shield, Palette, Import, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -22,10 +22,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
 
 export default function SettingsPage() {
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
   const { currentFarm, refreshFarms, loading: farmLoading } = useFarm()
-  
-  // ===== STATE =====
+
+  // ===== DATA STATE =====
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -35,29 +40,38 @@ export default function SettingsPage() {
   const [totalHectares, setTotalHectares] = useState('')
   const [currency, setCurrency] = useState('ZAR')
   const [language, setLanguage] = useState('en')
-  const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // ===== LOAD DATA =====
+  // ===== CHECK AUTH =====
   useEffect(() => {
-  async function loadData() {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
+
+  // ===== LOAD DATA =====
+  const loadData = useCallback(async () => {
+    if (!user) {
+      setLoadingProfile(false)
+      return
+    }
+
     setLoadingProfile(true)
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setLoadingProfile(false)
-        return
-      }
-      
-      setUser(user)
-
       // Load user profile data
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -94,21 +108,21 @@ export default function SettingsPage() {
     } finally {
       setLoadingProfile(false)
     }
-  }
+  }, [user, currentFarm, supabase])
 
-  loadData()
-}, [supabase, currentFarm])
-
+  useEffect(() => {
+    if (authChecked && user) {
+      loadData()
+    }
+  }, [authChecked, user, loadData])
 
   // ===== SAVE PROFILE =====
   async function handleProfileSave() {
     setLoading(true)
-    setSaved(false)
     setSaveMessage(null)
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setSaveMessage({ type: 'error', text: 'You must be logged in to save settings' })
         setLoading(false)
@@ -127,7 +141,6 @@ export default function SettingsPage() {
 
       if (error) throw new Error('Failed to save profile: ' + error.message)
 
-      setSaved(true)
       setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
       
     } catch (err) {
@@ -142,12 +155,10 @@ export default function SettingsPage() {
   // ===== SAVE FARM =====
   async function handleFarmSave() {
     setLoading(true)
-    setSaved(false)
     setSaveMessage(null)
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setSaveMessage({ type: 'error', text: 'You must be logged in to save farm settings' })
         setLoading(false)
@@ -198,7 +209,6 @@ export default function SettingsPage() {
 
       if (error) throw new Error('Failed to save farm: ' + error.message)
 
-      setSaved(true)
       setSaveMessage({ type: 'success', text: 'Farm settings saved successfully!' })
       
       // Refresh farms in context
@@ -214,12 +224,15 @@ export default function SettingsPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || loadingProfile) {
+  if (!authChecked || farmLoading || loadingProfile) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading settings...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading settings...'}
+          </p>
         </div>
       </div>
     )
@@ -249,7 +262,7 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-[#1B4332]">Settings</h1>
           {currentFarm && (
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              ⚙️ {currentFarm.name}
+              {currentFarm.name}
             </Badge>
           )}
         </div>
@@ -299,7 +312,7 @@ export default function SettingsPage() {
               <CardTitle className="text-base font-semibold text-gray-700">Personal Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Full Name</Label>
                   <Input
@@ -329,7 +342,7 @@ export default function SettingsPage() {
                   className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Language</Label>
                   <Select value={language} onValueChange={(val) => setLanguage(val || 'en')}>
@@ -390,7 +403,7 @@ export default function SettingsPage() {
                   className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Province</Label>
                   <Select value={province} onValueChange={(val) => setProvince(val || '')}>
@@ -459,7 +472,7 @@ export default function SettingsPage() {
             <CardContent className="py-4 px-5">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-orange-500 text-lg">⚠️</span>
+                  <span className="text-orange-500 text-lg">!</span>
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-orange-700 mb-1">Important — Read Before Importing</p>
@@ -590,7 +603,7 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="p-4 bg-gradient-to-br from-[#D8F3DC] to-white rounded-xl border border-[#52B788]/20">
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-[#1B4332]">Subscription: Free Plan</p>
                     <p className="text-xs text-[#2D6A4F] mt-1 max-w-md">

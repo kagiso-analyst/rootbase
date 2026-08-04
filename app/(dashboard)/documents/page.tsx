@@ -2,8 +2,8 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, FolderOpen, Trash2, FileText, Download, Sparkles, Clock } from 'lucide-react' // 👈 ADD Sparkles, Clock
+import { useState, useEffect, useCallback } from 'react'
+import { Plus, FolderOpen, Trash2, FileText, Download, Sparkles, Clock, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,9 +23,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import { cn } from '@/lib/utils' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn } from '@/lib/utils'
 import Link from 'next/link'
+
 
 type Document = {
   id: string
@@ -69,17 +70,22 @@ const CATEGORY_COLOURS: Record<string, string> = {
 }
 
 export default function DocumentsPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [documents, setDocuments] = useState<Document[]>([])
   const [open, setOpen] = useState(false)
   const [filterCategory, setFilterCategory] = useState('All')
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [saving, setSaving] = useState(false)
-
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
   const [name, setName] = useState('')
@@ -88,7 +94,67 @@ export default function DocumentsPage() {
   const [expiryDate, setExpiryDate] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
+
+  // ===== FETCH DOCUMENTS =====
+  const fetchDocuments = useCallback(async () => {
+    if (!currentFarm || !user) {
+      setDocuments([])
+      setFetching(false)
+      return
+    }
+
+    setFetching(true)
+    setError(null)
+    
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
+        .order('created_at', { ascending: false })
+
+      if (error) throw new Error('Failed to fetch documents: ' + error.message)
+      if (data) {
+        const mappedDocs = data.map((item: any) => ({
+          ...item,
+          description: item.description ?? null,
+          fileUrl: item.file_url ?? null,
+          fileName: item.file_name ?? null,
+          uploadedAt: item.uploaded_at ?? null,
+          expiryDate: item.expiry_date ?? null,
+        })) as Document[]
+        setDocuments(mappedDocs)
+      }
+      
+    } catch (err) {
+      console.error('Documents error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load documents. Please refresh the page.')
+    } finally {
+      setFetching(false)
+    }
+  }, [currentFarm, user, supabase])
+
+  useEffect(() => {
+    if (authChecked && user) {
+      fetchDocuments()
+    }
+  }, [authChecked, user, fetchDocuments])
 
   const filtered =
     filterCategory === 'All'
@@ -103,51 +169,6 @@ export default function DocumentsPage() {
     return days <= 30 && days >= 0
   })
 
-  // ===== FETCH DOCUMENTS =====
-  async function fetchDocuments() {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
-      setDocuments([])
-      setFetching(false)
-      return
-    }
-
-    setFetching(true)
-    setError(null)
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setDocuments([])
-        setFetching(false)
-        return
-      }
-      
-      setUser(user)
-
-      const { data, error } = await supabase
-        .from('documents')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
-        .order('created_at', { ascending: false })
-
-      if (error) throw new Error('Failed to fetch documents: ' + error.message)
-      if (data) setDocuments(data)
-      
-    } catch (err) {
-      console.error('Documents error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load documents. Please refresh the page.')
-    } finally {
-      setFetching(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchDocuments()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
-
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) setSelectedFile(file)
@@ -156,7 +177,7 @@ export default function DocumentsPage() {
   // ===== ADD DOCUMENT =====
   async function handleAdd() {
     if (!name || !category) return
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setError('Please select a farm first')
       return
     }
@@ -165,13 +186,6 @@ export default function DocumentsPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to add documents')
-        setSaving(false)
-        return
-      }
-
       const docData = {
         name,
         category,
@@ -181,7 +195,7 @@ export default function DocumentsPage() {
         file_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
         uploaded_at: new Date().toISOString().split('T')[0],
         user_id: user.id,
-        farm_id: currentFarm.id, // 👈 ADD farm_id
+        farm_id: currentFarm.id,
       }
 
       const { data, error } = await supabase
@@ -196,11 +210,11 @@ export default function DocumentsPage() {
         id: data.id,
         name: data.name,
         category: data.category,
-        description: data.description ?? '',
-        fileUrl: data.file_url ?? '',
-        fileName: data.file_name ?? '',
-        uploadedAt: data.uploaded_at ?? new Date().toISOString().split('T')[0],
-        expiryDate: data.expiry_date ?? '',
+        description: data.description ?? null,
+        fileUrl: data.file_url ?? null,
+        fileName: data.file_name ?? null,
+        uploadedAt: data.uploaded_at ?? null,
+        expiryDate: data.expiry_date ?? null,
         user_id: data.user_id,
         farm_id: data.farm_id,
       }
@@ -224,21 +238,15 @@ export default function DocumentsPage() {
   // ===== DELETE DOCUMENT =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this document?')) return
-    if (!currentFarm) return
+    if (!currentFarm || !user) return
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setError('You must be logged in to delete documents')
-        return
-      }
-
       const { error } = await supabase
         .from('documents')
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete document: ' + error.message)
 
@@ -251,12 +259,15 @@ export default function DocumentsPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || fetching) {
+  if (!authChecked || farmLoading || fetching) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading documents...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading documents...'}
+          </p>
         </div>
       </div>
     )
@@ -294,10 +305,43 @@ export default function DocumentsPage() {
     )
   }
 
+  // ===== ERROR STATE =====
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-[#1B4332]">Documents</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage your farm documents</p>
+          </div>
+        </div>
+        <Card className="shadow-sm border-red-200 bg-red-50">
+          <CardContent className="py-4 px-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <span className="text-red-500 text-lg">⚠️</span>
+              </div>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+            <Button 
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                setError(null)
+                fetchDocuments()
+              }}
+            >
+              <RefreshCw size={14} className="mr-2" /> Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6 px-4 sm:px-0">
-      {/* Error message */}
+      {/* Error message inline */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">

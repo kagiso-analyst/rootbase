@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -40,11 +40,19 @@ type MonthlySummary = {
 }
 
 export default function FinancialReportsPage() {
-  // ===== STATE =====
+  // ===== AUTH STATE =====
+  const [user, setUser] = useState<any>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const supabase = createClient()
+
+  // ===== FARM CONTEXT =====
+  const { currentFarm, loading: farmLoading } = useFarm()
+
+  // ===== DATA STATE =====
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [user, setUser] = useState<any>(null)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setMonth(d.getMonth() - 3)
@@ -55,15 +63,25 @@ export default function FinancialReportsPage() {
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 👇 GET CURRENT FARM
-  const { currentFarm, loading: farmLoading } = useFarm()
-
-  const supabase = createClient()
+  // ===== CHECK AUTH =====
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+      } catch (err) {
+        console.error('Auth check error:', err)
+        setAuthError('Failed to authenticate. Please refresh the page.')
+      } finally {
+        setAuthChecked(true)
+      }
+    }
+    checkAuth()
+  }, [supabase])
 
   // ===== FETCH DATA =====
   const fetchData = useCallback(async () => {
-    // 👇 CHECK IF FARM IS SELECTED
-    if (!currentFarm) {
+    if (!currentFarm || !user) {
       setTransactions([])
       setMonthlySummary([])
       setLoading(false)
@@ -74,23 +92,12 @@ export default function FinancialReportsPage() {
     setError(null)
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setUser(null)
-        setTransactions([])
-        setMonthlySummary([])
-        setLoading(false)
-        return
-      }
-      
-      setUser(user)
-
       const [incomeRes, expensesRes] = await Promise.all([
         supabase
           .from('income')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+          .eq('farm_id', currentFarm.id)
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
@@ -98,7 +105,7 @@ export default function FinancialReportsPage() {
           .from('expenses')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+          .eq('farm_id', currentFarm.id)
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
@@ -160,11 +167,13 @@ export default function FinancialReportsPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }, [startDate, endDate, currentFarm, supabase])
+  }, [startDate, endDate, currentFarm, user, supabase])
 
-  useEffect(() => { 
-    fetchData() 
-  }, [fetchData])
+  useEffect(() => {
+    if (authChecked && user) {
+      fetchData()
+    }
+  }, [authChecked, user, fetchData])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -181,13 +190,19 @@ export default function FinancialReportsPage() {
   const profitMargin = totalIncome > 0 ? ((netProfit / totalIncome) * 100).toFixed(1) : '0'
   const isProfit = netProfit >= 0
 
-  const expensesByCategory = expenses.reduce((acc, e) => {
-    acc[e.category] = (acc[e.category] || 0) + e.amount
+  const expensesByCategory = expenses
+  .filter(e => e.category !== null && e.category !== undefined)
+  .reduce((acc, e) => {
+    const category = e.category as string
+    acc[category] = (acc[category] || 0) + e.amount
     return acc
   }, {} as Record<string, number>)
 
-  const incomeByCategory = income.reduce((acc, i) => {
-    acc[i.category] = (acc[i.category] || 0) + i.amount
+const incomeByCategory = income
+  .filter(i => i.category !== null && i.category !== undefined)
+  .reduce((acc, i) => {
+    const category = i.category as string
+    acc[category] = (acc[category] || 0) + i.amount
     return acc
   }, {} as Record<string, number>)
 
@@ -254,12 +269,15 @@ export default function FinancialReportsPage() {
   }
 
   // ===== LOADING STATE =====
-  if (farmLoading || (loading && !isRefreshing)) {
+  if (!authChecked || farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading financial data...'}</p>
+          <p className="text-sm text-gray-400">
+            {!authChecked ? 'Checking authentication...' : 
+             farmLoading ? 'Loading farms...' : 'Loading financial data...'}
+          </p>
         </div>
       </div>
     )
