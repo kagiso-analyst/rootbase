@@ -63,24 +63,20 @@ export default function LandingPage() {
             {
               quote: "I finally know if I'm making money on my tomatoes.",
               name: "Thembi M.",
-              location: "Limpopo · 12ha",
-              emoji: "🍅"
+              location: "Limpopo · 12ha"
             },
             {
               quote: "RootBase replaced my notebook and spreadsheets. Everything in one place.",
               name: "Sipho N.",
-              location: "KwaZulu-Natal · 25ha",
-              emoji: "🌽"
+              location: "KwaZulu-Natal · 25ha"
             },
             {
               quote: "The weather alerts alone saved my spraying schedule twice this season.",
               name: "Johan R.",
-              location: "Western Cape · 50ha",
-              emoji: "🍇"
+              location: "Western Cape · 50ha"
             }
           ].map((testimonial) => (
             <div key={testimonial.name} className="bg-gray-50 rounded-xl p-5 border border-gray-100">
-              <div className="text-2xl mb-2">{testimonial.emoji}</div>
               <p className="text-sm text-gray-700 italic leading-relaxed">"{testimonial.quote}"</p>
               <div className="mt-3">
                 <p className="text-sm font-semibold text-[#1B4332]">{testimonial.name}</p>
@@ -95,7 +91,11 @@ export default function LandingPage() {
       <section className="py-24 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
-            <div className="text-4xl mb-4">🚜</div>
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D8F3DC] text-[#2D6A4F]">
+                <Leaf size={20} />
+              </div>
+            </div>
             <h2 className="text-3xl md:text-4xl font-bold text-[#1B4332] mb-4">
               Everything your farm needs
             </h2>
@@ -111,70 +111,60 @@ export default function LandingPage() {
                 icon: BarChart2,
                 title: 'Farm Finances',
                 desc: 'Track every rand of income and expenses. Generate income statements your bank will accept. Know your profit margin per crop.',
-                tag: 'Most requested',
-                emoji: '💰'
+                tag: 'Most requested'
               },
               {
                 icon: Leaf,
                 title: 'Crop Management',
                 desc: 'Record plantings, spray logs, harvest dates and yields. Track every field\'s history season after season.',
-                tag: null,
-                emoji: '🌱'
+                tag: null
               },
               {
                 icon: Cloud,
                 title: 'Live Weather',
                 desc: 'Real-time weather with farming advice. Know when to spray, irrigate, and harvest based on actual conditions.',
-                tag: null,
-                emoji: '⛅'
+                tag: null
               },
               {
                 icon: CheckSquare,
                 title: 'Task Management',
                 desc: 'Never miss a spray window or planting date. Assign tasks to workers and track completion.',
-                tag: null,
-                emoji: '✅'
+                tag: null
               },
               {
                 icon: Package,
                 title: 'Inventory Control',
                 desc: 'Know exactly what\'s in your store. Get alerts before you run out of critical inputs like seed or fertiliser.',
-                tag: null,
-                emoji: '📦'
+                tag: null
               },
               {
                 icon: PawPrint,
                 title: 'Livestock Records',
                 desc: 'Individual animal records, vaccination logs, weight tracking and breeding history — all in one place.',
-                tag: null,
-                emoji: '🐄'
+                tag: null
               },
               {
                 icon: BookOpen,
                 title: 'Farm Journal',
                 desc: 'Daily farm diary with photo support. Searchable by field, crop, date or tag. Your institutional memory.',
-                tag: null,
-                emoji: '📖'
+                tag: null
               },
               {
                 icon: Wrench,
                 title: 'Equipment Tracking',
                 desc: 'Maintenance logs, service reminders and insurance expiry alerts for every piece of equipment.',
-                tag: null,
-                emoji: '🔧'
+                tag: null
               },
               {
                 icon: BarChart2,
                 title: 'Analytics & Reports',
                 desc: 'See your farm\'s performance at a glance. Income vs expenses charts, crop profitability, and cost breakdowns.',
-                tag: null,
-                emoji: '📊'
+                tag: null
               },
-            ].map(({ icon: Icon, title, desc, tag, emoji }) => (
+            ].map(({ icon: Icon, title, desc, tag }) => (
               <div key={title} className="group border border-gray-100 rounded-2xl p-6 hover:border-[#2D6A4F] hover:shadow-md transition-all">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{emoji}</span>
                     <div className="w-10 h-10 bg-[#D8F3DC] rounded-xl flex items-center justify-center group-hover:bg-[#1B4332] transition-colors">
                       <Icon size={18} className="text-[#2D6A4F] group-hover:text-white transition-colors" />
                     </div>

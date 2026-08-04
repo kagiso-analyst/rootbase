@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, Zap, Loader2, AlertCircle } from 'lucide-react'
+import { Check, Zap, Loader2, AlertCircle, ShieldCheck, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
@@ -155,23 +155,25 @@ export default function SubscriptionPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]/30 py-12 px-6">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[linear-gradient(135deg,#f8fbf9_0%,#eef8f1_100%)] py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-12">
-          <Link href="/dashboard" className="inline-block mb-4">
-            <span className="text-4xl">🌱</span>
-            <span className="text-xl font-semibold text-[#1B4332] ml-2">RootBase</span>
+        <div className="text-center mb-10">
+          <Link href="/dashboard" className="inline-flex items-center gap-2 mb-4 rounded-full border border-gray-200 bg-white/80 px-3 py-1.5 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#D8F3DC] text-[#2D6A4F]">
+              <ShieldCheck size={16} />
+            </div>
+            <span className="text-sm font-semibold text-[#1B4332]">RootBase</span>
           </Link>
-          <h1 className="text-3xl font-bold text-[#1B4332] mb-3">
-            Choose Your RootBase Plan
+          <h1 className="text-3xl sm:text-4xl font-bold text-[#1B4332] mb-3">
+            Choose the plan that fits your farm
           </h1>
-          <p className="text-gray-500 max-w-md mx-auto">
-            Start free. Upgrade when you're ready. Cancel anytime.
+          <p className="text-gray-500 max-w-2xl mx-auto text-sm sm:text-base">
+            Every plan includes the features shown below. Your subscription unlocks exactly what you select, and you can cancel at any time.
           </p>
           {PAYFAST_CONFIG.sandbox && (
-            <div className="mt-4 inline-block bg-orange-100 text-orange-700 text-xs px-4 py-2 rounded-full border border-orange-200">
-              🧪 Sandbox mode — use test card details from sandbox.payfast.co.za
+            <div className="mt-4 inline-flex items-center gap-2 bg-amber-50 text-amber-700 text-xs px-4 py-2 rounded-full border border-amber-200">
+              <RefreshCw size={12} /> Sandbox mode — use test card details from PayFast
             </div>
           )}
           {error && (
@@ -185,7 +187,7 @@ export default function SubscriptionPage() {
         </div>
 
         {/* Plans grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {PLANS.map((plan) => {
             const isCurrent = currentPlan === plan.id
             const isProcessing = processingPlan === plan.id
@@ -276,7 +278,7 @@ export default function SubscriptionPage() {
         </div>
 
         {/* Features footer */}
-        <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
+        <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
           {[
             { 
               title: 'Cancel Anytime', 
@@ -291,11 +293,18 @@ export default function SubscriptionPage() {
               desc: 'No currency conversion fees. Pay in South African Rand.' 
             },
           ].map(({ title, desc }) => (
-            <div key={title} className="p-4 bg-white/50 rounded-xl border border-gray-100">
+            <div key={title} className="p-4 bg-white/80 rounded-xl border border-gray-200 shadow-sm">
               <p className="text-sm font-semibold text-[#1B4332] mb-1">{title}</p>
-              <p className="text-xs text-gray-500">{desc}</p>
+              <p className="text-xs text-gray-500 leading-5">{desc}</p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-8 rounded-2xl border border-gray-200 bg-white/80 p-4 text-sm text-gray-600 shadow-sm">
+          <p className="font-semibold text-[#1B4332]">What you are paying for</p>
+          <p className="mt-1 leading-6">
+            Each plan includes the features shown above, and your subscription unlocks the selected features immediately after payment confirmation. You can review the <Link href="/terms" className="text-[#2D6A4F] underline">terms</Link>, <Link href="/privacy" className="text-[#2D6A4F] underline">privacy policy</Link>, and <Link href="/refund-policy" className="text-[#2D6A4F] underline">refund policy</Link> at any time.
+          </p>
         </div>
 
         {/* Back link */}

@@ -6,7 +6,14 @@ import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
   title: 'RootBase — Farm Management for African Farmers',
-  description: 'The all-in-one digital farm manager built for African farmers. Track finances, crops, livestock, weather and tasks.',
+  description: 'RootBase helps farmers manage crops, livestock, finances, weather, inventory, tasks, and subscriptions in one professional platform.',
+  keywords: ['farm management', 'African agriculture', 'farm finance', 'crop tracking', 'livestock records'],
+  metadataBase: new URL('https://rootbase.co.za'),
+  openGraph: {
+    title: 'RootBase — Farm Management for African Farmers',
+    description: 'Run your farm operations from one secure dashboard with tools for finance, weather, recording, and planning.',
+    type: 'website',
+  },
 }
 
 export default function RootLayout({

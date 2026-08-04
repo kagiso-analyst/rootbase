@@ -37,11 +37,11 @@ export function DropdownMenuTrigger({
 
   if (asChild && React.isValidElement(children)) {
     return React.cloneElement(children as React.ReactElement<any>, {
-  ...props,
-  onClick: (event: React.MouseEvent) => {
-    props.onClick?.(event as any)
-    setOpen((prev) => !prev)
-  },
+      ...props,
+      onClick: (event: React.MouseEvent) => {
+        props.onClick?.(event as any)
+        setOpen((prev) => !prev)
+      },
       'aria-expanded': open,
     })
   }
@@ -70,7 +70,11 @@ export function DropdownMenuContent({
 
   useEffect(() => {
     if (!open) return
-    const handlePointerDown = () => setOpen(false)
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('[data-dropdown-menu-content]')) return
+      setOpen(false)
+    }
     window.addEventListener('pointerdown', handlePointerDown)
     return () => window.removeEventListener('pointerdown', handlePointerDown)
   }, [open, setOpen])
@@ -79,8 +83,9 @@ export function DropdownMenuContent({
 
   return (
     <div
+      data-dropdown-menu-content
       className={cn(
-        'absolute z-50 mt-2 min-w-[12rem] rounded-md border border-gray-200 bg-white p-1 shadow-lg',
+        'absolute z-50 mt-2 min-w-[12rem] rounded-xl border border-gray-200 bg-white p-1 shadow-xl',
         align === 'end' ? 'right-0' : align === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2',
         className,
       )}
@@ -91,11 +96,11 @@ export function DropdownMenuContent({
 }
 
 export function DropdownMenuLabel({ children, className }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('px-2 py-1.5 text-sm', className)}>{children}</div>
+  return <div className={cn('px-2 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-gray-400', className)}>{children}</div>
 }
 
-export function DropdownMenuSeparator() {
-  return <div className="my-1 h-px bg-gray-100" />
+export function DropdownMenuSeparator({ className }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('my-1 h-px bg-gray-100', className)} />
 }
 
 export function DropdownMenuItem({
@@ -107,7 +112,7 @@ export function DropdownMenuItem({
   return (
     <button
       type="button"
-      className={cn('flex w-full items-center rounded-sm px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50', className)}
+      className={cn('flex w-full items-center rounded-lg px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-50', className)}
       onClick={(event) => {
         onClick?.(event)
       }}

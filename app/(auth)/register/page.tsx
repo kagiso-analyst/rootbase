@@ -227,6 +227,8 @@ export default function RegisterPage() {
                 <Link href="/terms" className="text-[#2D6A4F] hover:underline">Terms of Service</Link>
                 {' '}and{' '}
                 <Link href="/privacy" className="text-[#2D6A4F] hover:underline">Privacy Policy</Link>
+                {'. '}I also understand the{' '}
+                <Link href="/refund-policy" className="text-[#2D6A4F] hover:underline">refund and cancellation policy</Link>.
               </Label>
             </div>
 
@@ -269,8 +271,8 @@ export default function RegisterPage() {
         </p>
 
         {/* Farm emoji decoration */}
-        <div className="text-center mt-4 text-2xl opacity-20 select-none">
-          🌱 🌾 🐄 🌻 🍅
+        <div className="mt-4 text-center text-xs uppercase tracking-[0.3em] text-gray-400">
+          Secure farm management
         </div>
       </div>
     </div>
