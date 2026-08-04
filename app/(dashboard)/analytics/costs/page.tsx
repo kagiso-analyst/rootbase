@@ -377,7 +377,7 @@ export default function CostCalculatorPage() {
                         </Button>
                       </div>
                     </div>
-                    {expandedSnapshot === s.id ; (
+                    {expandedSnapshot === s.id && (
                       <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                         <div><span className="text-gray-400">Infra:</span> {fmt(s.infra_total)}</div>
                         <div><span className="text-gray-400">Production:</span> {fmt(s.production_total)}</div>
