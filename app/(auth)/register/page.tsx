@@ -27,7 +27,6 @@ export default function RegisterPage() {
   const [greeting, setGreeting] = useState('Start your farming journey')
   const [greetingEmoji, setGreetingEmoji] = useState('🌱')
   const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
     const seasonal = getSeasonalGreeting('Farmer')
@@ -80,7 +79,16 @@ export default function RegisterPage() {
     setSuccessMessage('')
 
     try {
-      // Try signup without redirect_to first - simpler approach
+      const supabase = createClient()
+      
+      // Test connection first - try to get session
+      const { error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) {
+        console.error('Session check error:', sessionError)
+        throw new Error('Unable to connect to authentication service. Please check your internet connection.')
+      }
+
+      // Attempt signup
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
@@ -96,10 +104,12 @@ export default function RegisterPage() {
         console.error('Signup error:', error)
         
         // Handle specific error cases
-        if (error.message.includes('User already registered')) {
+        if (error.message?.includes('User already registered')) {
           setError('This email is already registered. Please login instead.')
-        } else if (error.message.includes('password')) {
+        } else if (error.message?.includes('password')) {
           setError('Password does not meet requirements. Please use at least 8 characters with mixed case, numbers, and special characters.')
+        } else if (error.message?.includes('network')) {
+          setError('Network error. Please check your internet connection and try again.')
         } else {
           setError(error.message || 'Failed to create account. Please try again.')
         }
@@ -125,7 +135,7 @@ export default function RegisterPage() {
       if (user && session) {
         try {
           // Create profile
-          await supabase.from('profiles').upsert(
+          const { error: profileError } = await supabase.from('profiles').upsert(
             {
               user_id: user.id,
               full_name: trimmedName,
@@ -137,13 +147,16 @@ export default function RegisterPage() {
             },
             { onConflict: 'user_id' }
           )
+          if (profileError) {
+            console.warn('Profile setup warning:', profileError)
+          }
         } catch (profileError) {
           console.warn('Profile setup warning:', profileError)
         }
 
         try {
           // Create default farm
-          await supabase.from('farms').insert([
+          const { error: farmError } = await supabase.from('farms').insert([
             {
               user_id: user.id,
               name: `${trimmedName.split(' ')[0] || 'My'} Farm`,
@@ -153,6 +166,9 @@ export default function RegisterPage() {
               is_active: true,
             },
           ])
+          if (farmError) {
+            console.warn('Farm setup warning:', farmError)
+          }
         } catch (farmError) {
           console.warn('Farm setup warning:', farmError)
         }
@@ -162,16 +178,24 @@ export default function RegisterPage() {
         return
       }
 
-      // Fallback - shouldn't reach here
+      // Fallback
       setSuccessMessage(
         'Account created! Please check your email to confirm your account before signing in.'
       )
       setPassword('')
       setConfirmPassword('')
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Registration error:', err)
-      setError('An unexpected error occurred. Please try again.')
+      
+      // Check for network errors
+      if (err.message?.includes('fetch') || err.message?.includes('network') || err.message?.includes('Failed to fetch')) {
+        setError('Network error. Please check your internet connection and try again.')
+      } else if (err.message?.includes('URL') || err.message?.includes('configuration')) {
+        setError('Service configuration error. Please try again later or contact support.')
+      } else {
+        setError(err.message || 'An unexpected error occurred. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
