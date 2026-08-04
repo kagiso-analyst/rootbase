@@ -53,6 +53,7 @@ export default function RegisterPage() {
     const trimmedName = fullName.trim()
     const trimmedEmail = email.trim().toLowerCase()
 
+    // Validation
     if (!trimmedName) {
       setError('Please enter your full name')
       return
@@ -79,11 +80,11 @@ export default function RegisterPage() {
     setSuccessMessage('')
 
     try {
+      // Try signup without redirect_to first - simpler approach
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login?message=verified`,
           data: {
             full_name: trimmedName,
             plan: 'free',
@@ -92,7 +93,16 @@ export default function RegisterPage() {
       })
 
       if (error) {
-        setError(error.message)
+        console.error('Signup error:', error)
+        
+        // Handle specific error cases
+        if (error.message.includes('User already registered')) {
+          setError('This email is already registered. Please login instead.')
+        } else if (error.message.includes('password')) {
+          setError('Password does not meet requirements. Please use at least 8 characters with mixed case, numbers, and special characters.')
+        } else {
+          setError(error.message || 'Failed to create account. Please try again.')
+        }
         setLoading(false)
         return
       }
@@ -100,8 +110,21 @@ export default function RegisterPage() {
       const user = data?.user
       const session = data?.session
 
+      // If user was created but needs email confirmation
+      if (user && !session) {
+        setSuccessMessage(
+          'Account created! Please check your email to confirm your account before signing in.'
+        )
+        setPassword('')
+        setConfirmPassword('')
+        setLoading(false)
+        return
+      }
+
+      // If user is automatically signed in (email confirmation disabled)
       if (user && session) {
         try {
+          // Create profile
           await supabase.from('profiles').upsert(
             {
               user_id: user.id,
@@ -115,10 +138,11 @@ export default function RegisterPage() {
             { onConflict: 'user_id' }
           )
         } catch (profileError) {
-          console.warn('Profile setup skipped:', profileError)
+          console.warn('Profile setup warning:', profileError)
         }
 
         try {
+          // Create default farm
           await supabase.from('farms').insert([
             {
               user_id: user.id,
@@ -130,19 +154,24 @@ export default function RegisterPage() {
             },
           ])
         } catch (farmError) {
-          console.warn('Default farm setup skipped:', farmError)
+          console.warn('Farm setup warning:', farmError)
         }
 
+        // Redirect to dashboard
         router.push('/dashboard')
         return
       }
 
-      setSuccessMessage('Account created. Please check your inbox to confirm your email before signing in.')
+      // Fallback - shouldn't reach here
+      setSuccessMessage(
+        'Account created! Please check your email to confirm your account before signing in.'
+      )
       setPassword('')
       setConfirmPassword('')
-    } catch (signupError) {
-      console.error('Registration error:', signupError)
-      setError('We could not create your account right now. Please try again.')
+      
+    } catch (err) {
+      console.error('Registration error:', err)
+      setError('An unexpected error occurred. Please try again.')
     } finally {
       setLoading(false)
     }

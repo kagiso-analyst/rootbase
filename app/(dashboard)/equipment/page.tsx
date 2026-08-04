@@ -181,7 +181,7 @@ export default function EquipmentPage() {
           .from('maintenance_logs')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
+          // REMOVED: .eq('farm_id', currentFarm.id) - column doesn't exist
           .order('date', { ascending: false }),
       ])
 
@@ -315,7 +315,7 @@ export default function EquipmentPage() {
           date: serviceDate,
           hours_at_service: parseFloat(serviceHours) || 0,
           user_id: user.id,
-          farm_id: currentFarm.id
+          // REMOVED: farm_id: currentFarm.id - column doesn't exist
         }])
         .select()
         .single()
@@ -372,7 +372,7 @@ export default function EquipmentPage() {
         .delete()
         .eq('equipment_id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id)
+        // REMOVED: .eq('farm_id', currentFarm.id) - column doesn't exist
       setMaintenanceLogs(prev => prev.filter(log => log.equipmentId !== id))
       
     } catch (err) {
@@ -392,7 +392,7 @@ export default function EquipmentPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id)
+        // REMOVED: .eq('farm_id', currentFarm.id) - column doesn't exist
 
       if (error) throw new Error('Failed to delete service log: ' + error.message)
 
