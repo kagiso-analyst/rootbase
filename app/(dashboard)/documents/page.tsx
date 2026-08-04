@@ -31,13 +31,13 @@ type Document = {
   id: string
   name: string
   category: string
-  description: string
-  fileUrl: string
-  fileName: string
-  uploadedAt: string
-  expiryDate: string
+  description: string | null
+  fileUrl: string | null
+  fileName: string | null
+  uploadedAt: string | null
+  expiryDate: string | null
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string | null
 }
 
 const CATEGORIES = [
@@ -196,11 +196,11 @@ export default function DocumentsPage() {
         id: data.id,
         name: data.name,
         category: data.category,
-        description: data.description || '',
-        fileUrl: data.file_url || '',
-        fileName: data.file_name || '',
-        uploadedAt: data.uploaded_at || new Date().toISOString().split('T')[0],
-        expiryDate: data.expiry_date || '',
+        description: data.description ?? '',
+        fileUrl: data.file_url ?? '',
+        fileName: data.file_name ?? '',
+        uploadedAt: data.uploaded_at ?? new Date().toISOString().split('T')[0],
+        expiryDate: data.expiry_date ?? '',
         user_id: data.user_id,
         farm_id: data.farm_id,
       }
@@ -296,7 +296,7 @@ export default function DocumentsPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">

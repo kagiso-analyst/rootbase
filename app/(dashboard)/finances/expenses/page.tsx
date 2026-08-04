@@ -36,12 +36,12 @@ const CATEGORIES = [
 type Expense = {
   id: string
   category: string
-  description: string
+  description: string | null
   amount: number
   date: string
-  created_at: string
+  created_at: string | null
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string | null
 }
 
 export default function ExpensesPage() {
@@ -93,7 +93,15 @@ export default function ExpensesPage() {
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch expenses: ' + error.message)
-      if (data) setExpenses(data)
+      if (data) {
+        const mappedExpenses = (data as Array<Partial<Expense>>).map((item) => ({
+          ...item,
+          amount: Number(item.amount) || 0,
+          description: item.description ?? '',
+          created_at: item.created_at ?? '',
+        })) as Expense[]
+        setExpenses(mappedExpenses)
+      }
       
     } catch (err) {
       console.error('Expenses fetch error:', err)
@@ -235,7 +243,7 @@ export default function ExpensesPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">

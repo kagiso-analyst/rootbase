@@ -173,6 +173,7 @@ export default function DashboardPage() {
             if (w) setWeather(w)
           } catch (weatherErr) {
             console.error('Weather fetch error:', weatherErr)
+            setError((prev) => prev || 'Weather information could not be refreshed right now.')
           }
         }
         

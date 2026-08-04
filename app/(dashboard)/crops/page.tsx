@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Plus, Leaf, Calendar, MapPin, Sparkles, Image } from 'lucide-react' // 👈 ADD Sparkles, Image
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,7 +91,7 @@ export default function CropsPage() {
   const supabase = createClient()
 
   // ===== FETCH CROPS =====
-  async function fetchCrops() {
+  const fetchCrops = useCallback(async () => {
     // 👇 CHECK IF FARM IS SELECTED
     if (!currentFarm) {
       setCrops([])
@@ -133,11 +133,11 @@ export default function CropsPage() {
     } finally {
       setFetching(false)
     }
-  }
+  }, [currentFarm, supabase])
 
   useEffect(() => {
     fetchCrops()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
+  }, [fetchCrops])
 
   // ===== ADD CROP =====
   async function handleAdd() {
@@ -279,7 +279,7 @@ export default function CropsPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">

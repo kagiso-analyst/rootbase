@@ -30,32 +30,32 @@ type Equipment = {
   id: string
   name: string
   category: string
-  make: string
-  model: string
-  year: string
-  serialNumber: string
-  purchaseDate: string
+  make: string | null
+  model: string | null
+  year: string | null
+  serialNumber: string | null
+  purchaseDate: string | null
   purchasePrice: number
   currentHours: number
-  nextServiceDate: string
+  nextServiceDate: string | null
   nextServiceHours: number
-  insuranceExpiry: string
-  notes: string
+  insuranceExpiry: string | null
+  notes: string | null
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string | null
 }
 
 type MaintenanceLog = {
   id: string
   equipmentId: string
-  equipmentName: string
-  serviceType: string
-  description: string
+  equipmentName: string | null
+  serviceType: string | null
+  description: string | null
   cost: number
-  date: string
+  date: string | null
   hoursAtService: number
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string | null
 }
 
 const CATEGORIES = [
@@ -473,7 +473,7 @@ export default function EquipmentPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">

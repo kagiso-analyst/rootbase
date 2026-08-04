@@ -34,14 +34,14 @@ type Status = 'todo' | 'done'
 type Task = {
   id: string
   title: string
-  description: string
+  description: string | null
   priority: Priority
   status: Status
-  due_date: string
-  category: string
-  created_at: string
+  due_date: string | null
+  category: string | null
+  created_at: string | null
   user_id: string
-  farm_id: string
+  farm_id: string | null
 }
 
 const PRIORITY_STYLES: Record<Priority, string> = {
@@ -392,7 +392,7 @@ export default function TasksPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

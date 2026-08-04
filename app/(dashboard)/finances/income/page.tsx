@@ -35,13 +35,13 @@ const CATEGORIES = [
 type Income = {
   id: string
   category: string
-  description: string
+  description: string | null
   amount: number
   date: string
-  buyer_name: string
-  created_at: string
+  buyer_name: string | null
+  created_at: string | null
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string | null
 }
 
 export default function IncomePage() {
@@ -94,7 +94,16 @@ export default function IncomePage() {
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch income: ' + error.message)
-      if (data) setIncomes(data)
+      if (data) {
+        const mappedIncome = (data as Array<Partial<Income>>).map((item) => ({
+          ...item,
+          amount: Number(item.amount) || 0,
+          description: item.description ?? '',
+          buyer_name: item.buyer_name ?? '',
+          created_at: item.created_at ?? '',
+        })) as Income[]
+        setIncomes(mappedIncome)
+      }
       
     } catch (err) {
       console.error('Income fetch error:', err)
@@ -238,7 +247,7 @@ export default function IncomePage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">

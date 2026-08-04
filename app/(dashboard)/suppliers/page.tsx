@@ -30,13 +30,13 @@ type Supplier = {
   id: string
   name: string
   category: string
-  contact_person: string
-  phone: string
-  email: string
-  address: string
-  notes: string
+  contact_person: string | null
+  phone: string | null
+  email: string | null
+  address: string | null
+  notes: string | null
   user_id: string
-  farm_id: string
+  farm_id: string | null
 }
 
 const CATEGORIES = [
@@ -315,7 +315,7 @@ export default function SuppliersPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

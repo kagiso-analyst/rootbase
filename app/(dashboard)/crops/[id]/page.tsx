@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,7 +67,7 @@ export default function CropDetailPage() {
   const supabase = createClient()
 
   // ===== FETCH CROP AND ACTIVITIES =====
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     if (!currentFarm) {
       setLoading(false)
       return
@@ -131,13 +131,13 @@ export default function CropDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [cropId, currentFarm, supabase])
 
   useEffect(() => {
     if (cropId) {
       fetchData()
     }
-  }, [cropId, currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
+  }, [cropId, fetchData])
 
   // ===== ADD ACTIVITY =====
   async function handleAddActivity() {
@@ -290,7 +290,7 @@ export default function CropDetailPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

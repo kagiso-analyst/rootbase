@@ -243,7 +243,7 @@ export default function SettingsPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       <div>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-[#1B4332]">Settings</h1>

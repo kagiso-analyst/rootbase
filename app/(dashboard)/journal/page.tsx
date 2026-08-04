@@ -43,17 +43,17 @@ type EntryType =
 
 type JournalEntry = {
   id: string
-  title: string
+  title: string | null
   content: string
   entry_type: EntryType
-  field_name: string
-  crop_name: string
-  weather_conditions: string
-  tags: string[]
+  field_name: string | null
+  crop_name: string | null
+  weather_conditions: string | null
+  tags: string[] | null
   entry_date: string
-  created_at: string
+  created_at: string | null
   user_id: string
-  farm_id: string
+  farm_id: string | null
 }
 
 const ENTRY_TYPE_COLOURS: Record<EntryType, string> = {
@@ -168,7 +168,18 @@ export default function JournalPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch journal entries: ' + error.message)
-      if (data) setEntries(data)
+      if (data) {
+        const mappedEntries = (data as Array<Partial<JournalEntry>>).map((item) => ({
+          ...item,
+          title: item.title ?? null,
+          field_name: item.field_name ?? null,
+          crop_name: item.crop_name ?? null,
+          weather_conditions: item.weather_conditions ?? null,
+          tags: Array.isArray(item.tags) ? item.tags : [],
+          created_at: item.created_at ?? null,
+        })) as JournalEntry[]
+        setEntries(mappedEntries)
+      }
       
     } catch (err) {
       console.error('Journal fetch error:', err)
@@ -382,7 +393,7 @@ export default function JournalPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">

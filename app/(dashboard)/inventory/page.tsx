@@ -27,10 +27,10 @@ type InventoryItem = {
   current_quantity: number
   reorder_level: number
   unit_cost: number
-  storage_location: string
-  expiry_date: string
+  storage_location: string | null
+  expiry_date: string | null
   user_id: string
-  farm_id: string
+  farm_id: string | null
 }
 
 const CATEGORIES = [
@@ -97,7 +97,17 @@ export default function InventoryPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch inventory: ' + error.message)
-      if (data) setItems(data)
+      if (data) {
+        const mappedItems = (data as Array<Partial<InventoryItem>>).map((item) => ({
+          ...item,
+          current_quantity: Number(item.current_quantity) || 0,
+          reorder_level: Number(item.reorder_level) || 0,
+          unit_cost: Number(item.unit_cost) || 0,
+          storage_location: item.storage_location ?? null,
+          expiry_date: item.expiry_date ?? null,
+        })) as InventoryItem[]
+        setItems(mappedItems)
+      }
       
     } catch (err) {
       console.error('Inventory fetch error:', err)
@@ -280,7 +290,7 @@ export default function InventoryPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">

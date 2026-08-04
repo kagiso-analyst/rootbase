@@ -31,30 +31,30 @@ type LivestockStatus = 'active' | 'sold' | 'deceased' | 'culled'
 
 type Animal = {
   id: string
-  tag_number: string
+  tag_number: string | null
   species: string
-  breed: string
-  sex: string
-  date_of_birth: string
-  purchase_date: string
+  breed: string | null
+  sex: string | null
+  date_of_birth: string | null
+  purchase_date: string | null
   purchase_price: number
   current_weight_kg: number
   status: LivestockStatus
-  notes: string
+  notes: string | null
   user_id: string
-  farm_id: string
+  farm_id: string | null
 }
 
 type HealthEvent = {
   id: string
   animal_id: string
-  animal_tag: string
+  animal_tag: string | null
   event_type: string
   description: string
-  product: string
+  product: string | null
   date: string
   user_id: string
-  farm_id: string
+  farm_id: string | null
 }
 
 const SPECIES = [
@@ -451,7 +451,7 @@ export default function LivestockPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

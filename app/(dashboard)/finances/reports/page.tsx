@@ -24,12 +24,12 @@ import {
 type Transaction = {
   id: string
   type: 'income' | 'expense'
-  category: string
-  description: string
+  category: string | null
+  description: string | null
   amount: number
   date: string
-  buyer_name?: string
-  farm_id: string // 👈 ADD THIS
+  buyer_name?: string | null
+  farm_id: string | null
 }
 
 type MonthlySummary = {
@@ -110,22 +110,22 @@ export default function FinancialReportsPage() {
       const incomeData: Transaction[] = (incomeRes.data || []).map(r => ({
         id: r.id,
         type: 'income' as const,
-        category: r.category,
-        description: r.description,
+        category: r.category ?? 'Other',
+        description: r.description ?? '',
         amount: parseFloat(String(r.amount)) || 0,
         date: r.date,
-        buyer_name: r.buyer_name,
-        farm_id: r.farm_id,
+        buyer_name: r.buyer_name ?? null,
+        farm_id: r.farm_id ?? null,
       }))
 
       const expenseData: Transaction[] = (expensesRes.data || []).map(r => ({
         id: r.id,
         type: 'expense' as const,
-        category: r.category,
-        description: r.description,
+        category: r.category ?? 'Other',
+        description: r.description ?? '',
         amount: parseFloat(String(r.amount)) || 0,
         date: r.date,
-        farm_id: r.farm_id,
+        farm_id: r.farm_id ?? null,
       }))
 
       const all = [...incomeData, ...expenseData].sort(
@@ -329,7 +329,7 @@ export default function FinancialReportsPage() {
 
   // ===== ACTUAL PAGE =====
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 sm:px-0">
       {/* Header with actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
