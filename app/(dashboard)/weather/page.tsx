@@ -1,3 +1,5 @@
+// app/(dashboard)/weather/page.tsx
+
 'use client'
 
 import { Input } from '@/components/ui/input'
@@ -5,9 +7,10 @@ import { useState, useEffect } from 'react'
 import {
   Wind, Droplets, Thermometer, Eye, Sunrise,
   Sunset, MapPin, RefreshCw, AlertTriangle,
-  Search, X // 👈 ADD Search and X
+  Search, X, Sparkles
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -16,7 +19,8 @@ import {
   fetchWeather, getWeatherEmoji, getFarmingAdvice,
   SA_CITIES, type WeatherData, searchCity
 } from '@/lib/weather'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS for farm name display
+import { useFarm } from '@/lib/farm-context'
+import { cn, getSeasonalGreeting } from '@/lib/utils'
 
 function formatTime(unix: number): string {
   return new Date(unix * 1000).toLocaleTimeString('en-ZA', {
@@ -25,7 +29,6 @@ function formatTime(unix: number): string {
 }
 
 export default function WeatherPage() {
-  // ===== STATE =====
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -33,12 +36,11 @@ export default function WeatherPage() {
   const [usingGPS, setUsingGPS] = useState(false)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const [customSearch, setCustomSearch] = useState('')
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [greeting, setGreeting] = useState('')
 
-  // 👇 Get current farm for display
-  const { currentFarm } = useFarm()
+  const { currentFarm, loading: farmLoading } = useFarm()
 
-  // ===== LOAD WEATHER =====
   async function loadWeatherByGPS() {
     setLoading(true)
     setError('')
@@ -46,7 +48,6 @@ export default function WeatherPage() {
     setIsRefreshing(false)
     
     if (!navigator.geolocation) {
-      // Browser doesn't support geolocation
       setUsingGPS(false)
       const jozi = SA_CITIES[0]
       const data = await fetchWeather(jozi.lat, jozi.lon)
@@ -81,7 +82,6 @@ export default function WeatherPage() {
       },
       async (err) => {
         console.error('GPS error:', err)
-        // GPS denied — fall back to Johannesburg
         setUsingGPS(false)
         const jozi = SA_CITIES[0]
         try {
@@ -160,7 +160,6 @@ export default function WeatherPage() {
     setLoading(false)
   }
 
-  // ===== REFRESH =====
   async function handleRefresh() {
     setIsRefreshing(true)
     if (usingGPS) {
@@ -168,14 +167,12 @@ export default function WeatherPage() {
     } else if (selectedCity && SA_CITIES.some(c => c.name === selectedCity)) {
       await loadWeatherByCity(selectedCity)
     } else if (weather) {
-      // Try to refresh with current location
       await loadWeatherByGPS()
     } else {
       await loadWeatherByGPS()
     }
   }
 
-  // ===== CLEAR SEARCH =====
   function clearSearch() {
     setCustomSearch('')
     setError('')
@@ -187,7 +184,6 @@ export default function WeatherPage() {
 
   const advice = weather ? getFarmingAdvice(weather) : []
 
-  // ===== LOADING STATE =====
   if (loading && !isRefreshing) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -199,19 +195,15 @@ export default function WeatherPage() {
     )
   }
 
-  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
-      {/* Header with farm name */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Farm Weather</h1>
-            {currentFarm && (
-              <span className="text-xs bg-[#D8F3DC] text-[#2D6A4F] px-2 py-0.5 rounded-full font-medium">
-                {currentFarm.name}
-              </span>
-            )}
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              🌤️ {currentFarm?.name || 'Farm'}
+            </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1">
             {lastUpdated
@@ -256,7 +248,6 @@ export default function WeatherPage() {
         </div>
       </div>
 
-      {/* Custom location search */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -285,7 +276,6 @@ export default function WeatherPage() {
         </Button>
       </div>
 
-      {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
@@ -307,10 +297,8 @@ export default function WeatherPage() {
 
       {weather ? (
         <>
-          {/* Current weather hero */}
           <Card className="shadow-sm bg-gradient-to-br from-[#1B4332] to-[#2D6A4F] text-white overflow-hidden">
             <CardContent className="pt-8 pb-8 relative">
-              {/* Decorative circle */}
               <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5"></div>
               <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-white/5"></div>
               
@@ -369,7 +357,6 @@ export default function WeatherPage() {
             </CardContent>
           </Card>
 
-          {/* Farming advice */}
           {advice.length > 0 && (
             <Card className="shadow-sm border-[#52B788] bg-gradient-to-br from-white to-[#D8F3DC]/20">
               <CardHeader className="pb-2">
@@ -390,7 +377,6 @@ export default function WeatherPage() {
             </Card>
           )}
 
-          {/* 7-day forecast */}
           <Card className="shadow-sm border-0">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-semibold text-gray-700">7-Day Forecast</CardTitle>
@@ -437,7 +423,6 @@ export default function WeatherPage() {
             </CardContent>
           </Card>
 
-          {/* Warnings */}
           {weather.forecast.slice(0, 3).some(d => d.rainChance > 50) && (
             <Card className="shadow-sm border-blue-200 bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="py-3 px-4">

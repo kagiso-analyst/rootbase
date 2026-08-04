@@ -1,12 +1,16 @@
+// app/(dashboard)/notifications/page.tsx
+
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, AlertTriangle, CheckSquare, Package, Wrench, RefreshCw } from 'lucide-react' // 👈 ADD RefreshCw
+import { Bell, AlertTriangle, CheckSquare, Package, Wrench, RefreshCw, Sparkles } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button' // 👈 ADD THIS
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn, getSeasonalGreeting } from '@/lib/utils'
+import Link from 'next/link'
 
 type Notification = {
   id: string
@@ -17,17 +21,23 @@ type Notification = {
 }
 
 export default function NotificationsPage() {
-  // ===== STATE =====
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [greeting, setGreeting] = useState('')
 
+  const { currentFarm, loading: farmLoading } = useFarm()
   const supabase = createClient()
 
-  // ===== BUILD NOTIFICATIONS =====
   async function buildNotifications() {
+    if (!currentFarm) {
+      setNotifications([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     
@@ -45,34 +55,39 @@ export default function NotificationsPage() {
       
       setUser(user)
 
+      const seasonal = getSeasonalGreeting(user.user_metadata?.full_name?.split(' ')[0] || 'Farmer')
+      setGreeting(seasonal.greeting)
+
       const [tasksRes, inventoryRes, equipmentRes, documentsRes] = await Promise.all([
         supabase
           .from('tasks')
           .select('*')
           .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
           .eq('status', 'todo')
           .lt('due_date', today),
         supabase
           .from('inventory_items')
           .select('*')
-          .eq('user_id', user.id),
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id),
         supabase
           .from('equipment')
           .select('*')
-          .eq('user_id', user.id),
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id),
         supabase
           .from('documents')
           .select('*')
-          .eq('user_id', user.id),
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id),
       ])
 
-      // 👇 Check for errors
       if (tasksRes.error) throw new Error('Failed to fetch tasks: ' + tasksRes.error.message)
       if (inventoryRes.error) throw new Error('Failed to fetch inventory: ' + inventoryRes.error.message)
       if (equipmentRes.error) throw new Error('Failed to fetch equipment: ' + equipmentRes.error.message)
       if (documentsRes.error) throw new Error('Failed to fetch documents: ' + documentsRes.error.message)
 
-      // Overdue tasks
       const overdueTasks = tasksRes.data || []
       overdueTasks.forEach(task => {
         alerts.push({
@@ -84,7 +99,6 @@ export default function NotificationsPage() {
         })
       })
 
-      // Low stock items
       const inventoryItems = inventoryRes.data || []
       inventoryItems
         .filter(i => i.reorder_level > 0 && i.current_quantity <= i.reorder_level)
@@ -98,7 +112,6 @@ export default function NotificationsPage() {
           })
         })
 
-      // Equipment service due
       const equipment = equipmentRes.data || []
       equipment.forEach(equip => {
         if (equip.next_service_date) {
@@ -119,7 +132,6 @@ export default function NotificationsPage() {
         }
       })
 
-      // Document expiry
       const documents = documentsRes.data || []
       documents.forEach(doc => {
         if (!doc.expiry_date) return
@@ -139,7 +151,6 @@ export default function NotificationsPage() {
         }
       })
 
-      // Sort by severity
       const order = { urgent: 0, warning: 1, info: 2 }
       alerts.sort((a, b) => order[a.severity] - order[b.severity])
 
@@ -156,9 +167,8 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     buildNotifications()
-  }, [])
+  }, [currentFarm])
 
-  // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
     setIsRefreshing(true)
     await buildNotifications()
@@ -192,19 +202,17 @@ export default function NotificationsPage() {
     expiry:       AlertTriangle,
   }
 
-  // ===== LOADING STATE =====
-  if (loading && !isRefreshing) {
+  if (farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Checking for alerts...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Checking for alerts...'}</p>
         </div>
       </div>
     )
   }
 
-  // ===== NOT LOGGED IN =====
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -220,7 +228,21 @@ export default function NotificationsPage() {
     )
   }
 
-  // ===== ERROR STATE =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to view notifications.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
   if (error && !loading) {
     return (
       <div className="space-y-6">
@@ -250,15 +272,19 @@ export default function NotificationsPage() {
     )
   }
 
-  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
-      {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Notifications</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {notifications.length} alert{notifications.length !== 1 ? 's' : ''} need your attention
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Notifications</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              🔔 {currentFarm.name}
+            </Badge>
+          </div>
+          <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
+            <span>{greeting || 'Stay on top of alerts'}</span>
+            <span className="text-base">{getSeasonalGreeting(user?.user_metadata?.full_name?.split(' ')[0] || 'Farmer').emoji}</span>
           </p>
         </div>
         <Button
@@ -272,7 +298,6 @@ export default function NotificationsPage() {
         </Button>
       </div>
 
-      {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
@@ -289,7 +314,6 @@ export default function NotificationsPage() {
         </Card>
       )}
 
-      {/* Notifications list */}
       {notifications.length === 0 ? (
         <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC] to-white">
           <CardContent className="flex flex-col items-center justify-center py-16">
@@ -306,7 +330,6 @@ export default function NotificationsPage() {
         </Card>
       ) : (
         <>
-          {/* Summary count */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
               { label: 'Urgent', count: notifications.filter(n => n.severity === 'urgent').length, color: 'text-red-500 bg-red-50' },
@@ -323,7 +346,6 @@ export default function NotificationsPage() {
             ))}
           </div>
 
-          {/* Notifications */}
           <div className="space-y-3">
             {notifications.map((notif) => {
               const styles = SEVERITY_STYLES[notif.severity]
@@ -360,7 +382,6 @@ export default function NotificationsPage() {
         </>
       )}
 
-      {/* Info card */}
       <Card className="shadow-sm bg-[#D8F3DC] border-[#52B788]">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold text-[#1B4332]">What triggers alerts?</CardTitle>

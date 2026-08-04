@@ -1,8 +1,11 @@
+// app/(dashboard)/equipment/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Wrench, Trash2, AlertTriangle, Calendar } from 'lucide-react'
+import { Plus, Wrench, Trash2, AlertTriangle, Calendar, Sparkles } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import Link from 'next/link' // 👈 ADD THIS
+import Link from 'next/link'
 
 type Equipment = {
   id: string
@@ -39,6 +42,7 @@ type Equipment = {
   insuranceExpiry: string
   notes: string
   user_id: string
+  farm_id: string // 👈 ADD THIS
 }
 
 type MaintenanceLog = {
@@ -51,6 +55,7 @@ type MaintenanceLog = {
   date: string
   hoursAtService: number
   user_id: string
+  farm_id: string // 👈 ADD THIS
 }
 
 const CATEGORIES = [
@@ -101,9 +106,12 @@ export default function EquipmentPage() {
   const [equipOpen, setEquipOpen] = useState(false)
   const [serviceOpen, setServiceOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+
+  // 👇 GET CURRENT FARM
+  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Equipment form
   const [name, setName] = useState('')
@@ -133,6 +141,14 @@ export default function EquipmentPage() {
 
   // ===== FETCH ALL DATA =====
   async function fetchAll() {
+    // 👇 CHECK IF FARM IS SELECTED
+    if (!currentFarm) {
+      setEquipment([])
+      setMaintenanceLogs([])
+      setFetching(false)
+      return
+    }
+
     setFetching(true)
     setError(null)
     
@@ -153,15 +169,16 @@ export default function EquipmentPage() {
           .from('equipment')
           .select('*')
           .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
           .order('created_at', { ascending: false }),
         supabase
           .from('maintenance_logs')
           .select('*')
           .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
           .order('date', { ascending: false }),
       ])
 
-      // 👇 Check for errors
       if (equipRes.error) throw new Error('Failed to fetch equipment: ' + equipRes.error.message)
       if (logsRes.error) throw new Error('Failed to fetch maintenance logs: ' + logsRes.error.message)
 
@@ -197,11 +214,15 @@ export default function EquipmentPage() {
 
   useEffect(() => {
     fetchAll()
-  }, [])
+  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
 
   // ===== ADD EQUIPMENT =====
   async function handleAddEquipment() {
     if (!name || !category) return
+    if (!currentFarm) {
+      setError('Please select a farm first')
+      return
+    }
     
     setLoading(true)
     setError(null)
@@ -230,7 +251,8 @@ export default function EquipmentPage() {
           next_service_hours: parseFloat(nextServiceHours) || 0,
           insurance_expiry: insuranceExpiry || null,
           notes: notes || null,
-          user_id: user.id
+          user_id: user.id,
+          farm_id: currentFarm.id // 👈 ADD farm_id
         }])
         .select()
         .single()
@@ -273,6 +295,7 @@ export default function EquipmentPage() {
   // ===== ADD SERVICE =====
   async function handleAddService() {
     if (!selectedEquipId || !serviceType || !serviceDesc) return
+    if (!currentFarm) return
     
     setLoading(true)
     setError(null)
@@ -297,7 +320,8 @@ export default function EquipmentPage() {
           cost: parseFloat(serviceCost) || 0,
           date: serviceDate,
           hours_at_service: parseFloat(serviceHours) || 0,
-          user_id: user.id
+          user_id: user.id,
+          farm_id: currentFarm.id // 👈 ADD farm_id
         }])
         .select()
         .single()
@@ -335,6 +359,7 @@ export default function EquipmentPage() {
   // ===== DELETE EQUIPMENT =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this equipment and all its service logs?')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -348,6 +373,7 @@ export default function EquipmentPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
 
       if (error) throw new Error('Failed to delete equipment: ' + error.message)
 
@@ -358,6 +384,7 @@ export default function EquipmentPage() {
         .delete()
         .eq('equipment_id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
       setMaintenanceLogs(prev => prev.filter(log => log.equipmentId !== id))
       
     } catch (err) {
@@ -369,6 +396,7 @@ export default function EquipmentPage() {
   // ===== DELETE SERVICE LOG =====
   async function handleDeleteLog(id: string) {
     if (!confirm('Are you sure you want to delete this service log?')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -382,6 +410,7 @@ export default function EquipmentPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
 
       if (error) throw new Error('Failed to delete service log: ' + error.message)
 
@@ -399,12 +428,12 @@ export default function EquipmentPage() {
   }, 0)
 
   // ===== LOADING STATE =====
-  if (fetching) {
+  if (farmLoading || fetching) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading equipment...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading equipment...'}</p>
         </div>
       </div>
     )
@@ -420,6 +449,22 @@ export default function EquipmentPage() {
         <Link href="/login">
           <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
             Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to manage your equipment.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
           </Button>
         </Link>
       </div>
@@ -446,9 +491,14 @@ export default function EquipmentPage() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Equipment</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Equipment</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              🔧 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             {equipment.length} item{equipment.length !== 1 ? 's' : ''}
             {dueSoon.length > 0 && (
@@ -457,6 +507,7 @@ export default function EquipmentPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {/* Service Dialog */}
           <Dialog open={serviceOpen} onOpenChange={setServiceOpen}>
             <Button
               variant="outline"
@@ -539,6 +590,7 @@ export default function EquipmentPage() {
             </DialogContent>
           </Dialog>
 
+          {/* Add Equipment Dialog */}
           <Dialog open={equipOpen} onOpenChange={setEquipOpen}>
             <Button
               className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
@@ -649,20 +701,23 @@ export default function EquipmentPage() {
         </div>
       </div>
 
+      {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC] to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-[#2D6A4F]">{equipment.length}</p>
             <p className="text-xs text-gray-400 mt-1">Total Items</p>
           </CardContent>
         </Card>
-        <Card className="shadow-sm">
+        <Card className={`shadow-sm border-0 ${dueSoon.length > 0 ? 'bg-gradient-to-br from-orange-50 to-white' : 'bg-white'}`}>
           <CardContent className="pt-4 pb-4 text-center">
-            <p className="text-2xl font-bold text-orange-500">{dueSoon.length}</p>
+            <p className={`text-2xl font-bold ${dueSoon.length > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
+              {dueSoon.length}
+            </p>
             <p className="text-xs text-gray-400 mt-1">Service Due</p>
           </CardContent>
         </Card>
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-blue-50 to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-[#1B4332]">
               R{isNaN(totalValue) ? '0' : totalValue.toLocaleString()}
@@ -672,8 +727,9 @@ export default function EquipmentPage() {
         </Card>
       </div>
 
+      {/* Service due alert */}
       {dueSoon.length > 0 && (
-        <Card className="shadow-sm border-orange-200 bg-orange-50">
+        <Card className="shadow-sm border-orange-200 bg-gradient-to-br from-orange-50 to-white">
           <CardContent className="py-3 px-4">
             <div className="flex items-center gap-2 text-orange-700">
               <AlertTriangle size={16} />
@@ -685,17 +741,27 @@ export default function EquipmentPage() {
         </Card>
       )}
 
+      {/* Equipment list */}
       {equipment.length === 0 ? (
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <Wrench size={40} className="mb-3 opacity-30" />
-            <p className="text-sm font-medium">No equipment added yet</p>
-            <p className="text-xs mt-1">Click "Add Equipment" to track your first item</p>
+            <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+              <Wrench size={32} className="text-[#2D6A4F] opacity-30" />
+            </div>
+            <p className="text-sm font-medium text-gray-600">No equipment added yet</p>
+            <p className="text-xs text-gray-400 mt-1">Click "Add Equipment" to track your first item</p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+              onClick={() => setEquipOpen(true)}
+            >
+              <Plus size={14} className="mr-2" /> Add Your First Equipment
+            </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
-          <Card className="shadow-sm">
+          <Card className="shadow-sm border-0">
             <CardHeader>
               <CardTitle className="text-sm text-gray-500">Equipment List</CardTitle>
             </CardHeader>
@@ -704,7 +770,7 @@ export default function EquipmentPage() {
                 {equipment.map((equip) => {
                   const due = isServiceDue(equip)
                   return (
-                    <div key={equip.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50">
+                    <div key={equip.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors group">
                       <div className="flex items-center gap-4">
                         <div className={`w-9 h-9 rounded-lg flex items-center justify-center
                           ${due ? 'bg-orange-50' : 'bg-[#D8F3DC]'}`}>
@@ -720,12 +786,12 @@ export default function EquipmentPage() {
                             {equip.make && <span className="text-xs text-gray-400">{equip.make} {equip.model}</span>}
                             {equip.year && <span className="text-xs text-gray-400">{equip.year}</span>}
                           </div>
-                          <div className="flex items-center gap-3 mt-0.5">
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                             {equip.currentHours > 0 && (
                               <span className="text-xs text-gray-400">{equip.currentHours}h</span>
                             )}
                             {equip.nextServiceDate && (
-                              <span className={`flex items-center gap-1 text-xs ${due ? 'text-orange-500' : 'text-gray-400'}`}>
+                              <span className={`flex items-center gap-1 text-xs ${due ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
                                 <Calendar size={11} /> Service: {equip.nextServiceDate}
                               </span>
                             )}
@@ -745,7 +811,7 @@ export default function EquipmentPage() {
                         )}
                         <button
                           onClick={() => handleDelete(equip.id)}
-                          className="text-gray-300 hover:text-red-400 transition-colors"
+                          className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -757,8 +823,9 @@ export default function EquipmentPage() {
             </CardContent>
           </Card>
 
+          {/* Maintenance History */}
           {maintenanceLogs.length > 0 && (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0">
               <CardHeader>
                 <CardTitle className="text-sm text-gray-500">
                   Maintenance History ({maintenanceLogs.length})
@@ -767,13 +834,13 @@ export default function EquipmentPage() {
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100">
                   {maintenanceLogs.map((log) => (
-                    <div key={log.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50">
+                    <div key={log.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors group">
                       <div className="w-8 h-8 rounded-full bg-[#D8F3DC] flex items-center justify-center flex-shrink-0">
                         <Wrench size={14} className="text-[#2D6A4F]" />
                       </div>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-800">{log.description}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           <Badge className="text-xs bg-gray-100 text-gray-600">{log.serviceType}</Badge>
                           <span className="text-xs text-gray-400">{log.equipmentName}</span>
                           <span className="text-xs text-gray-400">· {log.date}</span>
@@ -790,7 +857,7 @@ export default function EquipmentPage() {
                         )}
                         <button
                           onClick={() => handleDeleteLog(log.id)}
-                          className="text-gray-300 hover:text-red-400 transition-colors"
+                          className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                         >
                           <Trash2 size={14} />
                         </button>

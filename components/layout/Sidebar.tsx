@@ -1,3 +1,5 @@
+// components/layout/Sidebar.tsx
+
 'use client'
 
 import { useState } from 'react'
@@ -7,10 +9,11 @@ import {
   LayoutDashboard, Bell, Cloud, BookOpen, BarChart2, Leaf, PawPrint,
   Package, Building2, CheckSquare, Wrench, TrendingUp,
   FolderOpen, Settings, Calculator, Zap, Menu, X,
-  ChevronDown, ChevronRight, Sparkles, Crown // 👈 ADD THESE
+  ChevronDown, ChevronRight, Sparkles, Crown
 } from 'lucide-react'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import { cn } from '@/lib/utils' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import { cn } from '@/lib/utils'
+import { Logo } from '@/components/ui/Logo' // 👈 ADD THIS
 
 // ===== NAVIGATION ITEMS =====
 const navItems = [
@@ -54,7 +57,7 @@ const navSections = [
 
 function NavLinks({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname()
-  const { currentFarm } = useFarm() // 👈 GET CURRENT FARM
+  const { currentFarm } = useFarm()
   
   return (
     <>
@@ -62,12 +65,14 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
       {currentFarm && (
         <div className="px-3 py-2 mb-2 bg-[#2D6A4F]/30 rounded-lg border border-[#2D6A4F]/20">
           <p className="text-[10px] text-[#52B788] uppercase tracking-wider font-medium">Active Farm</p>
-          <p className="text-sm font-semibold text-white truncate">{currentFarm.name}</p>
+          <p className="text-sm font-semibold text-white truncate flex items-center gap-1.5">
+            <Leaf size={12} className="text-[#52B788]" />
+            {currentFarm.name}
+          </p>
         </div>
       )}
 
       {navSections.map((section) => {
-        // Only show sections that have matching items
         const hasActiveItem = section.items.some(href => 
           pathname === href || pathname.startsWith(href + '/')
         )
@@ -147,17 +152,8 @@ export default function Sidebar() {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#2D6A4F]/50">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold tracking-tight bg-gradient-to-r from-[#52B788] to-[#2D6A4F] bg-clip-text text-transparent">
-                RootBase
-              </span>
-              <Sparkles size={16} className="text-yellow-400" />
-            </div>
-            <p className="text-xs text-[#52B788] mt-0.5 font-medium">
-              Farm Management • {currentFarm?.name || 'No Farm'}
-            </p>
-          </div>
+          {/* 👇 UPDATED: Use Logo component */}
+          <Logo size="md" />
           <button 
             onClick={() => setMobileOpen(false)}
             className="p-1.5 hover:bg-[#2D6A4F]/40 rounded-lg transition-colors"
@@ -165,21 +161,22 @@ export default function Sidebar() {
             <X size={20} className="text-[#52B788]" />
           </button>
         </div>
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto h-[calc(100%-80px)]">
+        <div className="px-3 py-2 border-b border-[#2D6A4F]/30">
+          <p className="text-[10px] text-[#52B788] font-medium">
+            {currentFarm?.name || 'No Farm Selected'}
+          </p>
+        </div>
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto h-[calc(100%-120px)]">
           <NavLinks onClose={() => setMobileOpen(false)} />
         </nav>
       </div>
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 min-h-screen bg-gradient-to-b from-[#1B4332] to-[#143025] text-white shadow-xl border-r border-[#2D6A4F]/20">
+        {/* 👇 UPDATED: Use Logo component */}
         <div className="px-6 py-5 border-b border-[#2D6A4F]/50">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-[#52B788] to-[#2D6A4F] bg-clip-text text-transparent">
-              RootBase
-            </span>
-            <Sparkles size={14} className="text-yellow-400" />
-          </div>
-          <p className="text-xs text-[#52B788] mt-0.5 font-medium">
+          <Logo size="md" />
+          <p className="text-xs text-[#52B788] mt-1 font-medium">
             Farm Management
           </p>
           {currentFarm && (

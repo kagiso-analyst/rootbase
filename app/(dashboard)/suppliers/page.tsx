@@ -1,7 +1,9 @@
+// app/(dashboard)/suppliers/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Building2, Trash2, Phone, Mail, MapPin, RefreshCw, Search } from 'lucide-react' // 👈 ADD RefreshCw, Search
+import { Plus, Building2, Trash2, Phone, Mail, MapPin, RefreshCw, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import Link from 'next/link' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import Link from 'next/link'
 
 type Supplier = {
   id: string
@@ -34,7 +36,7 @@ type Supplier = {
   address: string
   notes: string
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string
 }
 
 const CATEGORIES = [
@@ -52,17 +54,17 @@ const CATEGORIES = [
 ]
 
 const CATEGORY_COLOURS: Record<string, string> = {
-  Seeds:       'bg-lime-100 text-lime-700',
-  Fertiliser:  'bg-green-100 text-green-700',
-  Chemicals:   'bg-blue-100 text-blue-700',
-  Feed:        'bg-yellow-100 text-yellow-700',
-  Equipment:   'bg-orange-100 text-orange-700',
-  Fuel:        'bg-red-100 text-red-700',
-  Packaging:   'bg-purple-100 text-purple-700',
-  Veterinary:  'bg-pink-100 text-pink-700',
-  Transport:   'bg-cyan-100 text-cyan-700',
-  General:     'bg-gray-100 text-gray-600',
-  Other:       'bg-gray-100 text-gray-500',
+  Seeds:       'bg-lime-100 text-lime-700 border-lime-200',
+  Fertiliser:  'bg-green-100 text-green-700 border-green-200',
+  Chemicals:   'bg-blue-100 text-blue-700 border-blue-200',
+  Feed:        'bg-yellow-100 text-yellow-700 border-yellow-200',
+  Equipment:   'bg-orange-100 text-orange-700 border-orange-200',
+  Fuel:        'bg-red-100 text-red-700 border-red-200',
+  Packaging:   'bg-purple-100 text-purple-700 border-purple-200',
+  Veterinary:  'bg-pink-100 text-pink-700 border-pink-200',
+  Transport:   'bg-cyan-100 text-cyan-700 border-cyan-200',
+  General:     'bg-gray-100 text-gray-600 border-gray-200',
+  Other:       'bg-gray-100 text-gray-500 border-gray-200',
 }
 
 export default function SuppliersPage() {
@@ -72,12 +74,12 @@ export default function SuppliersPage() {
   const [filterCategory, setFilterCategory] = useState('All')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
-  const [searchQuery, setSearchQuery] = useState('') // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  // 👇 GET CURRENT FARM
+  // Get current farm
   const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
@@ -93,7 +95,6 @@ export default function SuppliersPage() {
 
   // ===== FETCH SUPPLIERS =====
   async function fetchSuppliers() {
-    // 👇 CHECK IF FARM IS SELECTED
     if (!currentFarm) {
       setSuppliers([])
       setFetching(false)
@@ -118,7 +119,7 @@ export default function SuppliersPage() {
         .from('suppliers')
         .select('*')
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM!
+        .eq('farm_id', currentFarm.id)
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch suppliers: ' + error.message)
@@ -135,7 +136,7 @@ export default function SuppliersPage() {
 
   useEffect(() => {
     fetchSuppliers()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES!
+  }, [currentFarm])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -155,8 +156,6 @@ export default function SuppliersPage() {
   // ===== ADD SUPPLIER =====
   async function handleAdd() {
     if (!name || !category) return
-    
-    // 👇 CHECK IF FARM IS SELECTED
     if (!currentFarm) {
       setError('Please select a farm first')
       return
@@ -184,7 +183,7 @@ export default function SuppliersPage() {
           address: address || null, 
           notes: notes || null,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ALWAYS INCLUDE farm_id!
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -214,6 +213,7 @@ export default function SuppliersPage() {
   // ===== DELETE SUPPLIER =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this supplier?')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -227,7 +227,7 @@ export default function SuppliersPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM!
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete supplier: ' + error.message)
 
@@ -319,12 +319,14 @@ export default function SuppliersPage() {
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Suppliers</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Suppliers</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              🏢 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             {suppliers.length} supplier{suppliers.length !== 1 ? 's' : ''} saved
-            {currentFarm && (
-              <span className="text-xs text-gray-400 ml-2">· {currentFarm.name}</span>
-            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -354,14 +356,14 @@ export default function SuppliersPage() {
                   <Input
                     placeholder="e.g. Agri Mega Seeds"
                     value={name}
-                    onChange={(e) => setName((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setName(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Category <span className="text-red-500">*</span></Label>
-                  <Select value={category} onValueChange={(val) => setCategory(val ?? '')}>
+                  <Select value={category} onValueChange={(val) => setCategory(val || '')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue placeholder="Select category..." />
                     </SelectTrigger>
@@ -378,7 +380,7 @@ export default function SuppliersPage() {
                   <Input
                     placeholder="e.g. John Smith"
                     value={contactPerson}
-                    onChange={(e) => setContactPerson((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setContactPerson(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -389,7 +391,7 @@ export default function SuppliersPage() {
                     <Input
                       placeholder="e.g. 011 123 4567"
                       value={phone}
-                      onChange={(e) => setPhone((e.target as HTMLInputElement).value)}
+                      onChange={(e) => setPhone(e.target.value)}
                       className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                     />
                   </div>
@@ -399,7 +401,7 @@ export default function SuppliersPage() {
                       type="email"
                       placeholder="e.g. info@supplier.co.za"
                       value={email}
-                      onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                      onChange={(e) => setEmail(e.target.value)}
                       className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                     />
                   </div>
@@ -410,7 +412,7 @@ export default function SuppliersPage() {
                   <Input
                     placeholder="e.g. 12 Main St, Pretoria"
                     value={address}
-                    onChange={(e) => setAddress((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setAddress(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -420,7 +422,7 @@ export default function SuppliersPage() {
                   <Input
                     placeholder="Payment terms, delivery info, etc."
                     value={notes}
-                    onChange={(e) => setNotes((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setNotes(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -464,7 +466,7 @@ export default function SuppliersPage() {
               className="pl-8 border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
               placeholder="Search suppliers..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -487,13 +489,20 @@ export default function SuppliersPage() {
 
       {/* Suppliers list */}
       {suppliers.length === 0 ? (
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-              <Building2 size={32} className="opacity-30" />
+            <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+              <Building2 size={32} className="text-[#2D6A4F] opacity-30" />
             </div>
             <p className="text-sm font-medium text-gray-600">No suppliers saved yet</p>
-            <p className="text-xs mt-1">Click "Add Supplier" to save your first supplier</p>
+            <p className="text-xs text-gray-400 mt-1">Click "Add Supplier" to save your first supplier</p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+              onClick={() => setOpen(true)}
+            >
+              <Plus size={14} className="mr-2" /> Add Your First Supplier
+            </Button>
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (

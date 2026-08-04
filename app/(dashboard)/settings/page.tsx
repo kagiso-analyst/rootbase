@@ -1,14 +1,16 @@
+// app/(dashboard)/settings/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Save, User, Bell, Shield, Palette, Import, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react' // 👈 ADD RefreshCw, CheckCircle, AlertCircle
+import { Save, User, Bell, Shield, Palette, Import, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -17,10 +19,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context'
 
 export default function SettingsPage() {
-  // ===== STATE =====
   const supabase = createClient()
+  const { currentFarm, refreshFarms, loading: farmLoading } = useFarm()
+  
+  // ===== STATE =====
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -32,73 +37,68 @@ export default function SettingsPage() {
   const [language, setLanguage] = useState('en')
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [loadingFarm, setLoadingFarm] = useState(true) // 👈 ADD THIS
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  // ===== LOAD FARM DATA =====
+  // ===== LOAD DATA =====
   useEffect(() => {
-    async function loadFarmData() {
-      setLoadingFarm(true)
-      setError(null)
-      
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setUser(null)
-          setLoadingFarm(false)
-          return
-        }
-        
-        setUser(user)
-
-        // Load user profile data
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('full_name, email, phone')
-          .eq('user_id', user.id)
-          .single()
-
-        if (profileError && profileError.code !== 'PGRST116') {
-          console.error('Profile fetch error:', profileError)
-        }
-        
-        if (profile) {
-          setFullName(profile.full_name || '')
-          setEmail(profile.email || '')
-          setPhone(profile.phone || '')
-        }
-
-        // Load farm data
-        const { data: farm, error: farmError } = await supabase
-          .from('farms')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single()
-
-        if (farmError && farmError.code !== 'PGRST116') {
-          console.error('Farm fetch error:', farmError)
-        }
-
-        if (farm) {
-          setFarmName(farm.name || '')
-          setProvince(farm.province || '')
-          setFarmType(farm.farm_type || '')
-          setTotalHectares(farm.total_hectares?.toString() || '')
-        }
-        
-      } catch (err) {
-        console.error('Load data error:', err)
-        setError('Failed to load your settings. Please refresh the page.')
-      } finally {
-        setLoadingFarm(false)
+  async function loadData() {
+    setLoadingProfile(true)
+    setError(null)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setUser(null)
+        setLoadingProfile(false)
+        return
       }
-    }
+      
+      setUser(user)
 
-    loadFarmData()
-  }, [supabase])
+      // Load user profile data
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('full_name, email, phone, avatar_url')
+        .eq('user_id', user.id)
+        .single()
+
+      // Only log errors that aren't "table doesn't exist" or "no rows"
+      if (profileError && profileError.code !== 'PGRST116' && profileError.code !== '42P01') {
+        console.error('Profile fetch error:', profileError)
+      }
+      
+      if (profile) {
+        setFullName(profile.full_name || '')
+        setEmail(profile.email || '')
+        setPhone(profile.phone || '')
+      } else {
+        // Fallback to user metadata if profile doesn't exist
+        setFullName(user.user_metadata?.full_name || '')
+        setEmail(user.email || '')
+      }
+
+      // Load farm data if available
+      if (currentFarm) {
+        setFarmName(currentFarm.name || '')
+        setProvince(currentFarm.province || '')
+        setFarmType(currentFarm.farm_type || '')
+        setTotalHectares(currentFarm.total_hectares?.toString() || '')
+      }
+      
+    } catch (err) {
+      console.error('Load data error:', err)
+      setError('Failed to load your settings. Please refresh the page.')
+    } finally {
+      setLoadingProfile(false)
+    }
+  }
+
+  loadData()
+}, [supabase, currentFarm])
+
 
   // ===== SAVE PROFILE =====
   async function handleProfileSave() {
@@ -115,7 +115,6 @@ export default function SettingsPage() {
         return
       }
 
-      // Update or insert profile
       const { error } = await supabase
         .from('profiles')
         .upsert({
@@ -202,6 +201,9 @@ export default function SettingsPage() {
       setSaved(true)
       setSaveMessage({ type: 'success', text: 'Farm settings saved successfully!' })
       
+      // Refresh farms in context
+      await refreshFarms()
+      
     } catch (err) {
       console.error('Farm save error:', err)
       setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save farm settings' })
@@ -211,8 +213,20 @@ export default function SettingsPage() {
     }
   }
 
+  // ===== LOADING STATE =====
+  if (farmLoading || loadingProfile) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading settings...'}</p>
+        </div>
+      </div>
+    )
+  }
+
   // ===== NOT LOGGED IN =====
-  if (!user && !loadingFarm) {
+  if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-5xl mb-4">🔒</div>
@@ -227,23 +241,18 @@ export default function SettingsPage() {
     )
   }
 
-  // ===== LOADING STATE =====
-  if (loadingFarm) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading settings...</p>
-        </div>
-      </div>
-    )
-  }
-
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#1B4332]">Settings</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-[#1B4332]">Settings</h1>
+          {currentFarm && (
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              ⚙️ {currentFarm.name}
+            </Badge>
+          )}
+        </div>
         <p className="text-gray-500 text-sm mt-1">
           Manage your account and farm preferences
         </p>
@@ -296,7 +305,7 @@ export default function SettingsPage() {
                   <Input
                     placeholder="Your full name"
                     value={fullName}
-                    onChange={(e) => setFullName((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setFullName(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -305,7 +314,7 @@ export default function SettingsPage() {
                   <Input
                     placeholder="e.g. 071 234 5678"
                     value={phone}
-                    onChange={(e) => setPhone((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setPhone(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -316,14 +325,14 @@ export default function SettingsPage() {
                   type="email"
                   placeholder="your@email.com"
                   value={email}
-                  onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Language</Label>
-                  <Select value={language} onValueChange={(val) => setLanguage(val ?? 'en')}>
+                  <Select value={language} onValueChange={(val) => setLanguage(val || 'en')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue />
                     </SelectTrigger>
@@ -337,7 +346,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Currency</Label>
-                  <Select value={currency} onValueChange={(val) => setCurrency(val ?? 'ZAR')}>
+                  <Select value={currency} onValueChange={(val) => setCurrency(val || 'ZAR')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue />
                     </SelectTrigger>
@@ -377,14 +386,14 @@ export default function SettingsPage() {
                 <Input
                   placeholder="e.g. Shammah Family Farm"
                   value={farmName}
-                  onChange={(e) => setFarmName((e.target as HTMLInputElement).value)}
+                  onChange={(e) => setFarmName(e.target.value)}
                   className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Province</Label>
-                  <Select value={province} onValueChange={(val) => setProvince(val ?? '')}>
+                  <Select value={province} onValueChange={(val) => setProvince(val || '')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue placeholder="Select province..." />
                     </SelectTrigger>
@@ -404,7 +413,7 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-gray-600">Farm Type</Label>
-                  <Select value={farmType} onValueChange={(val) => setFarmType(val ?? '')}>
+                  <Select value={farmType} onValueChange={(val) => setFarmType(val || '')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue placeholder="Select type..." />
                     </SelectTrigger>
@@ -426,7 +435,7 @@ export default function SettingsPage() {
                   type="number"
                   placeholder="e.g. 50"
                   value={totalHectares}
-                  onChange={(e) => setTotalHectares((e.target as HTMLInputElement).value)}
+                  onChange={(e) => setTotalHectares(e.target.value)}
                   className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                 />
               </div>

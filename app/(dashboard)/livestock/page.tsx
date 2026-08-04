@@ -1,11 +1,13 @@
+// app/(dashboard)/livestock/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, PawPrint, Trash2, Heart, RefreshCw } from 'lucide-react' // 👈 ADD RefreshCw
+import { Plus, PawPrint, Trash2, Heart, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -22,7 +24,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import Link from 'next/link'
 
 type LivestockStatus = 'active' | 'sold' | 'deceased' | 'culled'
 
@@ -39,6 +42,7 @@ type Animal = {
   status: LivestockStatus
   notes: string
   user_id: string
+  farm_id: string
 }
 
 type HealthEvent = {
@@ -50,6 +54,7 @@ type HealthEvent = {
   product: string
   date: string
   user_id: string
+  farm_id: string
 }
 
 const SPECIES = [
@@ -59,10 +64,10 @@ const SPECIES = [
 ]
 
 const STATUS_COLOURS: Record<LivestockStatus, string> = {
-  active:   'bg-green-100 text-green-700',
-  sold:     'bg-blue-100 text-blue-700',
-  deceased: 'bg-red-100 text-red-700',
-  culled:   'bg-gray-100 text-gray-600',
+  active:   'bg-green-100 text-green-700 border-green-200',
+  sold:     'bg-blue-100 text-blue-700 border-blue-200',
+  deceased: 'bg-red-100 text-red-700 border-red-200',
+  culled:   'bg-gray-100 text-gray-600 border-gray-200',
 }
 
 const HEALTH_EVENT_TYPES = [
@@ -83,9 +88,12 @@ export default function LivestockPage() {
   const [healthOpen, setHealthOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Get current farm
+  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Animal form
   const [tagNumber, setTagNumber] = useState('')
@@ -112,6 +120,12 @@ export default function LivestockPage() {
 
   // ===== FETCH ANIMALS =====
   async function fetchAnimals() {
+    if (!currentFarm) {
+      setAnimals([])
+      setFetching(false)
+      return
+    }
+
     setFetching(true)
     setError(null)
     
@@ -130,6 +144,7 @@ export default function LivestockPage() {
         .from('livestock')
         .select('*')
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch animals: ' + error.message)
@@ -146,6 +161,8 @@ export default function LivestockPage() {
 
   // ===== FETCH HEALTH EVENTS =====
   async function fetchHealthEvents() {
+    if (!currentFarm) return
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -154,6 +171,7 @@ export default function LivestockPage() {
         .from('health_events')
         .select('*')
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch health events: ' + error.message)
@@ -161,7 +179,6 @@ export default function LivestockPage() {
       
     } catch (err) {
       console.error('Health events fetch error:', err)
-      // Don't set main error for health events - they're secondary
     }
   }
 
@@ -175,11 +192,15 @@ export default function LivestockPage() {
   useEffect(() => {
     fetchAnimals()
     fetchHealthEvents()
-  }, [])
+  }, [currentFarm])
 
   // ===== ADD ANIMAL =====
   async function handleAddAnimal() {
     if (!species) return
+    if (!currentFarm) {
+      setError('Please select a farm first')
+      return
+    }
     
     setLoading(true)
     setError(null)
@@ -205,7 +226,8 @@ export default function LivestockPage() {
           current_weight_kg: parseFloat(currentWeightKg) || 0,
           status,
           notes: notes || null,
-          user_id: user.id
+          user_id: user.id,
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -238,6 +260,7 @@ export default function LivestockPage() {
   // ===== ADD HEALTH EVENT =====
   async function handleAddHealthEvent() {
     if (!selectedAnimalId || !eventType || !eventDescription) return
+    if (!currentFarm) return
     
     setLoading(true)
     setError(null)
@@ -261,7 +284,8 @@ export default function LivestockPage() {
           description: eventDescription,
           product: eventProduct || null,
           date: eventDate,
-          user_id: user.id
+          user_id: user.id,
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -289,6 +313,7 @@ export default function LivestockPage() {
   // ===== DELETE ANIMAL =====
   async function handleDeleteAnimal(id: string) {
     if (!confirm('Are you sure you want to delete this animal? This will also delete all associated health events.')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -302,11 +327,11 @@ export default function LivestockPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete animal: ' + error.message)
 
       setAnimals((prev) => prev.filter((a) => a.id !== id))
-      // Also remove associated health events from state
       setHealthEvents((prev) => prev.filter((e) => e.animal_id !== id))
       
     } catch (err) {
@@ -318,6 +343,7 @@ export default function LivestockPage() {
   // ===== DELETE HEALTH EVENT =====
   async function handleDeleteHealthEvent(id: string) {
     if (!confirm('Are you sure you want to delete this health event?')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -331,6 +357,7 @@ export default function LivestockPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete health event: ' + error.message)
 
@@ -349,12 +376,12 @@ export default function LivestockPage() {
   }, {} as Record<string, number>)
 
   // ===== LOADING STATE =====
-  if (fetching && !isRefreshing) {
+  if (farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading livestock...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading livestock...'}</p>
         </div>
       </div>
     )
@@ -370,6 +397,22 @@ export default function LivestockPage() {
         <Link href="/login">
           <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
             Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to manage your livestock.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
           </Button>
         </Link>
       </div>
@@ -412,7 +455,12 @@ export default function LivestockPage() {
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Livestock</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Livestock</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              🐄 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             {activeAnimals.length} active animal{activeAnimals.length !== 1 ? 's' : ''}
           </p>
@@ -443,7 +491,7 @@ export default function LivestockPage() {
                 <div className="space-y-4 pt-2">
                   <div className="space-y-2">
                     <Label>Animal</Label>
-                    <Select value={selectedAnimalId} onValueChange={(val) => setSelectedAnimalId(val ?? '')}>
+                    <Select value={selectedAnimalId} onValueChange={(val) => setSelectedAnimalId(val || '')}>
                       <SelectTrigger><SelectValue placeholder="Select animal..." /></SelectTrigger>
                       <SelectContent>
                         {animals.filter(a => a.status === 'active').map((a) => (
@@ -456,7 +504,7 @@ export default function LivestockPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Event Type</Label>
-                    <Select value={eventType} onValueChange={(val) => setEventType(val ?? '')}>
+                    <Select value={eventType} onValueChange={(val) => setEventType(val || '')}>
                       <SelectTrigger><SelectValue placeholder="Select type..." /></SelectTrigger>
                       <SelectContent>
                         {HEALTH_EVENT_TYPES.map((t) => (
@@ -470,7 +518,7 @@ export default function LivestockPage() {
                     <Input
                       placeholder="e.g. Annual FMD vaccination"
                       value={eventDescription}
-                      onChange={(e) => setEventDescription((e.target as HTMLInputElement).value)}
+                      onChange={(e) => setEventDescription(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -478,7 +526,7 @@ export default function LivestockPage() {
                     <Input
                       placeholder="e.g. Multivax P"
                       value={eventProduct}
-                      onChange={(e) => setEventProduct((e.target as HTMLInputElement).value)}
+                      onChange={(e) => setEventProduct(e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
@@ -486,7 +534,7 @@ export default function LivestockPage() {
                     <Input
                       type="date"
                       value={eventDate}
-                      onChange={(e) => setEventDate((e.target as HTMLInputElement).value)}
+                      onChange={(e) => setEventDate(e.target.value)}
                     />
                   </div>
                   <Button
@@ -515,7 +563,7 @@ export default function LivestockPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Species</Label>
-                      <Select value={species} onValueChange={(val) => setSpecies(val ?? '')}>
+                      <Select value={species} onValueChange={(val) => setSpecies(val || '')}>
                         <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent>
                           {SPECIES.map((s) => (
@@ -529,7 +577,7 @@ export default function LivestockPage() {
                       <Input
                         placeholder="e.g. SA001"
                         value={tagNumber}
-                        onChange={(e) => setTagNumber((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setTagNumber(e.target.value)}
                       />
                     </div>
                   </div>
@@ -540,12 +588,12 @@ export default function LivestockPage() {
                       <Input
                         placeholder="e.g. Bonsmara"
                         value={breed}
-                        onChange={(e) => setBreed((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setBreed(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
                       <Label>Sex</Label>
-                      <Select value={sex} onValueChange={(val) => setSex(val ?? '')}>
+                      <Select value={sex} onValueChange={(val) => setSex(val || '')}>
                         <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Female">Female</SelectItem>
@@ -562,7 +610,7 @@ export default function LivestockPage() {
                       <Input
                         type="date"
                         value={dateOfBirth}
-                        onChange={(e) => setDateOfBirth((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setDateOfBirth(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -571,7 +619,7 @@ export default function LivestockPage() {
                         type="number"
                         placeholder="0"
                         value={currentWeightKg}
-                        onChange={(e) => setCurrentWeightKg((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setCurrentWeightKg(e.target.value)}
                       />
                     </div>
                   </div>
@@ -582,7 +630,7 @@ export default function LivestockPage() {
                       <Input
                         type="date"
                         value={purchaseDate}
-                        onChange={(e) => setPurchaseDate((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setPurchaseDate(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -591,7 +639,7 @@ export default function LivestockPage() {
                         type="number"
                         placeholder="0.00"
                         value={purchasePrice}
-                        onChange={(e) => setPurchasePrice((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setPurchasePrice(e.target.value)}
                       />
                     </div>
                   </div>
@@ -599,7 +647,7 @@ export default function LivestockPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Status</Label>
-                      <Select value={status} onValueChange={(val) => setStatus((val ?? 'active') as LivestockStatus)}>
+                      <Select value={status} onValueChange={(val) => setStatus((val || 'active') as LivestockStatus)}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="active">Active</SelectItem>
@@ -614,7 +662,7 @@ export default function LivestockPage() {
                       <Input
                         placeholder="Any notes..."
                         value={notes}
-                        onChange={(e) => setNotes((e.target as HTMLInputElement).value)}
+                        onChange={(e) => setNotes(e.target.value)}
                       />
                     </div>
                   </div>
@@ -682,13 +730,20 @@ export default function LivestockPage() {
 
         <TabsContent value="animals" className="mt-4">
           {animals.length === 0 ? (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
               <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                  <PawPrint size={32} className="opacity-30" />
+                <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+                  <PawPrint size={32} className="text-[#2D6A4F] opacity-30" />
                 </div>
                 <p className="text-sm font-medium text-gray-600">No animals recorded yet</p>
-                <p className="text-xs mt-1">Click "Add Animal" to record your first animal</p>
+                <p className="text-xs text-gray-400 mt-1">Click "Add Animal" to record your first animal</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+                  onClick={() => setAnimalOpen(true)}
+                >
+                  <Plus size={14} className="mr-2" /> Add Your First Animal
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -748,13 +803,20 @@ export default function LivestockPage() {
 
         <TabsContent value="health" className="mt-4">
           {healthEvents.length === 0 ? (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
               <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                  <Heart size={32} className="opacity-30" />
+                <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+                  <Heart size={32} className="text-[#2D6A4F] opacity-30" />
                 </div>
                 <p className="text-sm font-medium text-gray-600">No health events recorded yet</p>
-                <p className="text-xs mt-1">Log vaccinations, treatments, and vet visits</p>
+                <p className="text-xs text-gray-400 mt-1">Log vaccinations, treatments, and vet visits</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+                  onClick={() => setHealthOpen(true)}
+                >
+                  <Heart size={14} className="mr-2" /> Log Your First Health Event
+                </Button>
               </CardContent>
             </Card>
           ) : (

@@ -1,18 +1,21 @@
+// app/(dashboard)/finances/reports/page.tsx
+
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart2,
   ArrowUpRight, ArrowDownRight, Calendar, Filter,
-  Download, RefreshCw // 👈 ADD THESE
+  Download, RefreshCw, Sparkles
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
-import Link from 'next/link' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import Link from 'next/link'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, LineChart, Line
@@ -26,6 +29,7 @@ type Transaction = {
   amount: number
   date: string
   buyer_name?: string
+  farm_id: string // 👈 ADD THIS
 }
 
 type MonthlySummary = {
@@ -39,8 +43,8 @@ export default function FinancialReportsPage() {
   // ===== STATE =====
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setMonth(d.getMonth() - 3)
@@ -49,12 +53,23 @@ export default function FinancialReportsPage() {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
   const [activeFilter, setActiveFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary[]>([])
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // 👇 GET CURRENT FARM
+  const { currentFarm, loading: farmLoading } = useFarm()
 
   const supabase = createClient()
 
   // ===== FETCH DATA =====
   const fetchData = useCallback(async () => {
+    // 👇 CHECK IF FARM IS SELECTED
+    if (!currentFarm) {
+      setTransactions([])
+      setMonthlySummary([])
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     
@@ -74,20 +89,21 @@ export default function FinancialReportsPage() {
         supabase
           .from('income')
           .select('*')
-          .eq('user_id', user.id) // 👈 ADD USER CHECK!
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
         supabase
           .from('expenses')
           .select('*')
-          .eq('user_id', user.id) // 👈 ADD USER CHECK!
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
       ])
 
-      // 👇 Check for errors
       if (incomeRes.error) throw new Error('Failed to fetch income: ' + incomeRes.error.message)
       if (expensesRes.error) throw new Error('Failed to fetch expenses: ' + expensesRes.error.message)
 
@@ -99,6 +115,7 @@ export default function FinancialReportsPage() {
         amount: parseFloat(String(r.amount)) || 0,
         date: r.date,
         buyer_name: r.buyer_name,
+        farm_id: r.farm_id,
       }))
 
       const expenseData: Transaction[] = (expensesRes.data || []).map(r => ({
@@ -108,6 +125,7 @@ export default function FinancialReportsPage() {
         description: r.description,
         amount: parseFloat(String(r.amount)) || 0,
         date: r.date,
+        farm_id: r.farm_id,
       }))
 
       const all = [...incomeData, ...expenseData].sort(
@@ -142,7 +160,7 @@ export default function FinancialReportsPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }, [startDate, endDate, supabase])
+  }, [startDate, endDate, currentFarm, supabase])
 
   useEffect(() => { 
     fetchData() 
@@ -210,14 +228,15 @@ export default function FinancialReportsPage() {
   const handleExportCSV = () => {
     if (transactions.length === 0) return
     
-    const headers = ['Date', 'Type', 'Category', 'Description', 'Amount', 'Buyer']
+    const headers = ['Date', 'Type', 'Category', 'Description', 'Amount', 'Buyer', 'Farm']
     const rows = filtered.map(t => [
       t.date,
       t.type,
       t.category,
       t.description,
       t.type === 'income' ? t.amount : -t.amount,
-      t.buyer_name || ''
+      t.buyer_name || '',
+      currentFarm?.name || ''
     ])
     
     const csvContent = [
@@ -229,18 +248,18 @@ export default function FinancialReportsPage() {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `financial_report_${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `financial_report_${currentFarm?.name || 'farm'}_${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
   }
 
   // ===== LOADING STATE =====
-  if (loading && !isRefreshing) {
+  if (farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading financial data...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading financial data...'}</p>
         </div>
       </div>
     )
@@ -256,6 +275,22 @@ export default function FinancialReportsPage() {
         <Link href="/login">
           <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
             Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to view financial reports.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
           </Button>
         </Link>
       </div>
@@ -298,7 +333,12 @@ export default function FinancialReportsPage() {
       {/* Header with actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Financial Reports</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Financial Reports</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              📊 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             Complete financial overview — all transactions, summaries and trends
           </p>
@@ -358,6 +398,79 @@ export default function FinancialReportsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Category breakdowns */}
+      {(Object.keys(expensesByCategory).length > 0 || Object.keys(incomeByCategory).length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {Object.keys(incomeByCategory).length > 0 && (
+            <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-green-600 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                    <TrendingUp size={14} className="text-green-600" />
+                  </div>
+                  Income by Category
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(incomeByCategory)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([cat, amount]) => {
+                    const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0
+                    return (
+                      <div key={cat} className="group">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-600 font-medium">{cat}</span>
+                          <span className="font-medium text-green-600">R{amount.toFixed(2)} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-green-400 to-green-500 h-1.5 rounded-full transition-all duration-500 group-hover:opacity-80" 
+                            style={{ width: `${pct}%` }} 
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+              </CardContent>
+            </Card>
+          )}
+
+          {Object.keys(expensesByCategory).length > 0 && (
+            <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-red-500 flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                    <TrendingDown size={14} className="text-red-500" />
+                  </div>
+                  Expenses by Category
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(expensesByCategory)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([cat, amount]) => {
+                    const pct = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0
+                    return (
+                      <div key={cat} className="group">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-600 font-medium">{cat}</span>
+                          <span className="font-medium text-red-500">R{amount.toFixed(2)} ({pct}%)</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="bg-gradient-to-r from-red-400 to-red-500 h-1.5 rounded-full transition-all duration-500 group-hover:opacity-80" 
+                            style={{ width: `${pct}%` }} 
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -467,79 +580,6 @@ export default function FinancialReportsPage() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
-      )}
-
-      {/* Category breakdowns */}
-      {(Object.keys(expensesByCategory).length > 0 || Object.keys(incomeByCategory).length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {Object.keys(incomeByCategory).length > 0 && (
-            <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-green-600 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                    <TrendingUp size={14} className="text-green-600" />
-                  </div>
-                  Income by Category
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {Object.entries(incomeByCategory)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([cat, amount]) => {
-                    const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0
-                    return (
-                      <div key={cat} className="group">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-600 font-medium">{cat}</span>
-                          <span className="font-medium text-green-600">R{amount.toFixed(2)} ({pct}%)</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                          <div 
-                            className="bg-gradient-to-r from-green-400 to-green-500 h-1.5 rounded-full transition-all duration-500 group-hover:opacity-80" 
-                            style={{ width: `${pct}%` }} 
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-              </CardContent>
-            </Card>
-          )}
-
-          {Object.keys(expensesByCategory).length > 0 && (
-            <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold text-red-500 flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
-                    <TrendingDown size={14} className="text-red-500" />
-                  </div>
-                  Expenses by Category
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {Object.entries(expensesByCategory)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([cat, amount]) => {
-                    const pct = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0
-                    return (
-                      <div key={cat} className="group">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-600 font-medium">{cat}</span>
-                          <span className="font-medium text-red-500">R{amount.toFixed(2)} ({pct}%)</span>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                          <div 
-                            className="bg-gradient-to-r from-red-400 to-red-500 h-1.5 rounded-full transition-all duration-500 group-hover:opacity-80" 
-                            style={{ width: `${pct}%` }} 
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-              </CardContent>
-            </Card>
-          )}
         </div>
       )}
 

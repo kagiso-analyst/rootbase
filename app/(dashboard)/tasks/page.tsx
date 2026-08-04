@@ -1,7 +1,9 @@
+// app/(dashboard)/tasks/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, CheckSquare, Trash2, Calendar, Flag, RefreshCw } from 'lucide-react' // 👈 ADD RefreshCw
+import { Plus, CheckSquare, Trash2, Calendar, Flag, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,8 +25,8 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
-import Link from 'next/link' // 👈 ADD THIS
+import { useFarm } from '@/lib/farm-context'
+import Link from 'next/link'
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent'
 type Status = 'todo' | 'done'
@@ -39,14 +41,14 @@ type Task = {
   category: string
   created_at: string
   user_id: string
-  farm_id: string // 👈 ADD THIS
+  farm_id: string
 }
 
 const PRIORITY_STYLES: Record<Priority, string> = {
-  low:    'bg-gray-100 text-gray-600',
-  medium: 'bg-blue-100 text-blue-700',
-  high:   'bg-orange-100 text-orange-700',
-  urgent: 'bg-red-100 text-red-700',
+  low:    'bg-gray-100 text-gray-600 border-gray-200',
+  medium: 'bg-blue-100 text-blue-700 border-blue-200',
+  high:   'bg-orange-100 text-orange-700 border-orange-200',
+  urgent: 'bg-red-100 text-red-700 border-red-200',
 }
 
 const PRIORITY_FLAG: Record<Priority, string> = {
@@ -88,11 +90,11 @@ export default function TasksPage() {
   const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // 👇 GET CURRENT FARM
+  // Get current farm
   const { currentFarm, loading: farmLoading } = useFarm()
 
   const supabase = createClient()
@@ -104,7 +106,6 @@ export default function TasksPage() {
 
   // ===== FETCH TASKS =====
   async function fetchTasks() {
-    // 👇 CHECK IF FARM IS SELECTED
     if (!currentFarm) {
       setTasks([])
       setFetching(false)
@@ -129,7 +130,7 @@ export default function TasksPage() {
         .from('tasks')
         .select('*')
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM!
+        .eq('farm_id', currentFarm.id)
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch tasks: ' + error.message)
@@ -146,7 +147,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTasks()
-  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES!
+  }, [currentFarm])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -157,8 +158,6 @@ export default function TasksPage() {
   // ===== ADD TASK =====
   async function handleAdd() {
     if (!title) return
-    
-    // 👇 CHECK IF FARM IS SELECTED
     if (!currentFarm) {
       setError('Please select a farm first')
       return
@@ -185,7 +184,7 @@ export default function TasksPage() {
           due_date: dueDate || null, 
           category: category || null,
           user_id: user.id,
-          farm_id: currentFarm.id // 👈 ALWAYS INCLUDE farm_id!
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -223,7 +222,7 @@ export default function TasksPage() {
         .update({ status: newStatus })
         .eq('id', id)
         .eq('user_id', user?.id)
-        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM!
+        .eq('farm_id', currentFarm?.id)
 
       if (error) throw new Error('Failed to update task: ' + error.message)
 
@@ -244,6 +243,7 @@ export default function TasksPage() {
   // ===== DELETE TASK =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this task?')) return
+    if (!currentFarm) return
     
     try {
       const { error } = await supabase
@@ -251,7 +251,7 @@ export default function TasksPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user?.id)
-        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM!
+        .eq('farm_id', currentFarm?.id)
 
       if (error) throw new Error('Failed to delete task: ' + error.message)
 
@@ -396,7 +396,12 @@ export default function TasksPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Tasks</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Tasks</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              ✅ {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             {todoTasks.length} to do
             {overdueTasks.length > 0 && (
@@ -404,9 +409,6 @@ export default function TasksPage() {
             )}
             {urgentCount > 0 && (
               <span className="text-orange-500 ml-2">· {urgentCount} urgent</span>
-            )}
-            {currentFarm && (
-              <span className="text-xs text-gray-400 ml-2">· {currentFarm.name}</span>
             )}
           </p>
         </div>
@@ -437,7 +439,7 @@ export default function TasksPage() {
                   <Input
                     placeholder="e.g. Spray Field A for aphids"
                     value={title}
-                    onChange={(e) => setTitle((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setTitle(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -447,7 +449,7 @@ export default function TasksPage() {
                   <Input
                     placeholder="Any extra details..."
                     value={description}
-                    onChange={(e) => setDescription((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setDescription(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -457,7 +459,7 @@ export default function TasksPage() {
                     <Label>Priority</Label>
                     <Select
                       value={priority}
-                      onValueChange={(val) => setPriority((val ?? 'medium') as Priority)}
+                      onValueChange={(val) => setPriority((val || 'medium') as Priority)}
                     >
                       <SelectTrigger className="border-gray-200">
                         <SelectValue />
@@ -475,7 +477,7 @@ export default function TasksPage() {
                     <Label>Category</Label>
                     <Select
                       value={category}
-                      onValueChange={(val) => setCategory(val ?? '')}
+                      onValueChange={(val) => setCategory(val || '')}
                     >
                       <SelectTrigger className="border-gray-200">
                         <SelectValue placeholder="Select..." />
@@ -494,7 +496,7 @@ export default function TasksPage() {
                   <Input
                     type="date"
                     value={dueDate}
-                    onChange={(e) => setDueDate((e.target as HTMLInputElement).value)}
+                    onChange={(e) => setDueDate(e.target.value)}
                     className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
                   />
                 </div>
@@ -564,13 +566,20 @@ export default function TasksPage() {
 
         <TabsContent value="todo" className="mt-4">
           {todoTasks.length === 0 ? (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
               <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                  <CheckSquare size={32} className="opacity-30" />
+                <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+                  <CheckSquare size={32} className="text-[#2D6A4F] opacity-30" />
                 </div>
                 <p className="text-sm font-medium text-gray-600">No tasks yet</p>
-                <p className="text-xs mt-1">Click "Add Task" to create your first task</p>
+                <p className="text-xs text-gray-400 mt-1">Click "Add Task" to create your first task</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+                  onClick={() => setOpen(true)}
+                >
+                  <Plus size={14} className="mr-2" /> Add Your First Task
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -592,13 +601,13 @@ export default function TasksPage() {
 
         <TabsContent value="done" className="mt-4">
           {doneTasks.length === 0 ? (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
               <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                  <CheckSquare size={32} className="opacity-30" />
+                <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+                  <CheckSquare size={32} className="text-[#2D6A4F] opacity-30" />
                 </div>
                 <p className="text-sm font-medium text-gray-600">No completed tasks yet</p>
-                <p className="text-xs mt-1">Check off tasks to see them here</p>
+                <p className="text-xs text-gray-400 mt-1">Check off tasks to see them here</p>
               </CardContent>
             </Card>
           ) : (

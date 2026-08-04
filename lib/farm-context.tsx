@@ -1,3 +1,5 @@
+// lib/farm-context.tsx
+
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react'
@@ -6,8 +8,8 @@ import { createClient } from '@/lib/supabase/client'
 type Farm = {
   id: string
   name: string
-  farm_type: string
-  province: string
+  farm_type: string | null  // 👈 Make nullable
+  province: string | null   // 👈 Make nullable
   total_hectares: number
   is_active: boolean
   user_id: string
@@ -60,11 +62,9 @@ export function FarmProvider({ children }: { children: ReactNode }) {
       if (data && data.length > 0) {
         setFarms(data)
         
-        // 👇 Check localStorage for saved farm preference
         const savedFarmId = localStorage.getItem('currentFarmId')
         let activeFarm = data.find(f => f.is_active)
         
-        // If there's a saved farm ID and it exists in the list, use it
         if (savedFarmId) {
           const savedFarm = data.find(f => f.id === savedFarmId)
           if (savedFarm) {
@@ -83,7 +83,6 @@ export function FarmProvider({ children }: { children: ReactNode }) {
           }
         }
         
-        // Use the active farm or the first one
         const farmToUse = activeFarm || data[0]
         setCurrentFarm(farmToUse)
         localStorage.setItem('currentFarmId', farmToUse.id)
@@ -115,16 +114,29 @@ export function FarmProvider({ children }: { children: ReactNode }) {
       const farm = farms.find(f => f.id === farmId)
       if (!farm) throw new Error('Farm not found')
 
-      // Update database
-      await supabase
+      console.log('🔄 Switching to farm:', farm.name)
+
+      // ✅ Fix: Add await to both updates
+      const { error: updateError1 } = await supabase
         .from('farms')
         .update({ is_active: false })
         .eq('user_id', user.id)
-      
-      await supabase
+
+      if (updateError1) {
+        console.error('Error deactivating farms:', updateError1)
+        throw new Error('Failed to switch farm: ' + updateError1.message)
+      }
+
+      const { error: updateError2 } = await supabase
         .from('farms')
         .update({ is_active: true })
         .eq('id', farmId)
+        .eq('user_id', user.id)
+
+      if (updateError2) {
+        console.error('Error activating farm:', updateError2)
+        throw new Error('Failed to switch farm: ' + updateError2.message)
+      }
 
       // Update state
       setCurrentFarm(farm)
@@ -132,9 +144,11 @@ export function FarmProvider({ children }: { children: ReactNode }) {
       
       // Save to localStorage for persistence
       localStorage.setItem('currentFarmId', farmId)
+
+      console.log('✅ Farm switched successfully to:', farm.name)
       
     } catch (err) {
-      console.error('Error switching farm:', err)
+      console.error('❌ Error switching farm:', err)
       setError(err instanceof Error ? err.message : 'Failed to switch farm')
       throw err
     }
@@ -218,7 +232,6 @@ export function FarmProvider({ children }: { children: ReactNode }) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('You must be logged in to delete a farm')
 
-      // Check if this is the last farm
       if (farms.length <= 1) {
         throw new Error('Cannot delete the last farm. Create a new farm first.')
       }
@@ -231,18 +244,15 @@ export function FarmProvider({ children }: { children: ReactNode }) {
 
       if (deleteError) throw new Error('Failed to delete farm: ' + deleteError.message)
 
-      // Update local state
       const updatedFarms = farms.filter(f => f.id !== farmId)
       setFarms(updatedFarms)
 
-      // If the deleted farm was active, switch to another farm
       if (currentFarm?.id === farmId) {
         const newActiveFarm = updatedFarms[0]
         if (newActiveFarm) {
           setCurrentFarm(newActiveFarm)
           localStorage.setItem('currentFarmId', newActiveFarm.id)
           
-          // Update database
           await supabase
             .from('farms')
             .update({ is_active: true })

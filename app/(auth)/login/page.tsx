@@ -1,19 +1,33 @@
+// app/(auth)/login/page.tsx
+
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Leaf } from 'lucide-react'
+import { Logo } from '@/components/ui/Logo' // 👈 ADD THIS
+import { getSeasonalGreeting } from '@/lib/utils' // 👈 ADD THIS
+import { Leaf, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [greeting, setGreeting] = useState('Welcome back, Farmer')
+  const [greetingEmoji, setGreetingEmoji] = useState('🌱')
+  const router = useRouter()
+
+  useEffect(() => {
+    const seasonal = getSeasonalGreeting('Farmer')
+    setGreeting(seasonal.greeting)
+    setGreetingEmoji(seasonal.emoji)
+  }, [])
 
   async function handleLogin() {
     setLoading(true)
@@ -24,35 +38,41 @@ export default function LoginPage() {
       setError(error.message)
       setLoading(false)
     } else {
-      window.location.href = '/dashboard'
+      router.push('/dashboard')
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F9FAFB] px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]/30 px-4">
       <div className="w-full max-w-md">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-8 h-8 bg-[#1B4332] rounded-lg flex items-center justify-center">
-              <Leaf size={16} className="text-[#52B788]" />
-            </div>
-            <span className="text-xl font-bold text-[#1B4332]">RootBase</span>
+          <Link href="/" className="inline-block mb-6">
+            <Logo size="lg" />
           </Link>
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
+            <span>{greetingEmoji}</span>
+            <span>{greeting}</span>
+          </div>
         </div>
 
-        <Card className="shadow-sm border border-gray-200">
+        <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-xl font-bold text-[#1B4332]">Welcome back</CardTitle>
+            <div className="w-12 h-12 bg-[#D8F3DC] rounded-full flex items-center justify-center mx-auto mb-3">
+              <Sparkles size={20} className="text-[#2D6A4F]" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-[#1B4332]">Welcome back</CardTitle>
             <CardDescription>Sign in to your farm account</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
-                {error}
+              <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg flex items-start gap-2">
+                <span className="text-red-400">⚠️</span>
+                <span>{error}</span>
               </div>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email" required>Email address</Label>
               <Input
                 id="email"
                 type="email"
@@ -60,10 +80,17 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
                 onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()}
+                className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
+                autoFocus
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" required>Password</Label>
+                <Link href="/forgot-password" className="text-xs text-[#2D6A4F] hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -71,27 +98,50 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
                 onKeyDown={(e: React.KeyboardEvent) => e.key === 'Enter' && handleLogin()}
+                className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]"
+                showPasswordToggle
               />
             </div>
             <Button
-              className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white shadow-sm hover:shadow-md transition-all"
               onClick={handleLogin}
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? (
+                <><span className="animate-spin mr-2">⏳</span> Signing in...</>
+              ) : (
+                'Sign In'
+              )}
             </Button>
-            <p className="text-center text-sm text-gray-500">
-              Don't have an account?{' '}
-              <Link href="/register" className="text-[#2D6A4F] font-medium hover:underline">
-                Register free
-              </Link>
-            </p>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-2 text-gray-400">New to RootBase?</span>
+              </div>
+            </div>
+            <Link href="/register">
+              <Button
+                variant="outline"
+                className="w-full border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC] hover:border-[#1B4332] transition-all"
+              >
+                Create free account
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          <Link href="/" className="hover:text-[#2D6A4F]">← Back to RootBase</Link>
+          <Link href="/" className="hover:text-[#2D6A4F] transition-colors">
+            ← Back to RootBase
+          </Link>
         </p>
+
+        {/* Farm emoji decoration */}
+        <div className="text-center mt-4 text-2xl opacity-20 select-none">
+          🌱 🌾 🐄 🌻 🍅
+        </div>
       </div>
     </div>
   )

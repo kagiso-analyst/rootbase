@@ -1,8 +1,14 @@
+// app/(dashboard)/journal/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, BookOpen, Trash2, Tag, MapPin, Leaf, Search, RefreshCw } from 'lucide-react' // 👈 ADD RefreshCw
+import { 
+  Plus, BookOpen, Trash2, Tag, MapPin, Leaf, Search, RefreshCw, Sparkles 
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context'
+import { cn, getSeasonalGreeting } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -21,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import Link from 'next/link' // 👈 ADD THIS
+import Link from 'next/link'
 
 type EntryType =
   | 'General'
@@ -47,20 +53,29 @@ type JournalEntry = {
   entry_date: string
   created_at: string
   user_id: string
+  farm_id: string
 }
 
 const ENTRY_TYPE_COLOURS: Record<EntryType, string> = {
-  General:     'bg-gray-100 text-gray-600',
-  Spraying:    'bg-blue-100 text-blue-700',
-  Fertilising: 'bg-green-100 text-green-700',
-  Irrigation:  'bg-cyan-100 text-cyan-700',
-  Harvesting:  'bg-purple-100 text-purple-700',
-  Planting:    'bg-lime-100 text-lime-700',
-  Scouting:    'bg-orange-100 text-orange-700',
-  Maintenance: 'bg-yellow-100 text-yellow-700',
-  Weather:     'bg-sky-100 text-sky-700',
-  Other:       'bg-gray-100 text-gray-500',
+  General:     'bg-gray-100 text-gray-600 border-gray-200',
+  Spraying:    'bg-blue-100 text-blue-700 border-blue-200',
+  Fertilising: 'bg-green-100 text-green-700 border-green-200',
+  Irrigation:  'bg-cyan-100 text-cyan-700 border-cyan-200',
+  Harvesting:  'bg-purple-100 text-purple-700 border-purple-200',
+  Planting:    'bg-lime-100 text-lime-700 border-lime-200',
+  Scouting:    'bg-orange-100 text-orange-700 border-orange-200',
+  Maintenance: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+  Weather:     'bg-sky-100 text-sky-700 border-sky-200',
+  Other:       'bg-gray-100 text-gray-500 border-gray-200',
 }
+
+const MOOD_OPTIONS = [
+  { emoji: '😊', label: 'Good day', value: 'good' },
+  { emoji: '😐', label: 'Okay', value: 'okay' },
+  { emoji: '😔', label: 'Tough day', value: 'tough' },
+  { emoji: '💪', label: 'Hard work', value: 'hard' },
+  { emoji: '🌧️', label: 'Weather challenges', value: 'weather' },
+]
 
 const WEATHER_OPTIONS = [
   'Sunny ☀️',
@@ -94,23 +109,25 @@ function groupByDate(entries: JournalEntry[]): Record<string, JournalEntry[]> {
 }
 
 export default function JournalPage() {
-  // ===== STATE =====
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [greeting, setGreeting] = useState('')
 
-  // Form state
+  const { currentFarm, loading: farmLoading } = useFarm()
+
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [entryType, setEntryType] = useState<EntryType>('General')
   const [fieldName, setFieldName] = useState('')
   const [cropName, setCropName] = useState('')
   const [weatherConditions, setWeatherConditions] = useState('')
+  const [mood, setMood] = useState<string | null>(null)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [entryDate, setEntryDate] = useState(
@@ -119,8 +136,13 @@ export default function JournalPage() {
   
   const supabase = createClient()
 
-  // ===== FETCH ENTRIES =====
   async function fetchEntries() {
+    if (!currentFarm) {
+      setEntries([])
+      setFetching(false)
+      return
+    }
+
     setFetching(true)
     setError(null)
     
@@ -135,10 +157,14 @@ export default function JournalPage() {
       
       setUser(user)
 
+      const seasonal = getSeasonalGreeting(user.user_metadata?.full_name?.split(' ')[0] || 'Farmer')
+      setGreeting(seasonal.greeting)
+
       const { data, error } = await supabase
         .from('journal_entries')
         .select('*')
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch journal entries: ' + error.message)
@@ -155,9 +181,8 @@ export default function JournalPage() {
 
   useEffect(() => {
     fetchEntries()
-  }, [])
+  }, [currentFarm])
 
-  // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
     setIsRefreshing(true)
     await fetchEntries()
@@ -175,9 +200,12 @@ export default function JournalPage() {
     setTags((prev) => prev.filter((t) => t !== tag))
   }
 
-  // ===== ADD ENTRY =====
   async function handleAdd() {
     if (!content) return
+    if (!currentFarm) {
+      setError('Please select a farm first')
+      return
+    }
     
     setLoading(true)
     setError(null)
@@ -199,9 +227,11 @@ export default function JournalPage() {
           field_name: fieldName || null,
           crop_name: cropName || null,
           weather_conditions: weatherConditions || null,
+          mood: mood || null,
           tags,
           entry_date: entryDate,
-          user_id: user.id
+          user_id: user.id,
+          farm_id: currentFarm.id
         }])
         .select()
         .single()
@@ -216,6 +246,7 @@ export default function JournalPage() {
         setFieldName('')
         setCropName('')
         setWeatherConditions('')
+        setMood(null)
         setTags([])
         setTagInput('')
         setEntryDate(new Date().toISOString().split('T')[0])
@@ -230,9 +261,9 @@ export default function JournalPage() {
     }
   }
 
-  // ===== DELETE ENTRY =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this journal entry?')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -246,6 +277,7 @@ export default function JournalPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw new Error('Failed to delete entry: ' + error.message)
 
@@ -279,19 +311,17 @@ export default function JournalPage() {
     (a, b) => new Date(b).getTime() - new Date(a).getTime()
   )
 
-  // ===== LOADING STATE =====
-  if (fetching && !isRefreshing) {
+  if (farmLoading || (fetching && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading journal entries...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading journal entries...'}</p>
         </div>
       </div>
     )
   }
 
-  // ===== NOT LOGGED IN =====
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -307,7 +337,21 @@ export default function JournalPage() {
     )
   }
 
-  // ===== ERROR STATE =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to manage your journal.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
   if (error && !fetching) {
     return (
       <div className="space-y-6">
@@ -337,15 +381,19 @@ export default function JournalPage() {
     )
   }
 
-  // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
-      {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Farm Journal</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {entries.length} entr{entries.length !== 1 ? 'ies' : 'y'} recorded
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Farm Journal</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              📖 {currentFarm.name}
+            </Badge>
+          </div>
+          <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
+            <span>{greeting || 'Record your farm observations'}</span>
+            <span className="text-base">{getSeasonalGreeting(user?.user_metadata?.full_name?.split(' ')[0] || 'Farmer').emoji}</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -478,6 +526,27 @@ export default function JournalPage() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>How was your day? <span className="text-gray-400">(optional)</span></Label>
+                  <div className="flex gap-2 flex-wrap">
+                    {MOOD_OPTIONS.map(({ emoji, label, value }) => (
+                      <button
+                        key={value}
+                        onClick={() => setMood(mood === value ? null : value)}
+                        className={cn(
+                          "text-2xl p-2 rounded-lg border-2 transition-all",
+                          mood === value 
+                            ? "border-[#2D6A4F] bg-[#D8F3DC] scale-110" 
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        )}
+                        title={label}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label>
                     Tags <span className="text-gray-400">(optional)</span>
                   </Label>
@@ -531,7 +600,6 @@ export default function JournalPage() {
         </div>
       </div>
 
-      {/* Error message */}
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
@@ -548,7 +616,6 @@ export default function JournalPage() {
         </Card>
       )}
 
-      {/* Search */}
       {entries.length > 0 && (
         <div className="relative">
           <Search
@@ -572,17 +639,23 @@ export default function JournalPage() {
         </div>
       )}
 
-      {/* Entries list */}
       {entries.length === 0 ? (
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-              <BookOpen size={32} className="opacity-30" />
+            <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+              <BookOpen size={32} className="text-[#2D6A4F] opacity-30" />
             </div>
             <p className="text-sm font-medium text-gray-600">No journal entries yet</p>
-            <p className="text-xs mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               Click "New Entry" to write your first farm journal entry
             </p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+              onClick={() => setOpen(true)}
+            >
+              <Plus size={14} className="mr-2" /> Write Your First Entry
+            </Button>
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (

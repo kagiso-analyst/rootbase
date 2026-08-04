@@ -1,7 +1,9 @@
+// app/(dashboard)/crops/[id]/page.tsx
+
 'use client'
 
-import { useState, useEffect } from 'react' // 👈 ADD useEffect
-import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,7 +24,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client' // 👈 ADD THIS
+import { useParams } from 'next/navigation' // 👈 ADD THIS
+import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import { cn } from '@/lib/utils' // 👈 ADD THIS
 import type { Activity, ActivityType } from '@/types/crops'
 
 const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
@@ -38,10 +43,18 @@ const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
 export default function CropDetailPage() {
   // ===== STATE =====
   const [activities, setActivities] = useState<Activity[]>([])
-  const [loading, setLoading] = useState(true) // 👈 ADD THIS
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [saving, setSaving] = useState(false) // 👈 ADD THIS
+  const [crop, setCrop] = useState<any>(null) // 👈 ADD THIS
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [saving, setSaving] = useState(false)
+  
+  // 👇 GET CROP ID FROM URL
+  const params = useParams()
+  const cropId = params.id as string
+  
+  // 👇 GET CURRENT FARM
+  const { currentFarm, loading: farmLoading } = useFarm()
   
   // Form state
   const [open, setOpen] = useState(false)
@@ -51,10 +64,15 @@ export default function CropDetailPage() {
   const [rate, setRate] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
 
-  const supabase = createClient() // 👈 ADD THIS
+  const supabase = createClient()
 
-  // ===== FETCH ACTIVITIES =====
-  async function fetchActivities() {
+  // ===== FETCH CROP AND ACTIVITIES =====
+  async function fetchData() {
+    if (!currentFarm) {
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     
@@ -69,19 +87,35 @@ export default function CropDetailPage() {
       
       setUser(user)
 
+      // 👇 Fetch crop details
+      const { data: cropData, error: cropError } = await supabase
+        .from('crops')
+        .select('*')
+        .eq('id', cropId)
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
+        .single()
+
+      if (cropError && cropError.code !== 'PGRST116') {
+        throw new Error('Failed to fetch crop: ' + cropError.message)
+      }
+      
+      setCrop(cropData)
+
       // 👇 Fetch activities from database
       const { data, error } = await supabase
-        .from('crop_activities') // 👈 Change this to your actual table name
+        .from('crop_activities')
         .select('*')
+        .eq('crop_id', cropId)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch activities: ' + error.message)
       
-      // 👇 Map database data to your Activity type
       const mappedActivities: Activity[] = (data || []).map(item => ({
         id: item.id,
-        cropId: item.crop_id || 'current',
+        cropId: item.crop_id,
         type: item.activity_type as ActivityType,
         description: item.description,
         date: item.date,
@@ -92,20 +126,26 @@ export default function CropDetailPage() {
       setActivities(mappedActivities)
       
     } catch (err) {
-      console.error('Error fetching activities:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load activities')
+      console.error('Error fetching data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchActivities()
-  }, [])
+    if (cropId) {
+      fetchData()
+    }
+  }, [cropId, currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
 
   // ===== ADD ACTIVITY =====
   async function handleAddActivity() {
     if (!description || !date) return
+    if (!currentFarm) {
+      setError('Please select a farm first')
+      return
+    }
     
     setSaving(true)
     setError(null)
@@ -118,27 +158,26 @@ export default function CropDetailPage() {
         return
       }
 
-      // 👇 Save to database
       const { data, error } = await supabase
-        .from('crop_activities') // 👈 Change this to your actual table name
+        .from('crop_activities')
         .insert([{
-          crop_id: 'current', // 👈 Change this to the actual crop ID
+          crop_id: cropId,
           activity_type: activityType,
           description,
           product: product || null,
           rate: rate || null,
           date,
           user_id: user.id,
+          farm_id: currentFarm.id, // 👈 ADD farm_id
         }])
         .select()
         .single()
 
       if (error) throw new Error('Failed to save activity: ' + error.message)
 
-      // 👇 Add to local state
       const newActivity: Activity = {
         id: data.id,
-        cropId: data.crop_id || 'current',
+        cropId: data.crop_id,
         type: data.activity_type as ActivityType,
         description: data.description,
         date: data.date,
@@ -163,6 +202,8 @@ export default function CropDetailPage() {
 
   // ===== DELETE ACTIVITY =====
   async function handleDeleteActivity(id: string) {
+    if (!confirm('Are you sure you want to delete this activity?')) return // 👈 ADD CONFIRMATION
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -175,6 +216,7 @@ export default function CropDetailPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM
 
       if (error) throw new Error('Failed to delete activity: ' + error.message)
       
@@ -187,12 +229,12 @@ export default function CropDetailPage() {
   }
 
   // ===== LOADING STATE =====
-  if (loading) {
+  if (farmLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading activities...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading crop details...'}</p>
         </div>
       </div>
     )
@@ -214,19 +256,73 @@ export default function CropDetailPage() {
     )
   }
 
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to manage crop activities.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== CROP NOT FOUND =====
+  if (!crop) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🌱</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Crop Not Found</h2>
+        <p className="text-sm text-gray-500">This crop may have been deleted or you don't have access to it.</p>
+        <Link href="/crops">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Back to Crops
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
   // ===== ACTUAL PAGE =====
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <Link href="/crops">
-          <Button variant="ghost" size="icon">
-            <ArrowLeft size={18} />
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Crop Detail</h1>
-          <p className="text-gray-500 text-sm">Activity log and overview</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/crops">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft size={18} />
+            </Button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-[#1B4332]">
+                {crop.crop_name}
+              </h1>
+              <Badge className={cn(
+                "text-xs",
+                crop.status === 'active' ? 'bg-green-100 text-green-700' :
+                crop.status === 'planned' ? 'bg-blue-100 text-blue-700' :
+                crop.status === 'harvested' ? 'bg-purple-100 text-purple-700' :
+                'bg-red-100 text-red-700'
+              )}>
+                {crop.status}
+              </Badge>
+              <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+                🌱 {currentFarm.name}
+              </Badge>
+            </div>
+            <p className="text-gray-500 text-sm mt-1">
+              {crop.variety && `${crop.variety} · `}
+              {crop.field_name && `Field: ${crop.field_name}`}
+              {crop.area_planted_ha > 0 && ` · ${crop.area_planted_ha} ha`}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -343,20 +439,30 @@ export default function CropDetailPage() {
           </div>
 
           {activities.length === 0 ? (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
               <CardContent className="flex flex-col items-center justify-center py-12 text-gray-400">
-                <Leaf size={36} className="mb-3 opacity-30" />
-                <p className="text-sm">No activities logged yet</p>
-                <p className="text-xs mt-1">Log spraying, fertilising, irrigation and more</p>
+                <div className="w-12 h-12 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-3">
+                  <Leaf size={24} className="text-[#2D6A4F] opacity-30" />
+                </div>
+                <p className="text-sm font-medium text-gray-600">No activities logged yet</p>
+                <p className="text-xs text-gray-400 mt-1">Log spraying, fertilising, irrigation and more</p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="mt-3 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+                  onClick={() => setOpen(true)}
+                >
+                  <Plus size={12} className="mr-2" /> Log First Activity
+                </Button>
               </CardContent>
             </Card>
           ) : (
-            <Card className="shadow-sm">
+            <Card className="shadow-sm border-0">
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100">
                   {activities.map((activity) => (
-                    <div key={activity.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50 transition-colors">
-                      <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center mt-0.5 flex-shrink-0">
+                    <div key={activity.id} className="flex items-start gap-4 px-6 py-4 hover:bg-gray-50/50 transition-colors group">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mt-0.5 flex-shrink-0">
                         {ACTIVITY_ICONS[activity.type]}
                       </div>
                       <div className="flex-1">
@@ -378,10 +484,9 @@ export default function CropDetailPage() {
                           )}
                         </div>
                       </div>
-                      {/* 👇 ADD DELETE BUTTON */}
                       <button
                         onClick={() => handleDeleteActivity(activity.id)}
-                        className="text-gray-300 hover:text-red-400 transition-colors mt-1"
+                        className="text-gray-300 hover:text-red-400 transition-colors mt-1 opacity-0 group-hover:opacity-100"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M3 6h18" />
@@ -397,15 +502,61 @@ export default function CropDetailPage() {
         </TabsContent>
 
         <TabsContent value="overview" className="mt-4">
-          <Card className="shadow-sm">
+          <Card className="shadow-sm border-0">
             <CardHeader>
               <CardTitle className="text-base">Crop Information</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-500">
-                Select a crop from the crops list to see its details here.
-                This page will show full crop information once connected to the database.
-              </p>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-gray-400">Crop Name</p>
+                  <p className="text-sm font-medium text-gray-800">{crop.crop_name}</p>
+                </div>
+                {crop.variety && (
+                  <div>
+                    <p className="text-xs text-gray-400">Variety</p>
+                    <p className="text-sm font-medium text-gray-800">{crop.variety}</p>
+                  </div>
+                )}
+                {crop.field_name && (
+                  <div>
+                    <p className="text-xs text-gray-400">Field / Block</p>
+                    <p className="text-sm font-medium text-gray-800">{crop.field_name}</p>
+                  </div>
+                )}
+                {crop.season && (
+                  <div>
+                    <p className="text-xs text-gray-400">Season</p>
+                    <p className="text-sm font-medium text-gray-800">{crop.season}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-gray-400">Planting Date</p>
+                  <p className="text-sm font-medium text-gray-800">{crop.planting_date}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Expected Harvest</p>
+                  <p className="text-sm font-medium text-gray-800">{crop.expected_harvest_date}</p>
+                </div>
+                {crop.area_planted_ha > 0 && (
+                  <div>
+                    <p className="text-xs text-gray-400">Area Planted</p>
+                    <p className="text-sm font-medium text-gray-800">{crop.area_planted_ha} ha</p>
+                  </div>
+                )}
+              </div>
+              {crop.notes && (
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-xs text-gray-400">Notes</p>
+                  <p className="text-sm text-gray-600 mt-1">{crop.notes}</p>
+                </div>
+              )}
+              <div className="pt-3 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
+                <Sparkles size={12} />
+                <span>Created {new Date(crop.created_at).toLocaleDateString('en-ZA', {
+                  day: 'numeric', month: 'long', year: 'numeric'
+                })}</span>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

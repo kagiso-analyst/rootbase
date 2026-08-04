@@ -18,6 +18,35 @@ export function formatDate(date: string | Date): string {
   })
 }
 
+// lib/utils.ts - Add this function
+
+export function getSeasonalGreeting(name: string): { greeting: string; emoji: string } {
+  const month = new Date().getMonth()
+  // SA summer (Dec-Feb) — planting season
+  if ([11, 0, 1].includes(month)) 
+    return { 
+      greeting: `How's the planting going, ${name}?`, 
+      emoji: '🌱' 
+    }
+  // Autumn (Mar-May) — harvest
+  if ([2, 3, 4].includes(month)) 
+    return { 
+      greeting: `Harvest season, ${name}! How are the yields?`, 
+      emoji: '🌾' 
+    }
+  // Winter (Jun-Aug) — planning
+  if ([5, 6, 7].includes(month)) 
+    return { 
+      greeting: `Planning season, ${name}. What's going in next?`, 
+      emoji: '❄️' 
+    }
+  // Spring (Sep-Nov) — preparation
+  return { 
+    greeting: `Spring is here, ${name}! Ready to plant?`, 
+    emoji: '🌻' 
+  }
+}
+
 export function formatDateTime(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
   return d.toLocaleDateString('en-ZA', {

@@ -1,10 +1,14 @@
+// app/(dashboard)/finances/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { BarChart2, TrendingUp, TrendingDown, DollarSign, RefreshCw } from 'lucide-react' // 👈 ADD RefreshCw
+import { BarChart2, TrendingUp, TrendingDown, DollarSign, RefreshCw, Sparkles } from 'lucide-react' // 👈 ADD Sparkles
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button' // 👈 ADD THIS
+import { Badge } from '@/components/ui/badge' // 👈 ADD THIS
+import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
 import Link from 'next/link'
 
 const sections = [
@@ -42,14 +46,25 @@ export default function FinancesPage() {
   const [income, setIncome] = useState(0)
   const [expenses, setExpenses] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [isRefreshing, setIsRefreshing] = useState(false) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // 👇 GET CURRENT FARM
+  const { currentFarm, loading: farmLoading } = useFarm()
 
   const supabase = createClient()
 
   // ===== FETCH DATA =====
   async function fetchMonthData() {
+    // 👇 CHECK IF FARM IS SELECTED
+    if (!currentFarm) {
+      setIncome(0)
+      setExpenses(0)
+      setLoading(false)
+      return
+    }
+
     setLoading(true)
     setError(null)
     
@@ -74,17 +89,18 @@ export default function FinancesPage() {
           .from('income')
           .select('amount')
           .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
           .gte('date', firstOfMonth)
           .lte('date', endOfMonth),
         supabase
           .from('expenses')
           .select('amount')
           .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
           .gte('date', firstOfMonth)
           .lte('date', endOfMonth),
       ])
 
-      // 👇 Check for errors
       if (incomeRes.error) throw new Error('Failed to fetch income: ' + incomeRes.error.message)
       if (expensesRes.error) throw new Error('Failed to fetch expenses: ' + expensesRes.error.message)
 
@@ -104,7 +120,7 @@ export default function FinancesPage() {
 
   useEffect(() => {
     fetchMonthData()
-  }, [])
+  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -116,12 +132,12 @@ export default function FinancesPage() {
   const isProfit = net >= 0
 
   // ===== LOADING STATE =====
-  if (loading && !isRefreshing) {
+  if (farmLoading || (loading && !isRefreshing)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading finances...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading finances...'}</p>
         </div>
       </div>
     )
@@ -137,6 +153,22 @@ export default function FinancesPage() {
         <Link href="/login">
           <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
             Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to manage your finances.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
           </Button>
         </Link>
       </div>
@@ -179,7 +211,12 @@ export default function FinancesPage() {
       {/* Header with refresh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Finances</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Finances</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              💰 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             Track every rand in and out of your farm
           </p>

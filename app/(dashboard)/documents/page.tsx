@@ -1,7 +1,9 @@
+// app/(dashboard)/documents/page.tsx
+
 'use client'
 
-import { useState, useEffect } from 'react' // 👈 ADD useEffect
-import { Plus, FolderOpen, Trash2, FileText, Download } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, FolderOpen, Trash2, FileText, Download, Sparkles, Clock } from 'lucide-react' // 👈 ADD Sparkles, Clock
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,8 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { createClient } from '@/lib/supabase/client' // 👈 ADD THIS
-import Link from 'next/link' // 👈 ADD THIS
+import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import { cn } from '@/lib/utils' // 👈 ADD THIS
+import Link from 'next/link'
 
 type Document = {
   id: string
@@ -32,7 +36,8 @@ type Document = {
   fileName: string
   uploadedAt: string
   expiryDate: string
-  user_id: string // 👈 ADD THIS
+  user_id: string
+  farm_id: string // 👈 ADD THIS
 }
 
 const CATEGORIES = [
@@ -50,17 +55,17 @@ const CATEGORIES = [
 ]
 
 const CATEGORY_COLOURS: Record<string, string> = {
-  'Farm Registration': 'bg-green-100 text-green-700',
-  'Land Title':        'bg-blue-100 text-blue-700',
-  'Insurance':         'bg-purple-100 text-purple-700',
-  'Compliance':        'bg-orange-100 text-orange-700',
-  'Spray Records':     'bg-cyan-100 text-cyan-700',
-  'Audit Reports':     'bg-yellow-100 text-yellow-700',
-  'Contracts':         'bg-red-100 text-red-700',
-  'Invoices':          'bg-gray-100 text-gray-600',
-  'Permits':           'bg-lime-100 text-lime-700',
-  'Certificates':      'bg-pink-100 text-pink-700',
-  'Other':             'bg-gray-100 text-gray-500',
+  'Farm Registration': 'bg-green-100 text-green-700 border-green-200',
+  'Land Title':        'bg-blue-100 text-blue-700 border-blue-200',
+  'Insurance':         'bg-purple-100 text-purple-700 border-purple-200',
+  'Compliance':        'bg-orange-100 text-orange-700 border-orange-200',
+  'Spray Records':     'bg-cyan-100 text-cyan-700 border-cyan-200',
+  'Audit Reports':     'bg-yellow-100 text-yellow-700 border-yellow-200',
+  'Contracts':         'bg-red-100 text-red-700 border-red-200',
+  'Invoices':          'bg-gray-100 text-gray-600 border-gray-200',
+  'Permits':           'bg-lime-100 text-lime-700 border-lime-200',
+  'Certificates':      'bg-pink-100 text-pink-700 border-pink-200',
+  'Other':             'bg-gray-100 text-gray-500 border-gray-200',
 }
 
 export default function DocumentsPage() {
@@ -68,10 +73,13 @@ export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [open, setOpen] = useState(false)
   const [filterCategory, setFilterCategory] = useState('All')
-  const [fetching, setFetching] = useState(true) // 👈 ADD THIS
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
-  const [saving, setSaving] = useState(false) // 👈 ADD THIS
+  const [fetching, setFetching] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [saving, setSaving] = useState(false)
+
+  // 👇 GET CURRENT FARM
+  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
   const [name, setName] = useState('')
@@ -80,7 +88,7 @@ export default function DocumentsPage() {
   const [expiryDate, setExpiryDate] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  const supabase = createClient() // 👈 ADD THIS
+  const supabase = createClient()
 
   const filtered =
     filterCategory === 'All'
@@ -97,6 +105,13 @@ export default function DocumentsPage() {
 
   // ===== FETCH DOCUMENTS =====
   async function fetchDocuments() {
+    // 👇 CHECK IF FARM IS SELECTED
+    if (!currentFarm) {
+      setDocuments([])
+      setFetching(false)
+      return
+    }
+
     setFetching(true)
     setError(null)
     
@@ -115,6 +130,7 @@ export default function DocumentsPage() {
         .from('documents')
         .select('*')
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch documents: ' + error.message)
@@ -130,7 +146,7 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     fetchDocuments()
-  }, [])
+  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -140,6 +156,10 @@ export default function DocumentsPage() {
   // ===== ADD DOCUMENT =====
   async function handleAdd() {
     if (!name || !category) return
+    if (!currentFarm) {
+      setError('Please select a farm first')
+      return
+    }
     
     setSaving(true)
     setError(null)
@@ -152,7 +172,6 @@ export default function DocumentsPage() {
         return
       }
 
-      // 👇 Create the document data
       const docData = {
         name,
         category,
@@ -162,6 +181,7 @@ export default function DocumentsPage() {
         file_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
         uploaded_at: new Date().toISOString().split('T')[0],
         user_id: user.id,
+        farm_id: currentFarm.id, // 👈 ADD farm_id
       }
 
       const { data, error } = await supabase
@@ -172,7 +192,6 @@ export default function DocumentsPage() {
 
       if (error) throw new Error('Failed to save document: ' + error.message)
 
-      // 👇 Map to our Document type
       const newDoc: Document = {
         id: data.id,
         name: data.name,
@@ -183,6 +202,7 @@ export default function DocumentsPage() {
         uploadedAt: data.uploaded_at || new Date().toISOString().split('T')[0],
         expiryDate: data.expiry_date || '',
         user_id: data.user_id,
+        farm_id: data.farm_id,
       }
 
       setDocuments((prev) => [newDoc, ...prev])
@@ -204,6 +224,7 @@ export default function DocumentsPage() {
   // ===== DELETE DOCUMENT =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this document?')) return
+    if (!currentFarm) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -217,6 +238,7 @@ export default function DocumentsPage() {
         .delete()
         .eq('id', id)
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
 
       if (error) throw new Error('Failed to delete document: ' + error.message)
 
@@ -229,12 +251,12 @@ export default function DocumentsPage() {
   }
 
   // ===== LOADING STATE =====
-  if (fetching) {
+  if (farmLoading || fetching) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading documents...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading documents...'}</p>
         </div>
       </div>
     )
@@ -250,6 +272,22 @@ export default function DocumentsPage() {
         <Link href="/login">
           <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
             Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select a farm to manage your documents.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
           </Button>
         </Link>
       </div>
@@ -276,9 +314,14 @@ export default function DocumentsPage() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Documents</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Documents</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              📁 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
             {documents.length} document{documents.length !== 1 ? 's' : ''}
             {expiringSoon.length > 0 && (
@@ -362,9 +405,11 @@ export default function DocumentsPage() {
         </Dialog>
       </div>
 
+      {/* Expiring soon alert */}
       {expiringSoon.length > 0 && (
-        <Card className="shadow-sm border-orange-200 bg-orange-50">
-          <CardContent className="py-3 px-4">
+        <Card className="shadow-sm border-orange-200 bg-gradient-to-br from-orange-50 to-white">
+          <CardContent className="py-3 px-4 flex items-center gap-2">
+            <Clock size={16} className="text-orange-500" />
             <p className="text-sm font-medium text-orange-700">
               Expiring within 30 days: {expiringSoon.map((d) => d.name).join(', ')}
             </p>
@@ -372,17 +417,19 @@ export default function DocumentsPage() {
         </Card>
       )}
 
+      {/* Category filters */}
       {documents.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {['All', ...CATEGORIES].map((cat) => (
             <button
               key={cat}
               onClick={() => setFilterCategory(cat)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
+              className={cn(
+                "text-xs px-3 py-1.5 rounded-full border transition-all duration-200",
                 filterCategory === cat
-                  ? 'bg-[#2D6A4F] text-white border-[#2D6A4F]'
-                  : 'bg-white text-gray-500 border-gray-200 hover:border-[#2D6A4F]'
-              }`}
+                  ? "bg-[#2D6A4F] text-white border-[#2D6A4F] shadow-sm"
+                  : "bg-white text-gray-500 border-gray-200 hover:border-[#2D6A4F] hover:text-[#2D6A4F]"
+              )}
             >
               {cat}
             </button>
@@ -390,20 +437,32 @@ export default function DocumentsPage() {
         </div>
       )}
 
+      {/* Documents list */}
       {documents.length === 0 ? (
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <FolderOpen size={40} className="mb-3 opacity-30" />
-            <p className="text-sm font-medium">No documents uploaded yet</p>
-            <p className="text-xs mt-1">
+            <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+              <FolderOpen size={32} className="text-[#2D6A4F] opacity-30" />
+            </div>
+            <p className="text-sm font-medium text-gray-600">No documents uploaded yet</p>
+            <p className="text-xs text-gray-400 mt-1">
               Store farm registrations, insurance, spray records and more
             </p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+              onClick={() => setOpen(true)}
+            >
+              <Plus size={14} className="mr-2" /> Upload Your First Document
+            </Button>
           </CardContent>
         </Card>
       ) : filtered.length === 0 ? (
         <Card className="shadow-sm">
           <CardContent className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <FolderOpen size={32} className="mb-3 opacity-30" />
             <p className="text-sm">No documents in this category</p>
+            <p className="text-xs mt-1">Try selecting a different category</p>
           </CardContent>
         </Card>
       ) : (
@@ -413,15 +472,20 @@ export default function DocumentsPage() {
             return (
               <Card
                 key={doc.id}
-                className={`shadow-sm hover:shadow-md transition-shadow ${
-                  isExpiring ? 'border-orange-200' : ''
-                }`}
+                className={cn(
+                  "shadow-sm hover:shadow-md transition-all duration-200 border-l-4",
+                  isExpiring ? 'border-l-orange-400' : 'border-l-[#2D6A4F]',
+                  "hover:border-l-[#1B4332]"
+                )}
               >
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-[#D8F3DC] flex items-center justify-center flex-shrink-0">
-                        <FileText size={16} className="text-[#2D6A4F]" />
+                      <div className={cn(
+                        "w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0",
+                        isExpiring ? 'bg-orange-50' : 'bg-[#D8F3DC]'
+                      )}>
+                        <FileText size={16} className={isExpiring ? 'text-orange-500' : 'text-[#2D6A4F]'} />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-800">{doc.name}</p>
@@ -430,16 +494,17 @@ export default function DocumentsPage() {
                     </div>
                     <button
                       onClick={() => handleDelete(doc.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors"
+                      className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                     >
                       <Trash2 size={14} />
                     </button>
                   </div>
 
                   <Badge
-                    className={`text-xs mb-2 ${
+                    className={cn(
+                      "text-xs font-medium mb-2",
                       CATEGORY_COLOURS[doc.category] || 'bg-gray-100 text-gray-600'
-                    }`}
+                    )}
                   >
                     {doc.category}
                   </Badge>
@@ -449,13 +514,22 @@ export default function DocumentsPage() {
                   )}
 
                   {doc.expiryDate && (
-                    <p className={`text-xs mt-2 ${isExpiring ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>
+                    <p className={cn(
+                      "text-xs mt-2 flex items-center gap-1",
+                      isExpiring ? 'text-orange-500 font-medium' : 'text-gray-400'
+                    )}>
+                      {isExpiring ? <Clock size={12} /> : '📅'}
                       {isExpiring ? '⚠ ' : ''}Expires: {doc.expiryDate}
+                      {isExpiring && (
+                        <span className="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
+                          Soon!
+                        </span>
+                      )}
                     </p>
                   )}
 
                   {doc.fileUrl && (
-                    <p className="inline-flex items-center gap-1.5 mt-3 text-xs text-[#2D6A4F]">
+                    <p className="inline-flex items-center gap-1.5 mt-3 text-xs text-[#2D6A4F] hover:underline cursor-pointer">
                       <Download size={12} /> {doc.fileName}
                     </p>
                   )}

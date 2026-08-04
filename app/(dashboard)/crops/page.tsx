@@ -1,7 +1,9 @@
+// app/(dashboard)/crops/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Leaf, Calendar, MapPin } from 'lucide-react'
+import { Plus, Leaf, Calendar, MapPin, Sparkles, Image } from 'lucide-react' // 👈 ADD Sparkles, Image
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +17,8 @@ import {
 } from '@/components/ui/select'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useFarm } from '@/lib/farm-context' // 👈 ADD THIS
+import { cn, getSeasonalGreeting } from '@/lib/utils' // 👈 ADD THIS
 
 type CropStatus = 'planned' | 'active' | 'harvested' | 'failed'
 
@@ -30,13 +34,15 @@ type Crop = {
   status: CropStatus
   notes: string
   created_at: string
+  user_id: string
+  farm_id: string // 👈 ADD THIS
 }
 
 const STATUS_COLOURS: Record<CropStatus, string> = {
-  planned:   'bg-blue-100 text-blue-700',
-  active:    'bg-green-100 text-green-700',
-  harvested: 'bg-purple-100 text-purple-700',
-  failed:    'bg-red-100 text-red-700',
+  planned:   'bg-blue-100 text-blue-700 border-blue-200',
+  active:    'bg-green-100 text-green-700 border-green-200',
+  harvested: 'bg-purple-100 text-purple-700 border-purple-200',
+  failed:    'bg-red-100 text-red-700 border-red-200',
 }
 
 const COMMON_CROPS = [
@@ -64,8 +70,12 @@ export default function CropsPage() {
   const [open, setOpen] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null) // 👈 ADD THIS
-  const [user, setUser] = useState<any>(null) // 👈 ADD THIS
+  const [error, setError] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
+  const [greeting, setGreeting] = useState('')
+
+  // 👇 GET CURRENT FARM
+  const { currentFarm, loading: farmLoading } = useFarm()
 
   // Form state
   const [cropName, setCropName] = useState('')
@@ -82,8 +92,15 @@ export default function CropsPage() {
 
   // ===== FETCH CROPS =====
   async function fetchCrops() {
+    // 👇 CHECK IF FARM IS SELECTED
+    if (!currentFarm) {
+      setCrops([])
+      setFetching(false)
+      return
+    }
+
     setFetching(true)
-    setError(null) // 👈 Clear old errors
+    setError(null)
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -94,15 +111,20 @@ export default function CropsPage() {
         return
       }
       
-      setUser(user) // 👈 Save user
+      setUser(user)
+
+      // Set seasonal greeting
+      const seasonal = getSeasonalGreeting(user.user_metadata?.full_name?.split(' ')[0] || 'Farmer')
+      setGreeting(seasonal.greeting)
 
       const { data, error } = await supabase
         .from('crops')
         .select('*')
         .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id) // 👈 FILTER BY FARM
         .order('created_at', { ascending: false })
       
-      if (error) throw new Error('Failed to fetch crops: ' + error.message) // 👈 Throw error
+      if (error) throw new Error('Failed to fetch crops: ' + error.message)
       if (data) setCrops(data)
       
     } catch (err) {
@@ -115,14 +137,18 @@ export default function CropsPage() {
 
   useEffect(() => {
     fetchCrops()
-  }, [])
+  }, [currentFarm]) // 👈 REFETCH WHEN FARM CHANGES
 
   // ===== ADD CROP =====
   async function handleAdd() {
     if (!cropName || !plantingDate || !expectedHarvestDate) return
+    if (!currentFarm) {
+      setError('Please select a farm first')
+      return
+    }
     
     setLoading(true)
-    setError(null) // 👈 Clear old errors
+    setError(null)
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -136,20 +162,21 @@ export default function CropsPage() {
         .from('crops')
         .insert([{
           crop_name: cropName,
-          variety,
-          field_name: fieldName,
-          season,
+          variety: variety || null,
+          field_name: fieldName || null,
+          season: season || null,
           planting_date: plantingDate,
           expected_harvest_date: expectedHarvestDate,
           area_planted_ha: parseFloat(areaPlantedHa) || 0,
           status,
-          notes,
-          user_id: user.id
+          notes: notes || null,
+          user_id: user.id,
+          farm_id: currentFarm.id // 👈 ADD farm_id
         }])
         .select()
         .single()
 
-      if (error) throw new Error('Failed to save crop: ' + error.message) // 👈 Throw error
+      if (error) throw new Error('Failed to save crop: ' + error.message)
 
       if (data) {
         setCrops((prev) => [data, ...prev])
@@ -176,7 +203,7 @@ export default function CropsPage() {
 
   // ===== DELETE CROP =====
   async function handleDeleteCrop(id: string) {
-    if (!confirm('Are you sure you want to delete this crop?')) return // 👈 Add confirmation
+    if (!confirm('Are you sure you want to delete this crop?')) return
     
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -189,7 +216,8 @@ export default function CropsPage() {
         .from('crops')
         .delete()
         .eq('id', id)
-        .eq('user_id', user.id) // 👈 Important! Check user_id
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm?.id) // 👈 FILTER BY FARM
 
       if (error) throw new Error('Failed to delete crop: ' + error.message)
       
@@ -206,12 +234,12 @@ export default function CropsPage() {
   const harvestedCrops = crops.filter((c) => c.status === 'harvested').length
 
   // ===== LOADING STATE =====
-  if (fetching) {
+  if (farmLoading || (fetching)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
-          <p className="text-sm text-gray-400">Loading crops...</p>
+          <p className="text-sm text-gray-400">{farmLoading ? 'Loading farms...' : 'Loading crops...'}</p>
         </div>
       </div>
     )
@@ -227,6 +255,22 @@ export default function CropsPage() {
         <Link href="/login">
           <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
             Go to Login
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  // ===== NO FARM SELECTED =====
+  if (!currentFarm) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="text-5xl mb-4">🏠</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
+        <p className="text-sm text-gray-500">Please select or create a farm to manage your crops.</p>
+        <Link href="/settings">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Go to Settings
           </Button>
         </Link>
       </div>
@@ -253,12 +297,22 @@ export default function CropsPage() {
         </Card>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#1B4332]">Crops</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[#1B4332]">Crops</h1>
+            <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
+              🌱 {currentFarm.name}
+            </Badge>
+          </div>
           <p className="text-gray-500 text-sm mt-1">
-            {activeCrops} active · {plannedCrops} planned · {harvestedCrops} harvested
+            {greeting || '🌱'}
           </p>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="text-xs text-gray-400">
+              {activeCrops} active · {plannedCrops} planned · {harvestedCrops} harvested
+            </span>
+          </div>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
@@ -354,11 +408,23 @@ export default function CropsPage() {
       </div>
 
       {crops.length === 0 ? (
-        <Card className="shadow-sm">
+        <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC]/20 to-white">
           <CardContent className="flex flex-col items-center justify-center py-16 text-gray-400">
-            <Leaf size={40} className="mb-3 opacity-30" />
-            <p className="text-sm font-medium">No crops recorded yet</p>
-            <p className="text-xs mt-1">Click "Add Crop" to record your first planting</p>
+            <div className="w-16 h-16 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
+              <Leaf size={32} className="text-[#2D6A4F] opacity-30" />
+            </div>
+            <p className="text-sm font-medium text-gray-600">No crops recorded yet</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Your fields are ready, {user?.user_metadata?.full_name?.split(' ')[0] || 'Farmer'}. 
+              Plant your first crop record.
+            </p>
+            <Button 
+              variant="outline" 
+              className="mt-4 border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+              onClick={() => setOpen(true)}
+            >
+              <Plus size={14} className="mr-2" /> Plant Your First Crop
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -369,12 +435,21 @@ export default function CropsPage() {
             return (
               <div key={crop.id} className="relative group">
                 <Link href={`/crops/${crop.id}`}>
-                  <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+                  <Card className="shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full border-l-4 hover:border-l-[#2D6A4F]">
                     <CardHeader className="pb-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-[#D8F3DC] flex items-center justify-center">
-                            <Leaf size={15} className="text-[#2D6A4F]" />
+                          <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            crop.status === 'active' ? 'bg-[#D8F3DC]' :
+                            crop.status === 'planned' ? 'bg-blue-50' :
+                            crop.status === 'harvested' ? 'bg-purple-50' : 'bg-red-50'
+                          )}>
+                            <Leaf size={15} className={cn(
+                              crop.status === 'active' ? 'text-[#2D6A4F]' :
+                              crop.status === 'planned' ? 'text-blue-500' :
+                              crop.status === 'harvested' ? 'text-purple-500' : 'text-red-500'
+                            )} />
                           </div>
                           <div>
                             <CardTitle className="text-sm font-semibold text-gray-800">
@@ -405,14 +480,14 @@ export default function CropsPage() {
                             <span>{days > 0 ? `${days} days to harvest` : 'Ready!'}</span>
                           </div>
                           <div className="w-full bg-gray-100 rounded-full h-1.5">
-                            <div className="bg-[#52B788] h-1.5 rounded-full" style={{ width: `${progress}%` }} />
+                            <div className="bg-[#52B788] h-1.5 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
                           </div>
                         </div>
                       )}
                     </CardContent>
                   </Card>
                 </Link>
-                {/* 👇 ADD DELETE BUTTON */}
+                {/* Delete button */}
                 <button
                   onClick={() => handleDeleteCrop(crop.id)}
                   className="absolute top-2 right-2 p-1.5 bg-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50"

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/Sidebar'
-import TopBar from '@/components/layout/TopBar'  // ✅ ADD THIS BACK
+import TopBar from '@/components/layout/TopBar'
 import { FarmProvider } from '@/lib/farm-context'
 import { Loader2 } from 'lucide-react'
 
@@ -88,7 +88,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex h-screen bg-[#F9FAFB]">
         <Sidebar />
         <div className="flex-1 flex flex-col overflow-hidden">
-          <TopBar />  {/* ✅ ADD THIS BACK - This shows the greeting, farm switcher, and logout button */}
+          <TopBar />
           <main className="flex-1 overflow-y-auto p-4 md:p-6">
             {children}
           </main>
