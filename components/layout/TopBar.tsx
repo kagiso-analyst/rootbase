@@ -32,39 +32,35 @@ export default function TopBar() {
   const { currentFarm, farms, switchFarm } = useFarm()
 
   useEffect(() => {
-    // Get user info
     async function fetchUserData() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      setUserEmail(user.email || '')
-      if (user.user_metadata?.full_name) {
-        setUserName(user.user_metadata.full_name)
-      }
+      const displayName = user.user_metadata?.full_name?.trim() || user.email?.split('@')[0] || 'Farmer'
+      const seasonal = getSeasonalGreeting(displayName)
 
-      // Get profile data
+      setUserEmail(user.email || '')
+      setUserName(displayName)
+      setGreeting(seasonal.greeting)
+      setGreetingEmoji(seasonal.emoji)
+
       const { data: profile } = await supabase
         .from('profiles')
         .select('avatar_url, plan')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (profile) {
-        setAvatarUrl(profile.avatar_url)
+        setAvatarUrl(profile.avatar_url || '')
         setUserPlan(profile.plan || 'free')
+      } else {
+        setUserPlan('free')
       }
     }
 
     fetchUserData()
-
-    // Set seasonal greeting
-    const seasonal = getSeasonalGreeting(userName || 'Farmer')
-    setGreeting(seasonal.greeting)
-    setGreetingEmoji(seasonal.emoji)
-
-    // Get notification count (example)
     setNotificationCount(3)
-  }, [supabase, userName])
+  }, [supabase])
 
   async function handleSignOut() {
     await supabase.auth.signOut()

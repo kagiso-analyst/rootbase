@@ -9,9 +9,9 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white font-sans">
 
       {/* Nav */}
-      <nav className="flex items-center justify-between px-6 md:px-12 py-4 border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur-sm z-50">
+      <nav className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur-sm z-50 sm:px-6 md:px-12">
         <Logo size="md" />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Link href="/login" className="text-sm text-gray-500 hover:text-[#2D6A4F] transition-colors px-3 py-1.5">
             Sign In
           </Link>
@@ -22,7 +22,7 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="max-w-5xl mx-auto px-6 pt-24 pb-20 text-center">
+      <section className="max-w-5xl mx-auto px-4 pt-16 pb-16 text-center sm:px-6 sm:pt-24 sm:pb-20">
         <div className="inline-flex items-center gap-2 bg-[#D8F3DC] text-[#2D6A4F] text-xs font-semibold px-3 py-1.5 rounded-full mb-8">
           <span className="w-1.5 h-1.5 bg-[#2D6A4F] rounded-full animate-pulse" />
           Built for African Farmers · Free to Start
@@ -38,7 +38,7 @@ export default function LandingPage() {
           Track finances, crops, livestock, weather and tasks — beautifully, in one place.
         </p>
 
-        <div className="flex items-center justify-center gap-3 flex-wrap">
+        <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <Link href="/register" className="bg-[#1B4332] text-white px-8 py-3.5 rounded-xl font-semibold hover:bg-[#2D6A4F] transition-all shadow-lg shadow-green-900/20">
             Start for Free →
           </Link>

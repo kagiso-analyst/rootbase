@@ -40,12 +40,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]/30">
-      <div className="absolute top-4 left-4 md:top-6 md:left-6">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-br from-[#F9FAFB] to-[#D8F3DC]/30">
+      <div className="absolute top-4 left-4 z-20 md:top-6 md:left-6">
         <Logo size="sm" />
       </div>
       
-      <div className="relative z-10">
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-3 py-16 sm:px-4 sm:py-20 md:px-6">
         {children}
       </div>
 
@@ -55,7 +55,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#1B4332] rounded-full opacity-5 blur-3xl" />
       </div>
 
-      <div className="absolute bottom-4 left-0 right-0 text-center">
+      <div className="absolute bottom-4 left-0 right-0 px-3 text-center">
         <p className="text-[10px] text-gray-400">
           © 2026 RootBase · Farm Management for African Farmers
         </p>
