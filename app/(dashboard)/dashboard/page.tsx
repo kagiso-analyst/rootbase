@@ -8,7 +8,8 @@ import {
   BarChart2, Calendar, ArrowUpRight, ArrowDownRight,
   Bell, Cloud, BookOpen, Package, Wrench, FileText, Plus,
   Sprout, PiggyBank, Truck, Users, ShoppingBag, Briefcase,
-  Droplets, Sun, Wind, Thermometer, Clock, AlertCircle
+  Droplets, Sun, Wind, Thermometer, Clock, AlertCircle,
+  LayoutDashboard, Activity
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -31,7 +32,7 @@ import {
   Cell,
 } from 'recharts'
 
-const COLORS = ['#2D6A4F', '#52B788', '#1B4332', '#F4A261', '#E76F51']
+const COLORS = ['#2D6A4F', '#52B788', '#1B4332', '#F4A261', '#E76F51', '#E9C46A', '#2A9D8F', '#F4A261']
 
 type Task = {
   id: string
@@ -121,6 +122,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [userName, setUserName] = useState('')
   const [greeting, setGreeting] = useState('')
+  const [userPlan, setUserPlan] = useState('free')
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -133,6 +135,16 @@ export default function DashboardPage() {
           setUserName(displayName)
           const seasonal = getSeasonalGreeting(displayName)
           setGreeting(seasonal.greeting)
+          
+          // Get user plan
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('plan')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          if (profile) {
+            setUserPlan(profile.plan || 'free')
+          }
         }
       } catch (err) {
         console.error('Auth check error:', err)
@@ -157,6 +169,9 @@ export default function DashboardPage() {
     try {
       const now = new Date()
       const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const lastMonthStart = lastMonth.toISOString().split('T')[0]
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]
 
       const [
         incomeRes,
@@ -166,32 +181,39 @@ export default function DashboardPage() {
         tasksRes,
         journalRes,
         recentIncomeRes,
-        recentExpensesRes
+        recentExpensesRes,
+        prevIncomeRes,
+        prevExpensesRes
       ] = await Promise.all([
+        // Current month income
         supabase
           .from('income')
           .select('amount')
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
           .gte('date', firstOfMonth),
+        // Current month expenses
         supabase
           .from('expenses')
           .select('amount')
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
           .gte('date', firstOfMonth),
+        // Active crops
         supabase
           .from('crops')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
           .eq('status', 'active'),
+        // Open tasks
         supabase
           .from('tasks')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
           .neq('status', 'done'),
+        // Tasks list
         supabase
           .from('tasks')
           .select('*')
@@ -200,6 +222,7 @@ export default function DashboardPage() {
           .neq('status', 'done')
           .order('created_at', { ascending: false })
           .limit(5),
+        // Journal entries
         supabase
           .from('journal_entries')
           .select('*')
@@ -207,6 +230,7 @@ export default function DashboardPage() {
           .eq('farm_id', currentFarm.id)
           .order('created_at', { ascending: false })
           .limit(3),
+        // Recent income
         supabase
           .from('income')
           .select('*')
@@ -214,6 +238,7 @@ export default function DashboardPage() {
           .eq('farm_id', currentFarm.id)
           .order('date', { ascending: false })
           .limit(5),
+        // Recent expenses
         supabase
           .from('expenses')
           .select('*')
@@ -221,6 +246,22 @@ export default function DashboardPage() {
           .eq('farm_id', currentFarm.id)
           .order('date', { ascending: false })
           .limit(5),
+        // Previous month income for trend
+        supabase
+          .from('income')
+          .select('amount')
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
+          .gte('date', lastMonthStart)
+          .lte('date', lastMonthEnd),
+        // Previous month expenses for trend
+        supabase
+          .from('expenses')
+          .select('amount')
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
+          .gte('date', lastMonthStart)
+          .lte('date', lastMonthEnd),
       ])
 
       if (incomeRes.error) throw new Error('Failed to fetch income: ' + incomeRes.error.message)
@@ -229,6 +270,8 @@ export default function DashboardPage() {
 
       const totalIncome = incomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
       const totalExpenses = expensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
+      const prevIncome = prevIncomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
+      const prevExpenses = prevExpensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
 
       setIncome(totalIncome)
       setExpenses(totalExpenses)
@@ -332,6 +375,21 @@ export default function DashboardPage() {
 
   const net = income - expenses
   const isProfit = net >= 0
+  const incomeGrowth = prevIncome > 0 ? ((income - prevIncome) / prevIncome) * 100 : 0
+  const expenseGrowth = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0
+  const netGrowth = prevIncome - prevExpenses > 0 ? ((net - (prevIncome - prevExpenses)) / Math.abs(prevIncome - prevExpenses)) * 100 : 0
+
+  function getPlanBadge(plan: string) {
+    const badges: Record<string, { label: string; color: string }> = {
+      free: { label: 'Free Plan', color: 'bg-gray-100 text-gray-600' },
+      starter: { label: 'Starter', color: 'bg-blue-100 text-blue-700' },
+      pro: { label: 'Pro', color: 'bg-purple-100 text-purple-700' },
+      business: { label: 'Business', color: 'bg-amber-100 text-amber-700' },
+    }
+    return badges[plan] || badges.free
+  }
+
+  const planBadge = getPlanBadge(userPlan)
 
   // ===== LOADING STATE =====
   if (!authChecked || farmLoading || loading) {
@@ -430,21 +488,27 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 px-4 sm:px-0">
 
-      {/* Header with greeting */}
+      {/* Header with plan badge - Matches screenshot */}
       <div>
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-[#1B4332]">Farm Dashboard</h1>
           <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
             {currentFarm.name}
           </Badge>
+          <Badge className={cn(
+            "text-xs font-medium",
+            planBadge.color
+          )}>
+            {planBadge.label}
+          </Badge>
         </div>
-        <p className="text-gray-500 text-sm mt-1">
-          {greeting || 'Welcome to RootBase'} 🎉
+        <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
+          <span>{greeting || 'Good morning'} 👋</span>
         </p>
         <p className="text-sm text-gray-400">Here's what's happening on your farm today.</p>
       </div>
 
-      {/* KPI Cards - 4 columns */}
+      {/* KPI Cards - With trend percentages */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="shadow-sm border-0 bg-white hover:shadow-md transition-shadow">
           <CardContent className="pt-4 pb-4">
@@ -455,7 +519,9 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="text-2xl font-bold text-green-600">R{income.toFixed(2)}</p>
-            <p className="text-xs text-gray-400 mt-1">vs last month</p>
+            <p className="text-xs text-gray-400 mt-1">
+              This month {incomeGrowth >= 0 ? '↑' : '↓'} {Math.abs(incomeGrowth).toFixed(1)}% vs last month
+            </p>
           </CardContent>
         </Card>
 
@@ -468,7 +534,9 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className="text-2xl font-bold text-red-500">R{expenses.toFixed(2)}</p>
-            <p className="text-xs text-gray-400 mt-1">vs last month</p>
+            <p className="text-xs text-gray-400 mt-1">
+              This month {expenseGrowth >= 0 ? '↑' : '↓'} {Math.abs(expenseGrowth).toFixed(1)}% vs last month
+            </p>
           </CardContent>
         </Card>
 
@@ -483,7 +551,9 @@ export default function DashboardPage() {
             <p className={`text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
               {isProfit ? '+' : '-'}R{Math.abs(net).toFixed(2)}
             </p>
-            <p className="text-xs text-gray-400 mt-1">vs last month</p>
+            <p className="text-xs text-gray-400 mt-1">
+              This month {netGrowth >= 0 ? '↑' : '↓'} {Math.abs(netGrowth).toFixed(1)}% vs last month
+            </p>
           </CardContent>
         </Card>
 
@@ -515,6 +585,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">{openTasks} tasks pending</span>
               <Link href="/tasks" className="text-sm text-[#2D6A4F] hover:underline">View all →</Link>
             </div>
           </div>
@@ -527,7 +598,7 @@ export default function DashboardPage() {
         <Card className="shadow-sm border-0 bg-white hover:shadow-md transition-shadow">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              <BarChart2 size={16} className="text-[#2D6A4F]" />
+              <Activity size={16} className="text-[#2D6A4F]" />
               Income vs Expenses
             </CardTitle>
           </CardHeader>
@@ -553,7 +624,7 @@ export default function DashboardPage() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
               <PiggyBank size={16} className="text-red-500" />
-              Expenses Breakdown
+              Expense Breakdown
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -632,7 +703,12 @@ export default function DashboardPage() {
                         <Icon size={16} className={t.type === 'income' ? 'text-green-600' : 'text-red-500'} />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">{t.description || t.category}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-800">{t.description || t.category}</p>
+                          <Badge className={`text-xs ${t.type === 'income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {t.type === 'income' ? 'Income' : 'Expense'}
+                          </Badge>
+                        </div>
                         <p className="text-xs text-gray-400">{t.date}</p>
                       </div>
                     </div>
@@ -698,7 +774,7 @@ export default function DashboardPage() {
                   )
                 })}
                 <Link href="/tasks" className="block text-center text-xs text-[#2D6A4F] hover:underline pt-2">
-                  View all tasks →
+                  Add new task →
                 </Link>
               </div>
             )}
@@ -780,13 +856,6 @@ export default function DashboardPage() {
             </Link>
           ))}
         </div>
-      </div>
-
-      {/* Help Center Link */}
-      <div className="text-center py-2">
-        <Link href="/support" className="text-sm text-[#2D6A4F] hover:underline">
-          Need help? Visit our help center →
-        </Link>
       </div>
 
     </div>
