@@ -6,7 +6,22 @@ import { useFarm } from '@/lib/farm-context'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Bell, LogOut, User, Leaf, ChevronDown, Settings, HelpCircle, Home } from 'lucide-react'
+import { 
+  Bell, 
+  LogOut, 
+  User, 
+  Leaf, 
+  ChevronDown, 
+  Settings, 
+  HelpCircle, 
+  Home,
+  Shield,
+  Sparkles,
+  Clock,
+  Package,
+  FileText,
+  CloudRain
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/Logo'
 import { getSeasonalGreeting, cn } from '@/lib/utils'
@@ -27,46 +42,138 @@ export default function TopBar() {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [userPlan, setUserPlan] = useState('free')
   const [notificationCount, setNotificationCount] = useState(0)
+  const [notificationDetails, setNotificationDetails] = useState<{
+    overdue: number
+    lowStock: number
+    expiringDocs: number
+    alerts: number
+  }>({ overdue: 0, lowStock: 0, expiringDocs: 0, alerts: 0 })
   const [greeting, setGreeting] = useState('Good morning')
   const [greetingEmoji, setGreetingEmoji] = useState('🌱')
+  const [isLoading, setIsLoading] = useState(true)
   const { currentFarm, farms, switchFarm } = useFarm()
 
-  useEffect(() => {
-    async function fetchUserData() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+  // ===== FETCH USER DATA =====
+  async function fetchUserData() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
 
-      const displayName = user.user_metadata?.full_name?.trim() || user.email?.split('@')[0] || 'Farmer'
-      const seasonal = getSeasonalGreeting(displayName)
+    const displayName = user.user_metadata?.full_name?.trim() || user.email?.split('@')[0] || 'Farmer'
+    const seasonal = getSeasonalGreeting(displayName)
 
-      setUserEmail(user.email || '')
-      setUserName(displayName)
-      setGreeting(seasonal.greeting)
-      setGreetingEmoji(seasonal.emoji)
+    setUserEmail(user.email || '')
+    setUserName(displayName)
+    setGreeting(seasonal.greeting)
+    setGreetingEmoji(seasonal.emoji)
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('avatar_url, plan')
-        .eq('user_id', user.id)
-        .maybeSingle()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('avatar_url, plan')
+      .eq('user_id', user.id)
+      .maybeSingle()
 
-      if (profile) {
-        setAvatarUrl(profile.avatar_url || '')
-        setUserPlan(profile.plan || 'free')
-      } else {
-        setUserPlan('free')
-      }
+    if (profile) {
+      setAvatarUrl(profile.avatar_url || '')
+      setUserPlan(profile.plan || 'free')
+    } else {
+      setUserPlan('free')
+    }
+  }
+
+  // ===== FETCH REAL NOTIFICATIONS =====
+  async function fetchNotificationCount() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || !currentFarm) {
+      setIsLoading(false)
+      return
     }
 
-    fetchUserData()
-    setNotificationCount(3)
-  }, [supabase])
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      
+      // Fetch all counts in parallel
+      const [
+        { count: overdueCount },
+        { count: lowStockCount },
+        { count: docCount },
+        { count: alertCount }
+      ] = await Promise.all([
+        // Overdue tasks
+        supabase
+          .from('tasks')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
+          .eq('status', 'todo')
+          .lt('due_date', today),
+        
+        // Low stock items
+        supabase
+          .from('inventory_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
+          .gt('reorder_level', 0)
+          .lte('current_quantity', 'reorder_level'),
+        
+        // Expiring documents (next 30 days)
+        supabase
+          .from('documents')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
+          .gte('expiry_date', today)
+          .lte('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
+        
+        // Unread weather alerts
+        supabase
+          .from('weather_alerts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('farm_id', currentFarm.id)
+          .eq('is_read', false)
+      ])
 
+      const details = {
+        overdue: overdueCount || 0,
+        lowStock: lowStockCount || 0,
+        expiringDocs: docCount || 0,
+        alerts: alertCount || 0
+      }
+      
+      setNotificationDetails(details)
+      const total = details.overdue + details.lowStock + details.expiringDocs + details.alerts
+      setNotificationCount(total)
+    } catch (err) {
+      console.error('Notification fetch error:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // ===== INITIAL LOAD =====
+  useEffect(() => {
+    fetchUserData()
+  }, [])
+
+  // ===== FETCH NOTIFICATIONS ON FARM CHANGE =====
+  useEffect(() => {
+    if (currentFarm) {
+      fetchNotificationCount()
+      
+      // Refresh notifications every 5 minutes
+      const interval = setInterval(fetchNotificationCount, 5 * 60 * 1000)
+      return () => clearInterval(interval)
+    }
+  }, [currentFarm])
+
+  // ===== HANDLE SIGN OUT =====
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/')
   }
 
+  // ===== GET INITIALS =====
   function getInitials(name: string) {
     if (!name) return 'F'
     const parts = name.split(' ')
@@ -74,14 +181,41 @@ export default function TopBar() {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
   }
 
+  // ===== GET PLAN BADGE =====
   function getPlanBadge(plan: string) {
-    const badges: Record<string, { label: string; color: string }> = {
-      free: { label: 'Free', color: 'bg-gray-100 text-gray-600' },
-      starter: { label: 'Starter', color: 'bg-blue-100 text-blue-700' },
-      pro: { label: 'Pro', color: 'bg-purple-100 text-purple-700' },
-      business: { label: 'Business', color: 'bg-amber-100 text-amber-700' },
+    const badges: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+      free: { 
+        label: 'Free', 
+        color: 'bg-gray-100 text-gray-600',
+        icon: null
+      },
+      starter: { 
+        label: 'Starter', 
+        color: 'bg-blue-100 text-blue-700',
+        icon: <Sparkles size={10} className="mr-1" />
+      },
+      pro: { 
+        label: 'Pro', 
+        color: 'bg-purple-100 text-purple-700',
+        icon: <Shield size={10} className="mr-1" />
+      },
+      business: { 
+        label: 'Business', 
+        color: 'bg-amber-100 text-amber-700',
+        icon: <Shield size={10} className="mr-1" />
+      },
     }
     return badges[plan] || badges.free
+  }
+
+  // ===== GET NOTIFICATION TOOLTIP =====
+  function getNotificationTooltip() {
+    const parts = []
+    if (notificationDetails.overdue > 0) parts.push(`${notificationDetails.overdue} overdue tasks`)
+    if (notificationDetails.lowStock > 0) parts.push(`${notificationDetails.lowStock} low stock items`)
+    if (notificationDetails.expiringDocs > 0) parts.push(`${notificationDetails.expiringDocs} expiring documents`)
+    if (notificationDetails.alerts > 0) parts.push(`${notificationDetails.alerts} weather alerts`)
+    return parts.length > 0 ? parts.join(', ') : 'No notifications'
   }
 
   const planBadge = getPlanBadge(userPlan)
@@ -180,9 +314,10 @@ export default function TopBar() {
       <div className="flex items-center gap-1">
         {/* Plan Badge */}
         <span className={cn(
-          "hidden sm:inline-block text-xs px-2 py-0.5 rounded-full font-medium",
+          "hidden sm:inline-flex items-center text-xs px-2.5 py-0.5 rounded-full font-medium",
           planBadge.color
         )}>
+          {planBadge.icon}
           {planBadge.label}
         </span>
 
@@ -191,12 +326,12 @@ export default function TopBar() {
           variant="ghost"
           size="icon"
           onClick={() => router.push('/notifications')}
-          title="Notifications"
+          title={getNotificationTooltip()}
           className="relative hover:bg-gray-100 rounded-full w-9 h-9"
         >
           <Bell size={18} className="text-gray-500" />
           {notificationCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-sm">
               {notificationCount > 9 ? '9+' : notificationCount}
             </span>
           )}
@@ -229,8 +364,54 @@ export default function TopBar() {
             <DropdownMenuLabel className="font-normal px-3 py-2">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Signed in as</p>
               <p className="text-sm font-medium truncate text-gray-800">{userEmail || 'farmer@example.com'}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <span className={cn(
+                  "inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-medium",
+                  planBadge.color
+                )}>
+                  {planBadge.icon}
+                  {planBadge.label}
+                </span>
+              </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="my-1" />
+            
+            {/* Notification summary in dropdown */}
+            {notificationCount > 0 && (
+              <>
+                <div className="px-3 py-1.5">
+                  <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Notifications</p>
+                  <div className="mt-1 space-y-0.5">
+                    {notificationDetails.overdue > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-red-600">
+                        <Clock size={12} />
+                        <span>{notificationDetails.overdue} overdue task{notificationDetails.overdue > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    {notificationDetails.lowStock > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-amber-600">
+                        <Package size={12} />
+                        <span>{notificationDetails.lowStock} low stock item{notificationDetails.lowStock > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    {notificationDetails.expiringDocs > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-blue-600">
+                        <FileText size={12} />
+                        <span>{notificationDetails.expiringDocs} expiring document{notificationDetails.expiringDocs > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                    {notificationDetails.alerts > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-purple-600">
+                        <CloudRain size={12} />
+                        <span>{notificationDetails.alerts} weather alert{notificationDetails.alerts > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <DropdownMenuSeparator className="my-1" />
+              </>
+            )}
+
             <DropdownMenuItem 
               onClick={() => router.push('/dashboard')}
               className="cursor-pointer rounded-lg hover:bg-gray-50 py-2"

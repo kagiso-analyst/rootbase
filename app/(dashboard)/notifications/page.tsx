@@ -3,7 +3,11 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { Bell, AlertTriangle, CheckSquare, Package, Wrench, RefreshCw, Sparkles } from 'lucide-react'
+import { 
+  Bell, AlertTriangle, CheckSquare, Package, Wrench, 
+  RefreshCw, Sparkles, CircleDot, Clock, FileText,
+  TrendingUp, TrendingDown, Leaf, Truck, User
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -314,7 +318,7 @@ export default function NotificationsPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Notifications</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              🔔 {currentFarm.name}
+              {currentFarm.name}
             </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
@@ -337,7 +341,10 @@ export default function NotificationsPage() {
       {error && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
-            <p className="text-sm text-red-700">❌ {error}</p>
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={16} className="text-red-500" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
             <Button 
               variant="ghost" 
               size="sm"
@@ -356,11 +363,11 @@ export default function NotificationsPage() {
             <div className="w-20 h-20 rounded-full bg-[#D8F3DC] flex items-center justify-center mb-4">
               <Bell size={36} className="text-[#2D6A4F]" />
             </div>
-            <p className="text-lg font-semibold text-[#1B4332]">All clear! 🎉</p>
+            <p className="text-lg font-semibold text-[#1B4332]">All clear!</p>
             <p className="text-sm text-gray-500 mt-1">No alerts right now. Your farm is on track.</p>
             <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
-              <span className="w-2 h-2 rounded-full bg-green-400"></span>
-              Everything looks good
+              <CircleDot size={12} className="text-green-400" />
+              <span>Everything looks good</span>
             </div>
           </CardContent>
         </Card>
@@ -404,7 +411,7 @@ export default function NotificationsPage() {
                       </div>
                       <p className="text-xs text-gray-500">{notif.description}</p>
                       <div className="mt-1.5 flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${styles.dot}`}></span>
+                        <CircleDot size={10} className={styles.dot} />
                         <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
                           {notif.type.replace('_', ' ')}
                         </span>
@@ -424,13 +431,13 @@ export default function NotificationsPage() {
         </CardHeader>
         <CardContent className="space-y-1.5">
           {[
-            { icon: '🔴', text: 'Overdue tasks — tasks past their due date' },
-            { icon: '📦', text: 'Low stock — inventory at or below reorder level' },
-            { icon: '🔧', text: 'Service due — equipment service within 14 days' },
-            { icon: '📄', text: 'Document expiry — documents expiring within 30 days' },
+            { icon: <AlertTriangle size={12} className="text-red-500" />, text: 'Overdue tasks — tasks past their due date' },
+            { icon: <Package size={12} className="text-orange-500" />, text: 'Low stock — inventory at or below reorder level' },
+            { icon: <Wrench size={12} className="text-blue-500" />, text: 'Service due — equipment service within 14 days' },
+            { icon: <FileText size={12} className="text-purple-500" />, text: 'Document expiry — documents expiring within 30 days' },
           ].map(({ icon, text }) => (
             <div key={text} className="flex items-center gap-2 text-xs text-[#2D6A4F] py-0.5">
-              <span className="text-base">{icon}</span>
+              {icon}
               <span>{text}</span>
             </div>
           ))}

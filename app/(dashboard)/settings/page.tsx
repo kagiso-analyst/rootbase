@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Save, User, Bell, Shield, Palette, Import, RefreshCw, CheckCircle, AlertCircle } from 'lucide-react'
+import { Save, User, Bell, Shield, Palette, Import, RefreshCw, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
+import { usePlanRestrictions } from '@/lib/use-plan-restrictions'
 
 export default function SettingsPage() {
   // ===== AUTH STATE =====
@@ -29,6 +30,9 @@ export default function SettingsPage() {
 
   // ===== FARM CONTEXT =====
   const { currentFarm, refreshFarms, loading: farmLoading } = useFarm()
+
+  // ===== PLAN RESTRICTIONS =====
+  const { plan, hasFeature, loading: planLoading } = usePlanRestrictions()
 
   // ===== DATA STATE =====
   const [fullName, setFullName] = useState('')
@@ -44,6 +48,21 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // ===== PASSWORD STATE =====
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [passwordMessage, setPasswordMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  // ===== DELETE ACCOUNT STATE =====
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -79,7 +98,6 @@ export default function SettingsPage() {
         .eq('user_id', user.id)
         .single()
 
-      // Only log errors that aren't "table doesn't exist" or "no rows"
       if (profileError && profileError.code !== 'PGRST116' && profileError.code !== '42P01') {
         console.error('Profile fetch error:', profileError)
       }
@@ -89,7 +107,6 @@ export default function SettingsPage() {
         setEmail(profile.email || '')
         setPhone(profile.phone || '')
       } else {
-        // Fallback to user metadata if profile doesn't exist
         setFullName(user.user_metadata?.full_name || '')
         setEmail(user.email || '')
       }
@@ -117,38 +134,112 @@ export default function SettingsPage() {
   }, [authChecked, user, loadData])
 
   // ===== SAVE PROFILE =====
-  async function handleProfileSave() {
-    setLoading(true)
-    setSaveMessage(null)
-    setError(null)
+  // ===== SAVE PROFILE =====
+async function handleProfileSave() {
+  setLoading(true)
+  setSaveMessage(null)
+  setError(null)
+  
+  try {
+    if (!user) {
+      setSaveMessage({ type: 'error', text: 'You must be logged in to save settings' })
+      setLoading(false)
+      return
+    }
+
+    // Update email if changed
+    if (email !== user.email) {
+      const { error: emailError } = await supabase.auth.updateUser({
+        email: email
+      })
+      if (emailError) throw new Error('Failed to update email: ' + emailError.message)
+    }
+
+    // Update profile
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        user_id: user.id,
+        full_name: fullName,
+        email: email,
+        phone: phone,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' })
+
+    if (error) throw new Error('Failed to save profile: ' + error.message)
+
+    setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
     
+    // Refresh user data
+    const { data: { user: updatedUser } } = await supabase.auth.getUser()
+    if (updatedUser) setUser(updatedUser)
+    
+    // 🔥 FIX: Dispatch event for TopBar to update
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('profile-updated'))
+    }
+    
+  } catch (err) {
+    console.error('Profile save error:', err)
+    setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save profile' })
+  } finally {
+    setLoading(false)
+    setTimeout(() => setSaveMessage(null), 3000)
+  }
+}
+
+  // ===== UPDATE PASSWORD =====
+  async function handleUpdatePassword() {
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'Please fill in all password fields' })
+      return
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordMessage({ type: 'error', text: 'New password must be at least 8 characters' })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordMessage({ type: 'error', text: 'New passwords do not match' })
+      return
+    }
+
+    setPasswordLoading(true)
+    setPasswordMessage(null)
+
     try {
-      if (!user) {
-        setSaveMessage({ type: 'error', text: 'You must be logged in to save settings' })
-        setLoading(false)
+      // First verify current password by attempting to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      })
+
+      if (signInError) {
+        setPasswordMessage({ type: 'error', text: 'Current password is incorrect' })
+        setPasswordLoading(false)
         return
       }
 
-      const { error } = await supabase
-        .from('profiles')
-        .upsert({
-          user_id: user.id,
-          full_name: fullName,
-          email: email,
-          phone: phone,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' })
+      // Update password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
 
-      if (error) throw new Error('Failed to save profile: ' + error.message)
+      if (error) throw new Error('Failed to update password: ' + error.message)
 
-      setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
+      setPasswordMessage({ type: 'success', text: 'Password updated successfully!' })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
       
     } catch (err) {
-      console.error('Profile save error:', err)
-      setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save profile' })
+      console.error('Password update error:', err)
+      setPasswordMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to update password' })
     } finally {
-      setLoading(false)
-      setTimeout(() => setSaveMessage(null), 3000)
+      setPasswordLoading(false)
+      setTimeout(() => setPasswordMessage(null), 5000)
     }
   }
 
@@ -177,7 +268,7 @@ export default function SettingsPage() {
         .select('id')
         .eq('user_id', user.id)
         .eq('name', farmName)
-        .single()
+        .maybeSingle()
 
       let error
       if (existing) {
@@ -223,15 +314,62 @@ export default function SettingsPage() {
     }
   }
 
+  // ===== DELETE ACCOUNT =====
+  async function handleDeleteAccount() {
+    if (deleteConfirmText !== 'DELETE') {
+      setPasswordMessage({ type: 'error', text: 'Please type DELETE to confirm' })
+      return
+    }
+
+    setDeleteLoading(true)
+    setPasswordMessage(null)
+
+    try {
+      // Delete user data from all tables
+      const tables = ['profiles', 'farms', 'income', 'expenses', 'crops', 'livestock', 'equipment', 'journal_entries']
+      
+      for (const table of tables) {
+        const { error } = await supabase
+          .from(table)
+          .delete()
+          .eq('user_id', user.id)
+        
+        if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+          console.error(`Error deleting from ${table}:`, error)
+        }
+      }
+
+      // Delete the user account
+      const { error } = await supabase.auth.admin.deleteUser(user.id)
+      
+      if (error) {
+        // If admin delete fails, try to sign out
+        await supabase.auth.signOut()
+        window.location.href = '/login?deleted=true'
+        return
+      }
+
+      await supabase.auth.signOut()
+      window.location.href = '/login?deleted=true'
+      
+    } catch (err) {
+      console.error('Delete account error:', err)
+      setPasswordMessage({ type: 'error', text: 'Failed to delete account. Please contact support.' })
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   // ===== LOADING STATE =====
-  if (!authChecked || farmLoading || loadingProfile) {
+  if (!authChecked || farmLoading || loadingProfile || planLoading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
           <p className="text-sm text-gray-400">
             {!authChecked ? 'Checking authentication...' : 
-             farmLoading ? 'Loading farms...' : 'Loading settings...'}
+             farmLoading ? 'Loading farms...' : 
+             planLoading ? 'Loading plan...' : 'Loading settings...'}
           </p>
         </div>
       </div>
@@ -258,13 +396,16 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 px-4 sm:px-0">
       <div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-[#1B4332]">Settings</h1>
           {currentFarm && (
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
               {currentFarm.name}
             </Badge>
           )}
+          <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium capitalize">
+            {plan} Plan
+          </Badge>
         </div>
         <p className="text-gray-500 text-sm mt-1">
           Manage your account and farm preferences
@@ -306,6 +447,7 @@ export default function SettingsPage() {
           </TabsTrigger>
         </TabsList>
 
+        {/* Profile Tab */}
         <TabsContent value="profile" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
@@ -354,6 +496,8 @@ export default function SettingsPage() {
                       <SelectItem value="af">Afrikaans</SelectItem>
                       <SelectItem value="zu">Zulu</SelectItem>
                       <SelectItem value="xh">Xhosa</SelectItem>
+                      <SelectItem value="st">Sesotho</SelectItem>
+                      <SelectItem value="ts">Tsonga</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -369,6 +513,7 @@ export default function SettingsPage() {
                       <SelectItem value="KES">KES — Kenyan Shilling</SelectItem>
                       <SelectItem value="NGN">NGN — Nigerian Naira</SelectItem>
                       <SelectItem value="ZWL">ZWL — Zimbabwean Dollar</SelectItem>
+                      <SelectItem value="BWP">BWP — Botswana Pula</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -388,6 +533,7 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Farm Tab */}
         <TabsContent value="farm" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
@@ -438,6 +584,7 @@ export default function SettingsPage() {
                       <SelectItem value="aquaculture">Aquaculture</SelectItem>
                       <SelectItem value="poultry">Poultry</SelectItem>
                       <SelectItem value="dairy">Dairy</SelectItem>
+                      <SelectItem value="vineyard">Vineyard</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -467,6 +614,7 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Import Tab */}
         <TabsContent value="import" className="mt-4 space-y-4">
           <Card className="shadow-sm border-orange-200 bg-gradient-to-br from-orange-50 to-white">
             <CardContent className="py-4 px-5">
@@ -568,6 +716,7 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Notifications Tab */}
         <TabsContent value="notifications" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
@@ -580,6 +729,7 @@ export default function SettingsPage() {
                 { label: 'Equipment service reminders', desc: 'Alert when service is due', default: true },
                 { label: 'Document expiry warnings', desc: 'Alert 30 days before documents expire', default: true },
                 { label: 'Weekly farm summary', desc: 'Receive a weekly summary of your farm activity', default: false },
+                { label: 'Weather alerts', desc: 'Severe weather warnings for your area', default: hasFeature('weatherAlerts') },
               ].map(({ label, desc, default: defaultChecked }) => (
                 <div key={label} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 px-2 rounded-lg transition-colors">
                   <div>
@@ -587,8 +737,15 @@ export default function SettingsPage() {
                     <p className="text-xs text-gray-400">{desc}</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" defaultChecked={defaultChecked} />
-                    <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[#2D6A4F] peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all shadow-inner" />
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      defaultChecked={defaultChecked}
+                      disabled={label.includes('Weather') && !hasFeature('weatherAlerts')}
+                    />
+                    <div className={`w-10 h-5 bg-gray-200 rounded-full peer peer-checked:bg-[#2D6A4F] peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all shadow-inner ${
+                      label.includes('Weather') && !hasFeature('weatherAlerts') ? 'opacity-50 cursor-not-allowed' : ''
+                    }`} />
                   </label>
                 </div>
               ))}
@@ -596,45 +753,196 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* Account Tab - WITH WORKING PASSWORD UPDATE */}
         <TabsContent value="account" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
               <CardTitle className="text-base font-semibold text-gray-700">Account & Security</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
+              {/* Subscription info */}
               <div className="p-4 bg-gradient-to-br from-[#D8F3DC] to-white rounded-xl border border-[#52B788]/20">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-[#1B4332]">Subscription: Free Plan</p>
+                    <p className="text-sm font-medium text-[#1B4332] capitalize">Plan: {plan} Plan</p>
                     <p className="text-xs text-[#2D6A4F] mt-1 max-w-md">
-                      Upgrade to Starter (R199/month) for unlimited fields and financial reports
+                      {plan === 'free' && 'Upgrade to Starter (R199/month) for unlimited fields and financial reports'}
+                      {plan === 'starter' && 'Upgrade to Pro (R399/month) for AI Assistant and advanced analytics'}
+                      {plan === 'pro' && 'You have access to all features. Consider Business for team collaboration.'}
+                      {plan === 'business' && 'You have access to all features.'}
                     </p>
                   </div>
                   <Link href="/subscription">
                     <Button className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white text-xs h-8 shadow-sm">
-                      View Plans & Upgrade
+                      {plan === 'free' ? 'View Plans & Upgrade' : 'Manage Subscription'}
                     </Button>
                   </Link>
                 </div>
               </div>
 
+              {/* Password Change Section - WORKING */}
               <div className="space-y-3 pt-2">
                 <p className="text-sm font-medium text-gray-700">Change Password</p>
+                
+                {/* Password message */}
+                {passwordMessage && (
+                  <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
+                    passwordMessage.type === 'success' 
+                      ? 'bg-green-50 text-green-700 border border-green-200' 
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {passwordMessage.type === 'success' ? (
+                      <CheckCircle size={16} className="flex-shrink-0" />
+                    ) : (
+                      <AlertCircle size={16} className="flex-shrink-0" />
+                    )}
+                    {passwordMessage.text}
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Input type="password" placeholder="Current password" className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]" />
-                  <Input type="password" placeholder="New password" className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]" />
-                  <Input type="password" placeholder="Confirm new password" className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]" />
+                  {/* Current Password */}
+                  <div className="relative">
+                    <Input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      placeholder="Current password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F] pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrentPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* New Password */}
+                  <div className="relative">
+                    <Input
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="New password (min 8 characters)"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F] pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F] pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Password strength indicator */}
+                  {newPassword && newPassword.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${
+                            newPassword.length < 6 ? 'bg-red-500' :
+                            newPassword.length < 8 ? 'bg-yellow-500' :
+                            'bg-green-500'
+                          }`}
+                          style={{ width: `${Math.min((newPassword.length / 12) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-400">
+                        {newPassword.length < 6 ? 'Weak' :
+                         newPassword.length < 8 ? 'Fair' :
+                         'Strong'}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <Button variant="outline" className="border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]">
-                  Update Password
+
+                <Button
+                  className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white shadow-sm"
+                  onClick={handleUpdatePassword}
+                  disabled={passwordLoading || !currentPassword || !newPassword || !confirmPassword || newPassword.length < 8}
+                >
+                  {passwordLoading ? (
+                    <><RefreshCw size={14} className="mr-2 animate-spin" /> Updating...</>
+                  ) : (
+                    'Update Password'
+                  )}
                 </Button>
               </div>
 
+              {/* Danger Zone */}
               <div className="pt-4 border-t border-gray-200">
                 <p className="text-sm font-medium text-red-500 mb-2">Danger Zone</p>
-                <Button variant="outline" className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 text-sm">
-                  Delete Account
-                </Button>
+                
+                {!showDeleteConfirm ? (
+                  <Button 
+                    variant="outline" 
+                    className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 text-sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    Delete Account
+                  </Button>
+                ) : (
+                  <div className="space-y-3 p-4 bg-red-50 rounded-xl border border-red-200">
+                    <p className="text-sm font-semibold text-red-700">Are you sure you want to delete your account?</p>
+                    <p className="text-xs text-red-600">
+                      This action <strong>cannot be undone</strong>. All your data will be permanently deleted.
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-xs text-red-600">Type "DELETE" to confirm</Label>
+                      <Input
+                        placeholder='Type "DELETE"'
+                        value={deleteConfirmText}
+                        onChange={(e) => setDeleteConfirmText(e.target.value)}
+                        className="border-red-300 focus:border-red-500 focus:ring-red-500 text-sm"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        className="bg-red-600 hover:bg-red-700 text-white text-sm"
+                        onClick={handleDeleteAccount}
+                        disabled={deleteLoading || deleteConfirmText !== 'DELETE'}
+                      >
+                        {deleteLoading ? (
+                          <><RefreshCw size={14} className="mr-2 animate-spin" /> Deleting...</>
+                        ) : (
+                          'Permanently Delete Account'
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="border-gray-300 text-gray-600 hover:bg-gray-50 text-sm"
+                        onClick={() => {
+                          setShowDeleteConfirm(false)
+                          setDeleteConfirmText('')
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                
                 <p className="text-xs text-gray-400 mt-2">
                   This action cannot be undone. All your data will be permanently deleted.
                 </p>
