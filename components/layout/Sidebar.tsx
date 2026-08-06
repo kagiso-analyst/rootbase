@@ -89,23 +89,28 @@ const navigation: NavSection[] = [
     ],
   },
   {
-    title: "OPERATIONS",
-    items: [
-      {
-        name: "Finances",
-        href: "/finances",
-        icon: Wallet,
-      },
-      {
-        name: "Budget",
-        href: "/finances/budget",
-        icon: Target,
-      },
-      {
-        name: "Crops",
-        href: "/crops",
-        icon: Sprout,
-      },
+  title: "OPERATIONS",
+  items: [
+    {
+      name: "Finances",
+      href: "/finances",
+      icon: Wallet,
+    },
+    {
+      name: "Budget",
+      href: "/finances/budget",
+      icon: Target,
+    },
+    {
+      name: "Balance Sheet",     // ← ADD THIS
+      href: "/finances/balance-sheet",
+      icon: LayoutDashboard,
+    },
+    {
+      name: "Crops",
+      href: "/crops",
+      icon: Sprout,
+    },
       {
         name: "Livestock",
         href: "/livestock",

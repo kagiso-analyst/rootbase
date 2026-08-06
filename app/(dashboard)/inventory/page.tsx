@@ -345,7 +345,7 @@ export default function InventoryPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Inventory</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              📦 {currentFarm.name}
+              {currentFarm.name}
             </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1">
@@ -556,51 +556,59 @@ export default function InventoryPage() {
                 const lowStock = isLowStock(item)
                 const expiring = isExpiringSoon(item)
                 return (
-                  <div key={item.id} className="flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors group">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
-                        ${lowStock ? 'bg-orange-50' : expiring ? 'bg-red-50' : 'bg-[#D8F3DC]'}`}>
-                        {lowStock
-                          ? <AlertTriangle size={18} className="text-orange-400" />
-                          : expiring
-                            ? <AlertTriangle size={18} className="text-red-400" />
-                            : <Package size={18} className="text-[#2D6A4F]" />
-                        }
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{item.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                          <Badge className="text-xs bg-gray-100 text-gray-600 font-medium">{item.category}</Badge>
-                          {item.storage_location && (
-                            <span className="text-xs text-gray-400">📍 {item.storage_location}</span>
-                          )}
-                          {item.expiry_date && (
-                            <span className={`text-xs ${expiring ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                              {expiring ? '⚠️ ' : ''}Exp: {item.expiry_date}
-                            </span>
-                          )}
+                  <div key={item.id} className="relative group">
+                    <Link href={`/inventory/${item.id}`} className="block">
+                      <div className="flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                            ${lowStock ? 'bg-orange-50' : expiring ? 'bg-red-50' : 'bg-[#D8F3DC]'}`}>
+                            {lowStock
+                              ? <AlertTriangle size={18} className="text-orange-400" />
+                              : expiring
+                                ? <AlertTriangle size={18} className="text-red-400" />
+                                : <Package size={18} className="text-[#2D6A4F]" />
+                            }
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">{item.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <Badge className="text-xs bg-gray-100 text-gray-600 font-medium">{item.category}</Badge>
+                              {item.storage_location && (
+                                <span className="text-xs text-gray-400">📍 {item.storage_location}</span>
+                              )}
+                              {item.expiry_date && (
+                                <span className={`text-xs ${expiring ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                                  {expiring ? '⚠️ ' : ''}Exp: {item.expiry_date}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <p className={`text-sm font-semibold ${lowStock ? 'text-orange-500' : expiring ? 'text-red-500' : 'text-gray-800'}`}>
+                              {item.current_quantity} {item.unit}
+                            </p>
+                            {item.unit_cost > 0 && (
+                              <p className="text-xs text-gray-400">R{(item.current_quantity * item.unit_cost).toFixed(0)} value</p>
+                            )}
+                            {item.reorder_level > 0 && (
+                              <p className="text-xs text-gray-400">Reorder at {item.reorder_level} {item.unit}</p>
+                            )}
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleDelete(item.id)
+                            }} 
+                            className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 size={15} />
+                          </button>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className={`text-sm font-semibold ${lowStock ? 'text-orange-500' : expiring ? 'text-red-500' : 'text-gray-800'}`}>
-                          {item.current_quantity} {item.unit}
-                        </p>
-                        {item.unit_cost > 0 && (
-                          <p className="text-xs text-gray-400">R{(item.current_quantity * item.unit_cost).toFixed(0)} value</p>
-                        )}
-                        {item.reorder_level > 0 && (
-                          <p className="text-xs text-gray-400">Reorder at {item.reorder_level} {item.unit}</p>
-                        )}
-                      </div>
-                      <button 
-                        onClick={() => handleDelete(item.id)} 
-                        className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                    </Link>
                   </div>
                 )
               })}
