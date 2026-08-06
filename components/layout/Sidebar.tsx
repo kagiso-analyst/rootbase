@@ -90,33 +90,33 @@ const navigation: NavSection[] = [
     ],
   },
   {
-  title: "OPERATIONS",
-  items: [
-    {
-      name: "Finances",
-      href: "/finances",
-      icon: Wallet,
-    },
-    {
-      name: "Budget",
-      href: "/finances/budget",
-      icon: Target,
-    },
-    {
-      name: "Balance Sheet",     // ← ADD THIS
-      href: "/finances/balance-sheet",
-      icon: LayoutDashboard,
-    },
-    {
-      name: "Recurring",
-      href: "/finances/recurring",
-      icon: Clock,
-    },
-    {
-      name: "Crops",
-      href: "/crops",
-      icon: Sprout,
-    },
+    title: "OPERATIONS",
+    items: [
+      {
+        name: "Finances",
+        href: "/finances",
+        icon: Wallet,
+      },
+      {
+        name: "Budget",
+        href: "/finances/budget",
+        icon: Target,
+      },
+      {
+        name: "Balance Sheet",     
+        href: "/finances/balance-sheet",
+        icon: LayoutDashboard,
+      },
+      {
+        name: "Recurring",
+        href: "/finances/recurring",
+        icon: Clock,
+      },
+      {
+        name: "Crops",
+        href: "/crops",
+        icon: Sprout,
+      },
       {
         name: "Livestock",
         href: "/livestock",
@@ -227,7 +227,13 @@ export default function Sidebar() {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#2D6A4F]/50">
-          <Logo size="md" variant="full" />
+          <div className="flex items-center gap-2.5">
+            <Leaf size={28} className="text-[#52B788]" />
+            <div>
+              <span className="text-xl font-bold text-white">RootBase</span>
+              <p className="text-xs text-[#52B788] font-medium">Farm Management</p>
+            </div>
+          </div>
           <button 
             onClick={() => setMobileOpen(false)}
             className="p-1.5 hover:bg-[#2D6A4F]/40 rounded-lg transition-colors"
@@ -297,9 +303,15 @@ export default function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-64 min-h-screen bg-gradient-to-b from-[#1B4332] to-[#143025] text-white shadow-xl border-r border-[#2D6A4F]/20 flex-shrink-0">
-        {/* Logo */}
+        {/* Logo with RootBase and Farm Management */}
         <div className="px-6 py-5 border-b border-[#2D6A4F]/50">
-          <Logo size="md" variant="full" />
+          <div className="flex items-center gap-2.5">
+            <Leaf size={28} className="text-[#52B788]" />
+            <div>
+              <span className="text-xl font-bold text-white">RootBase</span>
+              <p className="text-xs text-[#52B788] font-medium">Farm Management</p>
+            </div>
+          </div>
         </div>
 
         {/* Navigation */}
