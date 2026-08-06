@@ -597,6 +597,68 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {/* Weather Card */}
+{weather ? (
+  <Card className="shadow-sm bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] text-white overflow-hidden relative">
+    <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-white/5"></div>
+    <div className="absolute -bottom-20 -left-20 w-64 h-64 rounded-full bg-white/5"></div>
+    <CardContent className="py-4 relative z-10">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div>
+            <p className="text-4xl font-bold">{weather.temp}°C</p>
+            <p className="text-[#D8F3DC] text-sm capitalize mt-0.5">{weather.description}</p>
+          </div>
+          <div className="text-4xl">{getWeatherEmoji(weather.description)}</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm w-full md:w-auto">
+          <div className="text-center bg-white/10 rounded-lg px-3 py-2">
+            <p className="text-[#D8F3DC] text-xs">Humidity</p>
+            <p className="font-semibold">{weather.humidity}%</p>
+          </div>
+          <div className="text-center bg-white/10 rounded-lg px-3 py-2">
+            <p className="text-[#D8F3DC] text-xs">Wind</p>
+            <p className="font-semibold">{weather.windSpeed} km/h</p>
+          </div>
+          <div className="text-center bg-white/10 rounded-lg px-3 py-2">
+            <p className="text-[#D8F3DC] text-xs">Feels like</p>
+            <p className="font-semibold">{weather.feelsLike}°C</p>
+          </div>
+          <div className="text-center bg-white/10 rounded-lg px-3 py-2">
+            <p className="text-[#D8F3DC] text-xs">Location</p>
+            <p className="font-semibold">{weather.city}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {weather.forecast?.slice(1, 4).map((day) => (
+            <div key={day.date} className="text-center bg-white/10 rounded-lg px-3 py-2">
+              <p className="text-xs text-[#D8F3DC]">{day.dayName}</p>
+              <p className="text-lg my-1">{getWeatherEmoji(day.description)}</p>
+              <p className="text-xs font-medium">{day.tempMax}°/{day.tempMin}°</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+) : (
+  /* Fallback weather card while loading */
+  <Card className="shadow-sm bg-gradient-to-r from-[#1B4332] to-[#2D6A4F] text-white overflow-hidden relative opacity-70">
+    <CardContent className="py-4">
+      <div className="flex items-center justify-center gap-4">
+        <div className="animate-pulse flex items-center gap-4">
+          <div className="w-16 h-16 bg-white/10 rounded-full"></div>
+          <div className="space-y-2">
+            <div className="h-8 w-24 bg-white/10 rounded"></div>
+            <div className="h-4 w-32 bg-white/10 rounded"></div>
+          </div>
+        </div>
+        <div className="text-sm text-[#D8F3DC]/60">Loading weather...</div>
+      </div>
+    </CardContent>
+  </Card>
+)}
+
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Income vs Expenses Chart */}
