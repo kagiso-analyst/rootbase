@@ -8,8 +8,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Bell, LogOut, User, Leaf, ChevronDown, Settings, HelpCircle, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/ui/Logo' // 👈 ADD THIS
-import { getSeasonalGreeting, cn } from '@/lib/utils' // 👈 ADD THIS
+import { Logo } from '@/components/ui/Logo'
+import { getSeasonalGreeting, cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,

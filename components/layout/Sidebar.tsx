@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { useFarm } from '@/lib/farm-context'
 import { cn } from '@/lib/utils'
-import { Logo } from '@/components/ui/Logo' // 👈 ADD THIS
+import { Logo } from '@/components/ui/Logo'
 
 // ===== NAVIGATION ITEMS =====
 const navItems = [
@@ -152,7 +152,6 @@ export default function Sidebar() {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#2D6A4F]/50">
-          {/* 👇 UPDATED: Use Logo component */}
           <Logo size="md" />
           <button 
             onClick={() => setMobileOpen(false)}
@@ -173,7 +172,6 @@ export default function Sidebar() {
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 min-h-screen bg-gradient-to-b from-[#1B4332] to-[#143025] text-white shadow-xl border-r border-[#2D6A4F]/20">
-        {/* 👇 UPDATED: Use Logo component */}
         <div className="px-6 py-5 border-b border-[#2D6A4F]/50">
           <Logo size="md" />
           <p className="text-xs text-[#52B788] mt-1 font-medium">
