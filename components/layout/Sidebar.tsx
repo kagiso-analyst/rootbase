@@ -25,7 +25,11 @@ import {
   HelpCircle,
   Menu,
   X,
-  Leaf
+  Leaf,
+  Target,
+  LifeBuoy,
+  CircleDot,
+  ChevronRight
 } from 'lucide-react'
 import { useFarm } from '@/lib/farm-context'
 import { cn } from '@/lib/utils'
@@ -91,6 +95,11 @@ const navigation: NavSection[] = [
         name: "Finances",
         href: "/finances",
         icon: Wallet,
+      },
+      {
+        name: "Budget",
+        href: "/finances/budget",
+        icon: Target,
       },
       {
         name: "Crops",
@@ -207,7 +216,7 @@ export default function Sidebar() {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-[#2D6A4F]/50">
-          <Logo size="md" />
+          <Logo size="md" variant="full" />
           <button 
             onClick={() => setMobileOpen(false)}
             className="p-1.5 hover:bg-[#2D6A4F]/40 rounded-lg transition-colors"
@@ -279,8 +288,7 @@ export default function Sidebar() {
       <aside className="hidden md:flex flex-col w-64 min-h-screen bg-gradient-to-b from-[#1B4332] to-[#143025] text-white shadow-xl border-r border-[#2D6A4F]/20 flex-shrink-0">
         {/* Logo */}
         <div className="px-6 py-5 border-b border-[#2D6A4F]/50">
-          <Logo size="md" />
-          <p className="text-xs text-[#52B788] mt-0.5 font-medium">Farm Management</p>
+          <Logo size="md" variant="full" />
         </div>
 
         {/* Navigation */}
@@ -348,7 +356,7 @@ export default function Sidebar() {
             href="/support" 
             className="flex items-center gap-2 text-sm text-[#52B788] hover:text-[#D8F3DC] transition-colors mb-3"
           >
-            <HelpCircle size={16} />
+            <LifeBuoy size={16} />
             <span>Need help?</span>
             <span className="text-[#52B788]/60">Visit our help center →</span>
           </Link>
@@ -357,7 +365,7 @@ export default function Sidebar() {
             <span className="text-xs text-[#52B788]/40">v1.0</span>
           </div>
           <div className="mt-1.5 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            <CircleDot size={10} className="text-green-400 animate-pulse" />
             <span className="text-[10px] text-[#52B788]/40">All systems ready</span>
           </div>
         </div>

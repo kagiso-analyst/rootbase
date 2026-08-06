@@ -62,6 +62,9 @@ export default function FinancialReportsPage() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummary[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [customStartDate, setCustomStartDate] = useState('')
+  const [customEndDate, setCustomEndDate] = useState('')
+  const [dateRangeType, setDateRangeType] = useState<'preset' | 'custom'>('preset')
 
   // ===== CHECK AUTH =====
   useEffect(() => {

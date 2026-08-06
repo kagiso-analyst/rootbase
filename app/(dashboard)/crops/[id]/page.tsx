@@ -3,7 +3,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors, Sparkles, RefreshCw } from 'lucide-react'
+import { 
+  ArrowLeft, Plus, Leaf, Droplets, Sprout, Eye, Scissors, 
+  Sparkles, RefreshCw, TrendingUp, Package, Edit, Save, X 
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,7 +32,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
 import { cn } from '@/lib/utils'
 import type { Activity, ActivityType } from '@/types/crops'
-
 
 const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
   Spraying:    <Droplets size={14} className="text-blue-500" />,
@@ -61,6 +63,12 @@ export default function CropDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  // Yield tracking state
+  const [editingYield, setEditingYield] = useState(false)
+  const [expectedYield, setExpectedYield] = useState('')
+  const [actualYield, setActualYield] = useState('')
+  const [yieldUnit, setYieldUnit] = useState('kg')
 
   // Form state
   const [open, setOpen] = useState(false)
@@ -111,6 +119,11 @@ export default function CropDetailPage() {
       }
       
       setCrop(cropData)
+      if (cropData) {
+        setExpectedYield(cropData.expected_yield_kg?.toString() || '')
+        setActualYield(cropData.actual_yield_kg?.toString() || '')
+        setYieldUnit(cropData.yield_unit || 'kg')
+      }
 
       // Fetch activities from database
       const { data, error } = await supabase
@@ -148,6 +161,43 @@ export default function CropDetailPage() {
       fetchData()
     }
   }, [authChecked, user, cropId, fetchData])
+
+  // ===== UPDATE YIELD =====
+  async function handleUpdateYield() {
+    if (!crop || !currentFarm || !user) return
+
+    setSaving(true)
+    setError(null)
+
+    try {
+      const { error } = await supabase
+        .from('crops')
+        .update({
+          expected_yield_kg: parseFloat(expectedYield) || 0,
+          actual_yield_kg: parseFloat(actualYield) || 0,
+          yield_unit: yieldUnit,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', cropId)
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
+
+      if (error) throw new Error('Failed to update yield: ' + error.message)
+
+      setCrop({
+        ...crop,
+        expected_yield_kg: parseFloat(expectedYield) || 0,
+        actual_yield_kg: parseFloat(actualYield) || 0,
+        yield_unit: yieldUnit,
+      })
+      setEditingYield(false)
+    } catch (err) {
+      console.error('Yield update error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update yield')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // ===== ADD ACTIVITY =====
   async function handleAddActivity() {
@@ -540,7 +590,7 @@ export default function CropDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Crop Information</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-400">Crop Name</p>
@@ -579,6 +629,136 @@ export default function CropDetailPage() {
                   </div>
                 )}
               </div>
+
+              {/* Yield Tracking Section */}
+              <div className="pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Package size={16} className="text-[#2D6A4F]" />
+                    <p className="text-sm font-semibold text-gray-700">Yield Tracking</p>
+                  </div>
+                  {!editingYield && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditingYield(true)}
+                      className="text-[#2D6A4F] hover:text-[#1B4332]"
+                    >
+                      <Edit size={14} className="mr-1" /> Edit
+                    </Button>
+                  )}
+                </div>
+
+                {editingYield ? (
+                  <div className="space-y-3 bg-[#F8FBF9] p-4 rounded-lg border border-gray-100">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Expected Yield</Label>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={expectedYield}
+                          onChange={(e) => setExpectedYield(e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs text-gray-500">Actual Yield</Label>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          value={actualYield}
+                          onChange={(e) => setActualYield(e.target.value)}
+                          className="h-9"
+                          disabled={crop.status !== 'harvested'}
+                        />
+                        {crop.status !== 'harvested' && (
+                          <p className="text-[10px] text-gray-400">Only available after harvest</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-gray-500">Unit</Label>
+                       <Select value={yieldUnit} onValueChange={(val) => setYieldUnit(val || 'kg')}>
+                       <SelectTrigger className="h-9">
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="kg">kg</SelectItem>
+                         <SelectItem value="tons">tons</SelectItem>
+                         <SelectItem value="bags">bags</SelectItem>
+                         <SelectItem value="boxes">boxes</SelectItem>
+                       </SelectContent>
+                       </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+                        onClick={handleUpdateYield}
+                        disabled={saving}
+                      >
+                        <Save size={14} className="mr-1" />
+                        {saving ? 'Saving...' : 'Save Yield'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingYield(false)
+                          setExpectedYield(crop.expected_yield_kg?.toString() || '')
+                          setActualYield(crop.actual_yield_kg?.toString() || '')
+                        }}
+                      >
+                        <X size={14} className="mr-1" /> Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 bg-[#F8FBF9] p-4 rounded-lg border border-gray-100">
+                    <div>
+                      <p className="text-xs text-gray-400">Expected Yield</p>
+                      <p className="text-sm font-medium text-gray-800">
+                        {crop.expected_yield_kg ? `${crop.expected_yield_kg} ${crop.yield_unit || 'kg'}` : 'Not set'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Actual Yield</p>
+                      <p className="text-sm font-medium text-gray-800">
+                        {crop.actual_yield_kg ? `${crop.actual_yield_kg} ${crop.yield_unit || 'kg'}` : 
+                         crop.status === 'harvested' ? 'Not recorded' : 'Awaiting harvest'}
+                      </p>
+                    </div>
+                    {crop.expected_yield_kg > 0 && crop.actual_yield_kg > 0 && (
+                      <div className="col-span-2 pt-2 border-t border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-gray-500">Yield Achievement</span>
+                          <span className={`text-sm font-semibold ${
+                            (crop.actual_yield_kg / crop.expected_yield_kg) >= 1 
+                              ? 'text-green-600' 
+                              : 'text-orange-500'
+                          }`}>
+                            {((crop.actual_yield_kg / crop.expected_yield_kg) * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
+                          <div 
+                            className={`h-2 rounded-full transition-all duration-500 ${
+                              (crop.actual_yield_kg / crop.expected_yield_kg) >= 1 
+                                ? 'bg-green-500' 
+                                : 'bg-orange-500'
+                            }`}
+                            style={{ 
+                              width: `${Math.min((crop.actual_yield_kg / crop.expected_yield_kg) * 100, 100)}%` 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {crop.notes && (
                 <div className="pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-400">Notes</p>
