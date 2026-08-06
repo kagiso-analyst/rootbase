@@ -108,6 +108,11 @@ const navigation: NavSection[] = [
       icon: LayoutDashboard,
     },
     {
+      name: "Recurring",
+      href: "/finances/recurring",
+      icon: Clock,
+    },
+    {
       name: "Crops",
       href: "/crops",
       icon: Sprout,
