@@ -6,22 +6,7 @@ import { useFarm } from '@/lib/farm-context'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { 
-  Bell, 
-  LogOut, 
-  User, 
-  Leaf, 
-  ChevronDown, 
-  Settings, 
-  HelpCircle, 
-  Home,
-  Shield,
-  Sparkles,
-  Clock,
-  Package,
-  FileText,
-  CloudRain
-} from 'lucide-react'
+import { Bell, LogOut, User, Leaf, ChevronDown, Settings, HelpCircle, Home } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/Logo'
 import { getSeasonalGreeting, cn } from '@/lib/utils'
@@ -42,15 +27,8 @@ export default function TopBar() {
   const [avatarUrl, setAvatarUrl] = useState('')
   const [userPlan, setUserPlan] = useState('free')
   const [notificationCount, setNotificationCount] = useState(0)
-  const [notificationDetails, setNotificationDetails] = useState<{
-    overdue: number
-    lowStock: number
-    expiringDocs: number
-    alerts: number
-  }>({ overdue: 0, lowStock: 0, expiringDocs: 0, alerts: 0 })
   const [greeting, setGreeting] = useState('Good morning')
   const [greetingEmoji, setGreetingEmoji] = useState('🌱')
-  const [isLoading, setIsLoading] = useState(true)
   const { currentFarm, farms, switchFarm } = useFarm()
 
   // ===== FETCH USER DATA =====
@@ -84,96 +62,96 @@ export default function TopBar() {
   async function fetchNotificationCount() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user || !currentFarm) {
-      setIsLoading(false)
+      setNotificationCount(0)
       return
     }
 
     try {
       const today = new Date().toISOString().split('T')[0]
-      
-      // Fetch all counts in parallel
-      const [
-        { count: overdueCount },
-        { count: lowStockCount },
-        { count: docCount },
-        { count: alertCount }
-      ] = await Promise.all([
-        // Overdue tasks
-        supabase
-          .from('tasks')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
-          .eq('status', 'todo')
-          .lt('due_date', today),
-        
-        // Low stock items
-        supabase
-          .from('inventory_items')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
-          .gt('reorder_level', 0)
-          .lte('current_quantity', 'reorder_level'),
-        
-        // Expiring documents (next 30 days)
-        supabase
-          .from('documents')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
-          .gte('expiry_date', today)
-          .lte('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        
-        // Unread weather alerts
-        supabase
-          .from('weather_alerts')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
-          .eq('is_read', false)
-      ])
 
-      const details = {
-        overdue: overdueCount || 0,
-        lowStock: lowStockCount || 0,
-        expiringDocs: docCount || 0,
-        alerts: alertCount || 0
-      }
-      
-      setNotificationDetails(details)
-      const total = details.overdue + details.lowStock + details.expiringDocs + details.alerts
+      // Count overdue tasks
+      const { count: overdueCount, error: taskError } = await supabase
+        .from('tasks')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
+        .eq('status', 'todo')
+        .lt('due_date', today)
+
+      // Count low stock items
+      const { count: lowStockCount, error: stockError } = await supabase
+        .from('inventory_items')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
+        .gt('reorder_level', 0)
+        .lte('current_quantity', 'reorder_level')
+
+      // Count expiring documents (within 30 days)
+      const thirtyDaysFromNow = new Date()
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+      const expiryDate = thirtyDaysFromNow.toISOString().split('T')[0]
+
+      const { count: docCount, error: docError } = await supabase
+        .from('documents')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
+        .gte('expiry_date', today)
+        .lte('expiry_date', expiryDate)
+
+      // Count unread weather alerts
+      const { count: alertCount, error: alertError } = await supabase
+        .from('weather_alerts')
+        .select('id', { count: 'exact' })
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
+        .eq('is_read', false)
+
+      const total = (overdueCount || 0) + (lowStockCount || 0) + (docCount || 0) + (alertCount || 0)
       setNotificationCount(total)
+      
+      if (taskError) console.error('Task count error:', taskError)
+      if (stockError) console.error('Stock count error:', stockError)
+      if (docError) console.error('Document count error:', docError)
+      if (alertError) console.error('Alert count error:', alertError)
+      
     } catch (err) {
       console.error('Notification fetch error:', err)
-    } finally {
-      setIsLoading(false)
     }
   }
 
   // ===== INITIAL LOAD =====
   useEffect(() => {
     fetchUserData()
+    fetchNotificationCount()
   }, [])
 
-  // ===== FETCH NOTIFICATIONS ON FARM CHANGE =====
+  // ===== REFRESH ON PROFILE CHANGE =====
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      fetchUserData()
+    }
+    window.addEventListener('profile-updated', handleProfileUpdate)
+    return () => window.removeEventListener('profile-updated', handleProfileUpdate)
+  }, [])
+
+  // ===== REFRESH NOTIFICATIONS =====
   useEffect(() => {
     if (currentFarm) {
       fetchNotificationCount()
       
-      // Refresh notifications every 5 minutes
+      // Refresh every 5 minutes
       const interval = setInterval(fetchNotificationCount, 5 * 60 * 1000)
       return () => clearInterval(interval)
     }
   }, [currentFarm])
 
-  // ===== HANDLE SIGN OUT =====
   async function handleSignOut() {
     await supabase.auth.signOut()
     router.push('/')
   }
 
-  // ===== GET INITIALS =====
   function getInitials(name: string) {
     if (!name) return 'F'
     const parts = name.split(' ')
@@ -181,41 +159,14 @@ export default function TopBar() {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
   }
 
-  // ===== GET PLAN BADGE =====
   function getPlanBadge(plan: string) {
-    const badges: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-      free: { 
-        label: 'Free', 
-        color: 'bg-gray-100 text-gray-600',
-        icon: null
-      },
-      starter: { 
-        label: 'Starter', 
-        color: 'bg-blue-100 text-blue-700',
-        icon: <Sparkles size={10} className="mr-1" />
-      },
-      pro: { 
-        label: 'Pro', 
-        color: 'bg-purple-100 text-purple-700',
-        icon: <Shield size={10} className="mr-1" />
-      },
-      business: { 
-        label: 'Business', 
-        color: 'bg-amber-100 text-amber-700',
-        icon: <Shield size={10} className="mr-1" />
-      },
+    const badges: Record<string, { label: string; color: string }> = {
+      free: { label: 'Free', color: 'bg-gray-100 text-gray-600' },
+      starter: { label: 'Starter', color: 'bg-blue-100 text-blue-700' },
+      pro: { label: 'Pro', color: 'bg-purple-100 text-purple-700' },
+      business: { label: 'Business', color: 'bg-amber-100 text-amber-700' },
     }
     return badges[plan] || badges.free
-  }
-
-  // ===== GET NOTIFICATION TOOLTIP =====
-  function getNotificationTooltip() {
-    const parts = []
-    if (notificationDetails.overdue > 0) parts.push(`${notificationDetails.overdue} overdue tasks`)
-    if (notificationDetails.lowStock > 0) parts.push(`${notificationDetails.lowStock} low stock items`)
-    if (notificationDetails.expiringDocs > 0) parts.push(`${notificationDetails.expiringDocs} expiring documents`)
-    if (notificationDetails.alerts > 0) parts.push(`${notificationDetails.alerts} weather alerts`)
-    return parts.length > 0 ? parts.join(', ') : 'No notifications'
   }
 
   const planBadge = getPlanBadge(userPlan)
@@ -224,10 +175,8 @@ export default function TopBar() {
     <header className="h-16 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6 shadow-sm">
       {/* Left section */}
       <div className="flex items-center gap-4">
-        {/* Logo - visible on mobile */}
         <Logo variant="icon" size="sm" className="md:hidden" />
 
-        {/* Greeting - visible on desktop */}
         <div className="hidden sm:flex items-center gap-2">
           <span className="text-sm font-medium text-gray-600">{greeting}</span>
           <span className="text-sm font-semibold text-[#1B4332]">
@@ -236,10 +185,8 @@ export default function TopBar() {
           <span className="text-sm">{greetingEmoji}</span>
         </div>
 
-        {/* Divider */}
         <div className="hidden sm:block w-px h-6 bg-gray-200" />
 
-        {/* Farm switcher */}
         {farms.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -312,35 +259,31 @@ export default function TopBar() {
 
       {/* Right section */}
       <div className="flex items-center gap-1">
-        {/* Plan Badge */}
         <span className={cn(
-          "hidden sm:inline-flex items-center text-xs px-2.5 py-0.5 rounded-full font-medium",
+          "hidden sm:inline-block text-xs px-2 py-0.5 rounded-full font-medium",
           planBadge.color
         )}>
-          {planBadge.icon}
           {planBadge.label}
         </span>
 
-        {/* Notifications */}
+        {/* Notifications - NOW WITH REAL COUNT */}
         <Button
           variant="ghost"
           size="icon"
           onClick={() => router.push('/notifications')}
-          title={getNotificationTooltip()}
+          title="Notifications"
           className="relative hover:bg-gray-100 rounded-full w-9 h-9"
         >
           <Bell size={18} className="text-gray-500" />
           {notificationCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-sm">
+            <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow-sm">
               {notificationCount > 9 ? '9+' : notificationCount}
             </span>
           )}
         </Button>
 
-        {/* Divider */}
         <div className="w-px h-6 bg-gray-200 mx-1" />
 
-        {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
@@ -364,54 +307,8 @@ export default function TopBar() {
             <DropdownMenuLabel className="font-normal px-3 py-2">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Signed in as</p>
               <p className="text-sm font-medium truncate text-gray-800">{userEmail || 'farmer@example.com'}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <span className={cn(
-                  "inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-medium",
-                  planBadge.color
-                )}>
-                  {planBadge.icon}
-                  {planBadge.label}
-                </span>
-              </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="my-1" />
-            
-            {/* Notification summary in dropdown */}
-            {notificationCount > 0 && (
-              <>
-                <div className="px-3 py-1.5">
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Notifications</p>
-                  <div className="mt-1 space-y-0.5">
-                    {notificationDetails.overdue > 0 && (
-                      <div className="flex items-center gap-2 text-xs text-red-600">
-                        <Clock size={12} />
-                        <span>{notificationDetails.overdue} overdue task{notificationDetails.overdue > 1 ? 's' : ''}</span>
-                      </div>
-                    )}
-                    {notificationDetails.lowStock > 0 && (
-                      <div className="flex items-center gap-2 text-xs text-amber-600">
-                        <Package size={12} />
-                        <span>{notificationDetails.lowStock} low stock item{notificationDetails.lowStock > 1 ? 's' : ''}</span>
-                      </div>
-                    )}
-                    {notificationDetails.expiringDocs > 0 && (
-                      <div className="flex items-center gap-2 text-xs text-blue-600">
-                        <FileText size={12} />
-                        <span>{notificationDetails.expiringDocs} expiring document{notificationDetails.expiringDocs > 1 ? 's' : ''}</span>
-                      </div>
-                    )}
-                    {notificationDetails.alerts > 0 && (
-                      <div className="flex items-center gap-2 text-xs text-purple-600">
-                        <CloudRain size={12} />
-                        <span>{notificationDetails.alerts} weather alert{notificationDetails.alerts > 1 ? 's' : ''}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <DropdownMenuSeparator className="my-1" />
-              </>
-            )}
-
             <DropdownMenuItem 
               onClick={() => router.push('/dashboard')}
               className="cursor-pointer rounded-lg hover:bg-gray-50 py-2"
@@ -440,7 +337,6 @@ export default function TopBar() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Sign out button (mobile) */}
         <Button
           variant="ghost"
           size="icon"
