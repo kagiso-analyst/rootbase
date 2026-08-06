@@ -123,6 +123,8 @@ export default function DashboardPage() {
   const [userName, setUserName] = useState('')
   const [greeting, setGreeting] = useState('')
   const [userPlan, setUserPlan] = useState('free')
+  const [prevIncome, setPrevIncome] = useState(0)
+  const [prevExpenses, setPrevExpenses] = useState(0)
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -270,11 +272,13 @@ export default function DashboardPage() {
 
       const totalIncome = incomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
       const totalExpenses = expensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
-      const prevIncome = prevIncomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
-      const prevExpenses = prevExpensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
+      const prevIncomeTotal = prevIncomeRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
+      const prevExpensesTotal = prevExpensesRes.data?.reduce((sum, r) => sum + Number(r.amount), 0) || 0
 
       setIncome(totalIncome)
       setExpenses(totalExpenses)
+      setPrevIncome(prevIncomeTotal)
+      setPrevExpenses(prevExpensesTotal)
       setActiveCrops(cropsRes.count || 0)
       setOpenTasks(tasksCountRes.count || 0)
       setTasks(tasksRes.data || [])
@@ -377,7 +381,8 @@ export default function DashboardPage() {
   const isProfit = net >= 0
   const incomeGrowth = prevIncome > 0 ? ((income - prevIncome) / prevIncome) * 100 : 0
   const expenseGrowth = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0
-  const netGrowth = prevIncome - prevExpenses > 0 ? ((net - (prevIncome - prevExpenses)) / Math.abs(prevIncome - prevExpenses)) * 100 : 0
+  const prevNet = prevIncome - prevExpenses
+  const netGrowth = prevNet !== 0 ? ((net - prevNet) / Math.abs(prevNet)) * 100 : 0
 
   function getPlanBadge(plan: string) {
     const badges: Record<string, { label: string; color: string }> = {
@@ -488,7 +493,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 px-4 sm:px-0">
 
-      {/* Header with plan badge - Matches screenshot */}
+      {/* Header with plan badge */}
       <div>
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl font-bold text-[#1B4332]">Farm Dashboard</h1>
