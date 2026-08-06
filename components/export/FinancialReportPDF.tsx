@@ -53,7 +53,9 @@ const styles = StyleSheet.create({
   },
   rowText: {
     fontSize: 10,
-    color: '#374151'
+    color: '#374151',
+    flex: 1,
+    marginRight: 8
   },
   rowAmount: {
     fontSize: 10,
@@ -127,6 +129,21 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 9,
     fontWeight: 'bold'
+  },
+  emptyText: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+    paddingVertical: 4
+  },
+  categoryBadge: {
+    fontSize: 8,
+    color: '#6B7280',
+    marginLeft: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 2
   }
 })
 
@@ -144,16 +161,42 @@ interface ReportData {
 }
 
 export function FinancialReportPDF({ data }: { data: ReportData }) {
+  // Format dates for better display
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('en-ZA', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    })
+  }
+
+  // Truncate long descriptions
+  const truncateText = (text: string, maxLength: number = 40) => {
+    if (!text) return ''
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
+  }
+
+  // Sort transactions by date (newest first)
+  const sortByDate = (items: any[]) => {
+    return [...items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }
+
+  const sortedIncome = sortByDate(data.income)
+  const sortedExpenses = sortByDate(data.expenses)
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>RootBase Financial Report</Text>
-          <Text style={styles.subtitle}>{data.farmName} · {data.startDate} to {data.endDate}</Text>
+          <Text style={styles.title}>🌱 RootBase Financial Report</Text>
+          <Text style={styles.subtitle}>
+            {data.farmName} · {formatDate(data.startDate)} to {formatDate(data.endDate)}
+          </Text>
         </View>
 
-        {/* Metrics */}
+        {/* Metrics Summary */}
         <View style={styles.metric}>
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Total Income</Text>
@@ -175,20 +218,38 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
               {data.profitMargin}%
             </Text>
           </View>
+          <View style={styles.metricRow}>
+            <Text style={styles.metricLabel}>Total Transactions</Text>
+            <Text style={[styles.metricValue, { color: '#374151' }]}>
+              {data.income.length + data.expenses.length}
+            </Text>
+          </View>
         </View>
 
         {/* Income Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Income</Text>
+          <Text style={styles.sectionTitle}>📈 Income ({data.income.length} transactions)</Text>
           {data.income.length === 0 ? (
-            <Text style={styles.rowText}>No income recorded</Text>
+            <Text style={styles.emptyText}>No income recorded in this period</Text>
           ) : (
-            data.income.map((item, index) => (
-              <View key={index} style={styles.row}>
-                <Text style={styles.rowText}>{item.description || item.category}</Text>
-                <Text style={[styles.rowAmount, { color: '#16A34A' }]}>R{item.amount.toFixed(2)}</Text>
-              </View>
-            ))
+            <>
+              {sortedIncome.map((item, index) => (
+                <View key={index} style={styles.row}>
+                  <Text style={styles.rowText}>
+                    {truncateText(item.description || 'Unnamed')}
+                    {item.category && (
+                      <Text style={styles.categoryBadge}> {item.category}</Text>
+                    )}
+                    {item.buyer_name && (
+                      <Text style={styles.categoryBadge}> → {item.buyer_name}</Text>
+                    )}
+                  </Text>
+                  <Text style={[styles.rowAmount, { color: '#16A34A' }]}>
+                    R{item.amount.toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </>
           )}
           <View style={styles.totalRow}>
             <Text style={styles.totalText}>Total Income</Text>
@@ -198,16 +259,25 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
 
         {/* Expenses Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Expenses</Text>
+          <Text style={styles.sectionTitle}>📉 Expenses ({data.expenses.length} transactions)</Text>
           {data.expenses.length === 0 ? (
-            <Text style={styles.rowText}>No expenses recorded</Text>
+            <Text style={styles.emptyText}>No expenses recorded in this period</Text>
           ) : (
-            data.expenses.map((item, index) => (
-              <View key={index} style={styles.row}>
-                <Text style={styles.rowText}>{item.description || item.category}</Text>
-                <Text style={[styles.rowAmount, { color: '#DC2626' }]}>R{item.amount.toFixed(2)}</Text>
-              </View>
-            ))
+            <>
+              {sortedExpenses.map((item, index) => (
+                <View key={index} style={styles.row}>
+                  <Text style={styles.rowText}>
+                    {truncateText(item.description || 'Unnamed')}
+                    {item.category && (
+                      <Text style={styles.categoryBadge}> {item.category}</Text>
+                    )}
+                  </Text>
+                  <Text style={[styles.rowAmount, { color: '#DC2626' }]}>
+                    R{item.amount.toFixed(2)}
+                  </Text>
+                </View>
+              ))}
+            </>
           )}
           <View style={styles.totalRow}>
             <Text style={styles.totalText}>Total Expenses</Text>
@@ -216,17 +286,38 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
         </View>
 
         {/* Net Result */}
-        <View style={styles.netRow}>
-          <Text style={styles.netText}>NET {data.isProfit ? 'PROFIT' : 'LOSS'}</Text>
-          <Text style={[styles.netAmount, { color: data.isProfit ? '#16A34A' : '#DC2626' }]}>
+        <View style={[
+          styles.netRow,
+          { backgroundColor: data.isProfit ? '#D8F3DC' : '#FEE2E2' }
+        ]}>
+          <Text style={styles.netText}>
+            NET {data.isProfit ? 'PROFIT' : 'LOSS'}
+            {data.income.length + data.expenses.length > 0 && (
+              <Text style={{ fontSize: 10, fontWeight: 'normal', color: '#6B7280' }}>
+                {' '}({data.income.length} income, {data.expenses.length} expenses)
+              </Text>
+            )}
+          </Text>
+          <Text style={[
+            styles.netAmount,
+            { color: data.isProfit ? '#16A34A' : '#DC2626' }
+          ]}>
             {data.isProfit ? '+' : '-'}R{Math.abs(data.net).toFixed(2)}
           </Text>
         </View>
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>Generated by RootBase</Text>
-          <Text style={styles.footerText}>{new Date().toLocaleDateString()}</Text>
+          <Text style={styles.footerText}>Generated by RootBase • {data.farmName}</Text>
+          <Text style={styles.footerText}>
+            {new Date().toLocaleDateString('en-ZA', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            })}
+          </Text>
         </View>
       </Page>
     </Document>

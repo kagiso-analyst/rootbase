@@ -31,6 +31,7 @@ import {
   CircleDot,
   ChevronRight,
   Clock,
+  Sparkles,
 } from 'lucide-react'
 import { useFarm } from '@/lib/farm-context'
 import { cn } from '@/lib/utils'
@@ -162,6 +163,11 @@ const navigation: NavSection[] = [
         href: "/documents",
         icon: FileText,
       },
+      {
+      name: "AI Assistant",
+      href: "/ai-assistant",
+      icon: Sparkles,
+    },
     ],
   },
   {
@@ -376,13 +382,13 @@ export default function Sidebar() {
         {/* Footer */}
         <div className="px-6 py-4 border-t border-[#2D6A4F]/50">
           <Link 
-            href="/support" 
-            className="flex items-center gap-2 text-sm text-[#52B788] hover:text-[#D8F3DC] transition-colors mb-3"
-          >
-            <LifeBuoy size={16} />
-            <span>Need help?</span>
-            <span className="text-[#52B788]/60">Visit our help center →</span>
-          </Link>
+  href="/support" 
+  className="flex items-center gap-2 text-sm text-[#52B788] hover:text-[#D8F3DC] transition-colors mb-3"
+>
+  <LifeBuoy size={16} />
+  <span>Need help?</span>
+  <span className="text-[#52B788]/60">Visit support →</span>
+</Link>
           <div className="flex items-center justify-between">
             <p className="text-xs text-[#52B788]/50">© 2026 RootBase</p>
             <span className="text-xs text-[#52B788]/40">v1.0</span>

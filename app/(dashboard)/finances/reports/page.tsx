@@ -3,11 +3,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import {
-  TrendingUp, TrendingDown, DollarSign, BarChart2,
-  ArrowUpRight, ArrowDownRight, Calendar, Filter,
-  Download, RefreshCw, Sparkles
-} from 'lucide-react'
+import {TrendingUp, TrendingDown, DollarSign, BarChart2,ArrowUpRight, ArrowDownRight, Calendar, Filter,Download, RefreshCw, Sparkles, FileText} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,10 +12,9 @@ import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, LineChart, Line
-} from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line} from 'recharts'
+import { FinancialReportPDF } from '@/components/export/FinancialReportPDF'
+import { PDFDownloadLink } from '@react-pdf/renderer'
 
 type Transaction = {
   id: string
@@ -271,6 +266,23 @@ const incomeByCategory = income
     window.URL.revokeObjectURL(url)
   }
 
+  // ===== PDF EXPORT HANDLER =====
+  const handleExportPDF = () => {
+    const pdfData = {
+      startDate,
+      endDate,
+      income,
+      expenses,
+      totalIncome,
+      totalExpenses,
+      net: netProfit,
+      isProfit,
+      profitMargin,
+      farmName: currentFarm?.name || 'Farm'
+    }
+    return <FinancialReportPDF data={pdfData} />
+  }
+
   // ===== LOADING STATE =====
   if (!authChecked || farmLoading || (loading && !isRefreshing)) {
     return (
@@ -364,7 +376,7 @@ const incomeByCategory = income
             Complete financial overview — all transactions, summaries and trends
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             className="border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
@@ -374,6 +386,24 @@ const incomeByCategory = income
             <Download size={14} className="mr-2" />
             Export CSV
           </Button>
+          
+          {/* PDF Export Button */}
+          <PDFDownloadLink
+            document={handleExportPDF()}
+            fileName={`financial_report_${currentFarm?.name || 'farm'}_${new Date().toISOString().split('T')[0]}.pdf`}
+          >
+            {({ loading }) => (
+              <Button
+                variant="outline"
+                className="border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+                disabled={loading || transactions.length === 0}
+              >
+                <FileText size={14} className="mr-2" />
+                {loading ? 'Loading...' : 'Export PDF'}
+              </Button>
+            )}
+          </PDFDownloadLink>
+
           <Button
             variant="outline"
             className="border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"

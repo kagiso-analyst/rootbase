@@ -3,13 +3,80 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Check, Zap, Loader2, AlertCircle, ShieldCheck, RefreshCw } from 'lucide-react'
+import { Check, Zap, Loader2, AlertCircle, ShieldCheck, RefreshCw, Crown, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createClient } from '@/lib/supabase/client'
 import { PLANS, PAYFAST_CONFIG } from '@/lib/payfast'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+
+// ===== FEATURE AVAILABILITY =====
+export function getFeatureAvailability(plan: string) {
+  const features = {
+    free: {
+      farms: 1,
+      crops: 'Limited',
+      reports: 'Basic',
+      aiAssistant: false,
+      prioritySupport: false,
+      pdfExport: false,
+      weatherAlerts: false,
+      advancedAnalytics: false,
+      teamMembers: 0,
+      storage: '100MB',
+    },
+    starter: {
+      farms: 1,
+      crops: 'Unlimited',
+      reports: 'Full',
+      aiAssistant: false,
+      prioritySupport: false,
+      pdfExport: true,
+      weatherAlerts: true,
+      advancedAnalytics: false,
+      teamMembers: 0,
+      storage: '500MB',
+    },
+    pro: {
+      farms: 3,
+      crops: 'Unlimited',
+      reports: 'Full',
+      aiAssistant: true,
+      prioritySupport: true,
+      pdfExport: true,
+      weatherAlerts: true,
+      advancedAnalytics: true,
+      teamMembers: 5,
+      storage: '2GB',
+    },
+    business: {
+      farms: 10,
+      crops: 'Unlimited',
+      reports: 'Full + Custom',
+      aiAssistant: true,
+      prioritySupport: true,
+      pdfExport: true,
+      weatherAlerts: true,
+      advancedAnalytics: true,
+      teamMembers: 20,
+      storage: '10GB',
+    },
+  }
+  return features[plan as keyof typeof features] || features.free
+}
+
+// ===== CHECK IF FEATURE IS AVAILABLE =====
+export function isFeatureAvailable(plan: string, feature: keyof ReturnType<typeof getFeatureAvailability>): boolean {
+  const features = getFeatureAvailability(plan)
+  return Boolean(features[feature])
+}
+
+// ===== CHECK PLAN LIMITS =====
+export function getPlanLimit(plan: string, limit: 'farms' | 'teamMembers'): number {
+  const features = getFeatureAvailability(plan)
+  return features[limit] as number
+}
 
 export default function SubscriptionPage() {
   // ===== STATE =====
@@ -20,6 +87,7 @@ export default function SubscriptionPage() {
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [processingPlan, setProcessingPlan] = useState<string | null>(null)
+  const [subscriptionStatus, setSubscriptionStatus] = useState<'active' | 'inactive' | 'canceled'>('inactive')
   
   const supabase = createClient()
   const router = useRouter()
@@ -48,14 +116,16 @@ export default function SubscriptionPage() {
           .from('subscriptions')
           .select('plan, status')
           .eq('user_email', user.email || '')
-          .eq('status', 'active')
           .maybeSingle()
 
         if (subError && subError.code !== 'PGRST116') {
           console.error('Subscription fetch error:', subError)
         }
 
-        if (sub) setCurrentPlan(sub.plan)
+        if (sub) {
+          setCurrentPlan(sub.plan)
+          setSubscriptionStatus(sub.status as 'active' | 'inactive' | 'canceled')
+        }
         
       } catch (err) {
         console.error('Fetch user error:', err)
@@ -143,6 +213,35 @@ export default function SubscriptionPage() {
     }
   }
 
+  // ===== HANDLE CANCEL =====
+  async function handleCancelSubscription() {
+    if (!confirm('Are you sure you want to cancel your subscription? You will lose access to premium features.')) {
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const { error: updateError } = await supabase
+        .from('subscriptions')
+        .update({ status: 'canceled' })
+        .eq('user_email', userEmail)
+        .eq('plan', currentPlan)
+
+      if (updateError) throw updateError
+
+      setSubscriptionStatus('canceled')
+      setCurrentPlan('free')
+      alert('Your subscription has been canceled. You will be downgraded to the Free plan at the end of your billing period.')
+    } catch (err) {
+      console.error('Cancel error:', err)
+      setError('Failed to cancel subscription. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // ===== LOADING STATE =====
   if (fetching) {
     return (
@@ -173,11 +272,25 @@ export default function SubscriptionPage() {
           <p className="text-gray-500 max-w-2xl mx-auto text-sm sm:text-base">
             Every plan includes the features shown below. Your subscription unlocks exactly what you select, and you can cancel at any time.
           </p>
+          
+          {subscriptionStatus === 'active' && (
+            <div className="mt-4 inline-flex items-center gap-2 bg-green-50 text-green-700 text-sm px-4 py-2 rounded-full border border-green-200">
+              <Check size={16} /> Active Plan: <strong className="capitalize">{currentPlan}</strong>
+            </div>
+          )}
+
+          {subscriptionStatus === 'canceled' && (
+            <div className="mt-4 inline-flex items-center gap-2 bg-amber-50 text-amber-700 text-sm px-4 py-2 rounded-full border border-amber-200">
+              <AlertCircle size={16} /> Subscription Canceled — Active until end of billing period
+            </div>
+          )}
+
           {PAYFAST_CONFIG.sandbox && (
             <div className="mt-4 inline-flex items-center gap-2 bg-amber-50 text-amber-700 text-xs px-4 py-2 rounded-full border border-amber-200">
               <RefreshCw size={12} /> Sandbox mode — use test card details from PayFast
             </div>
           )}
+          
           {error && (
             <div className="mt-4 mx-auto max-w-md">
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3">
@@ -194,6 +307,7 @@ export default function SubscriptionPage() {
             const isCurrent = currentPlan === plan.id
             const isProcessing = processingPlan === plan.id
             const isHighlighted = plan.highlighted
+            const isCanceled = subscriptionStatus === 'canceled' && isCurrent
 
             return (
               <Card
@@ -202,9 +316,9 @@ export default function SubscriptionPage() {
                   isHighlighted
                     ? 'border-2 border-[#2D6A4F] shadow-lg hover:shadow-xl'
                     : 'border border-gray-200 hover:shadow-md'
-                } ${isCurrent ? 'border-green-400 bg-green-50/30' : ''}`}
+                } ${isCurrent ? 'border-green-400 bg-green-50/30' : ''} ${isCanceled ? 'border-amber-400 bg-amber-50/30' : ''}`}
               >
-                {isHighlighted && (
+                {isHighlighted && !isCurrent && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                     <span className="bg-[#2D6A4F] text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
                       <Zap size={10} /> Most Popular
@@ -214,14 +328,20 @@ export default function SubscriptionPage() {
 
                 {isCurrent && (
                   <div className="absolute -top-3 right-4 z-10">
-                    <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-md">
-                      <Check size={10} /> Current
+                    <span className={`text-xs px-3 py-1 rounded-full flex items-center gap-1 shadow-md ${
+                      isCanceled ? 'bg-amber-500 text-white' : 'bg-green-500 text-white'
+                    }`}>
+                      {isCanceled ? <AlertCircle size={10} /> : <Check size={10} />}
+                      {isCanceled ? 'Canceled' : 'Current'}
                     </span>
                   </div>
                 )}
 
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg text-[#1B4332]">{plan.name}</CardTitle>
+                  <CardTitle className="text-lg text-[#1B4332] flex items-center gap-2">
+                    {plan.name}
+                    {plan.id === 'pro' && <Crown size={16} className="text-[#2D6A4F]" />}
+                  </CardTitle>
                   <div className="mt-2">
                     <span className="text-3xl font-bold text-[#1B4332]">{plan.priceDisplay}</span>
                     {plan.price > 0 && (
@@ -248,27 +368,36 @@ export default function SubscriptionPage() {
                     ))}
                   </ul>
 
-                  <Button
-                    className={`w-full transition-all ${
-                      isCurrent
-                        ? 'bg-green-100 text-green-700 cursor-default hover:bg-green-100'
-                        : isHighlighted
-                        ? 'bg-[#2D6A4F] hover:bg-[#1B4332] text-white shadow-sm hover:shadow-md'
-                        : plan.price === 0
-                        ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        : 'bg-[#2D6A4F] hover:bg-[#1B4332] text-white shadow-sm hover:shadow-md'
-                    }`}
-                    onClick={() => handleSubscribe(plan)}
-                    disabled={isCurrent || plan.price === 0 || loading || isProcessing}
-                  >
-                    {isProcessing ? (
-                      <><Loader2 size={16} className="animate-spin mr-2" /> Processing...</>
-                    ) : isCurrent ? (
-                      '✓ Current Plan'
-                    ) : plan.cta}
-                  </Button>
+                  {isCanceled ? (
+                    <Button
+                      className="w-full bg-amber-100 text-amber-700 cursor-default hover:bg-amber-100"
+                      disabled
+                    >
+                      Canceled — Active until end of period
+                    </Button>
+                  ) : (
+                    <Button
+                      className={`w-full transition-all ${
+                        isCurrent
+                          ? 'bg-green-100 text-green-700 cursor-default hover:bg-green-100'
+                          : isHighlighted
+                          ? 'bg-[#2D6A4F] hover:bg-[#1B4332] text-white shadow-sm hover:shadow-md'
+                          : plan.price === 0
+                          ? 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          : 'bg-[#2D6A4F] hover:bg-[#1B4332] text-white shadow-sm hover:shadow-md'
+                      }`}
+                      onClick={() => handleSubscribe(plan)}
+                      disabled={isCurrent || plan.price === 0 || loading || isProcessing}
+                    >
+                      {isProcessing ? (
+                        <><Loader2 size={16} className="animate-spin mr-2" /> Processing...</>
+                      ) : isCurrent ? (
+                        '✓ Current Plan'
+                      ) : plan.cta}
+                    </Button>
+                  )}
 
-                  {plan.price > 0 && !isCurrent && (
+                  {plan.price > 0 && !isCurrent && !isCanceled && (
                     <p className="text-[10px] text-gray-400 text-center mt-2">
                       Secure payment via PayFast
                     </p>
@@ -278,6 +407,21 @@ export default function SubscriptionPage() {
             )
           })}
         </div>
+
+        {/* Current Plan Actions */}
+        {subscriptionStatus === 'active' && (
+          <div className="mt-8 flex justify-center">
+            <Button
+              variant="outline"
+              onClick={handleCancelSubscription}
+              disabled={loading}
+              className="border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400"
+            >
+              {loading ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
+              Cancel Subscription
+            </Button>
+          </div>
+        )}
 
         {/* Features footer */}
         <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
@@ -307,6 +451,67 @@ export default function SubscriptionPage() {
           <p className="mt-1 leading-6">
             Each plan includes the features shown above, and your subscription unlocks the selected features immediately after payment confirmation. You can review the <Link href="/terms" className="text-[#2D6A4F] underline">terms</Link>, <Link href="/privacy" className="text-[#2D6A4F] underline">privacy policy</Link>, and <Link href="/refund-policy" className="text-[#2D6A4F] underline">refund policy</Link> at any time.
           </p>
+        </div>
+
+        {/* Feature Comparison Table */}
+        <div className="mt-10 bg-white/80 rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-sm font-semibold text-[#1B4332] flex items-center gap-2">
+              <Sparkles size={16} className="text-[#2D6A4F]" />
+              Detailed Feature Comparison
+            </h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Feature</th>
+                  {PLANS.map(plan => (
+                    <th key={plan.id} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                      {plan.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {[
+                  { key: 'farms', label: 'Number of Farms' },
+                  { key: 'crops', label: 'Crops' },
+                  { key: 'reports', label: 'Reports' },
+                  { key: 'pdfExport', label: 'PDF Export' },
+                  { key: 'weatherAlerts', label: 'Weather Alerts' },
+                  { key: 'aiAssistant', label: 'AI Assistant' },
+                  { key: 'advancedAnalytics', label: 'Advanced Analytics' },
+                  { key: 'teamMembers', label: 'Team Members' },
+                  { key: 'prioritySupport', label: 'Priority Support' },
+                  { key: 'storage', label: 'Storage' },
+                ].map(({ key, label }) => (
+                  <tr key={key}>
+                    <td className="px-4 py-3 text-xs text-gray-700 font-medium">{label}</td>
+                    {PLANS.map(plan => {
+                      const features = getFeatureAvailability(plan.id)
+                      const value = features[key as keyof typeof features]
+                      const isAvailable = typeof value === 'boolean' ? value : true
+                      
+                      return (
+                        <td key={plan.id} className="px-4 py-3 text-center">
+                          {typeof value === 'boolean' ? (
+                            value ? (
+                              <Check size={16} className="text-green-500 mx-auto" />
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )
+                          ) : (
+                            <span className="text-xs font-medium text-gray-700">{String(value)}</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Back link */}

@@ -3,11 +3,11 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Wind, Droplets, Thermometer, Eye, Sunrise,
   Sunset, MapPin, RefreshCw, AlertTriangle,
-  Search, X, Sparkles
+  Search, X, Sparkles, Bell, BellOff, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -23,11 +23,53 @@ import { useFarm } from '@/lib/farm-context'
 import { cn, getSeasonalGreeting } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import { checkWeatherAlerts } from '@/lib/weather-alerts'
 
 function formatTime(unix: number): string {
   return new Date(unix * 1000).toLocaleTimeString('en-ZA', {
     hour: '2-digit', minute: '2-digit'
   })
+}
+
+// Alert severity configuration
+const SEVERITY_CONFIG = {
+  warning: {
+    bg: 'bg-red-50',
+    border: 'border-red-200',
+    text: 'text-red-700',
+    badge: 'bg-red-100 text-red-700 border-red-200',
+    icon: '🔴'
+  },
+  watch: {
+    bg: 'bg-yellow-50',
+    border: 'border-yellow-200',
+    text: 'text-yellow-700',
+    badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+    icon: '🟡'
+  },
+  advisory: {
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    text: 'text-blue-700',
+    badge: 'bg-blue-100 text-blue-700 border-blue-200',
+    icon: '🔵'
+  }
+}
+
+const ALERT_ICONS = {
+  severe_weather: '⚡',
+  frost: '❄️',
+  heavy_rain: '🌧️',
+  extreme_heat: '🔥',
+  strong_wind: '💨'
+}
+
+const ALERT_LABELS = {
+  severe_weather: 'Severe Weather',
+  frost: 'Frost Warning',
+  heavy_rain: 'Heavy Rain',
+  extreme_heat: 'Extreme Heat',
+  strong_wind: 'Strong Wind'
 }
 
 export default function WeatherPage() {
@@ -49,6 +91,14 @@ export default function WeatherPage() {
   const [customSearch, setCustomSearch] = useState('')
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [greeting, setGreeting] = useState('')
+  
+  // ===== ALERT STATE =====
+  const [alerts, setAlerts] = useState<any[]>([])
+  const [alertCount, setAlertCount] = useState(0)
+  const [showAlerts, setShowAlerts] = useState(false)
+  const [checkingAlerts, setCheckingAlerts] = useState(false)
+  const [autoCheckEnabled, setAutoCheckEnabled] = useState(true)
+  const alertCheckInterval = useRef<NodeJS.Timeout | null>(null)
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -72,7 +122,57 @@ export default function WeatherPage() {
     checkAuth()
   }, [supabase])
 
-  async function loadWeatherByGPS() {
+  // ===== FETCH EXISTING ALERTS =====
+  const fetchExistingAlerts = useCallback(async () => {
+    if (!currentFarm || !user) return
+    
+    try {
+      const { data: existingAlerts, error: fetchError } = await supabase
+        .from('weather_alerts')
+        .select('*')
+        .eq('farm_id', currentFarm.id)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+      
+      if (fetchError) throw fetchError
+      
+      if (existingAlerts) {
+        const unread = existingAlerts.filter(a => !a.is_read)
+        setAlerts(existingAlerts)
+        setAlertCount(unread.length)
+      }
+    } catch (err) {
+      console.error('Failed to fetch alerts:', err)
+    }
+  }, [currentFarm, user, supabase])
+
+  // ===== CHECK AND SAVE ALERTS =====
+  const checkAndSaveAlerts = useCallback(async (lat: number, lon: number) => {
+    if (!user || !currentFarm) return
+    
+    setCheckingAlerts(true)
+    try {
+      const newAlerts = await checkWeatherAlerts(lat, lon, currentFarm.id, user.id)
+      if (newAlerts && newAlerts.length > 0) {
+        setAlerts(prev => [...newAlerts, ...prev])
+        setAlertCount(prev => prev + newAlerts.length)
+        
+        // Show a notification in the UI
+        setError(`⚠️ ${newAlerts.length} new weather alert${newAlerts.length > 1 ? 's' : ''} detected!`)
+        setTimeout(() => setError(''), 5000)
+      }
+      
+      // Refresh existing alerts
+      await fetchExistingAlerts()
+    } catch (err) {
+      console.error('Failed to check weather alerts:', err)
+    } finally {
+      setCheckingAlerts(false)
+    }
+  }, [user, currentFarm, fetchExistingAlerts])
+
+  // ===== LOAD WEATHER FUNCTIONS =====
+  const loadWeatherByGPS = useCallback(async () => {
     setLoading(true)
     setError('')
     setUsingGPS(true)
@@ -86,6 +186,7 @@ export default function WeatherPage() {
         setWeather(data)
         setLastUpdated(new Date())
         setSelectedCity(jozi.name)
+        await checkAndSaveAlerts(jozi.lat, jozi.lon)
       } else {
         setError('Could not load weather. Please check your connection.')
       }
@@ -101,6 +202,7 @@ export default function WeatherPage() {
             setWeather(data)
             setLastUpdated(new Date())
             setSelectedCity('')
+            await checkAndSaveAlerts(pos.coords.latitude, pos.coords.longitude)
           } else {
             setError('Could not load weather data. Please try again.')
           }
@@ -121,6 +223,7 @@ export default function WeatherPage() {
             setWeather(data)
             setLastUpdated(new Date())
             setSelectedCity(jozi.name)
+            await checkAndSaveAlerts(jozi.lat, jozi.lon)
           } else {
             setError('Could not load weather. Please check your connection.')
           }
@@ -131,9 +234,9 @@ export default function WeatherPage() {
         setIsRefreshing(false)
       }
     )
-  }
+  }, [checkAndSaveAlerts])
 
-  async function loadWeatherByCity(cityName: string) {
+  const loadWeatherByCity = useCallback(async (cityName: string) => {
     setLoading(true)
     setError('')
     setUsingGPS(false)
@@ -152,6 +255,7 @@ export default function WeatherPage() {
         setWeather(data)
         setLastUpdated(new Date())
         setSelectedCity(cityName)
+        await checkAndSaveAlerts(city.lat, city.lon)
       } else {
         setError('Could not load weather data.')
       }
@@ -160,9 +264,9 @@ export default function WeatherPage() {
       console.error('Weather fetch error:', err)
     }
     setLoading(false)
-  }
+  }, [checkAndSaveAlerts])
 
-  async function handleCustomSearch() {
+  const handleCustomSearch = useCallback(async () => {
     if (!customSearch.trim()) return
     
     setLoading(true)
@@ -178,6 +282,7 @@ export default function WeatherPage() {
           setLastUpdated(new Date())
           setSelectedCity(w.city || customSearch)
           setUsingGPS(false)
+          await checkAndSaveAlerts(coords.lat, coords.lon)
         } else {
           setError('Could not load weather for that location.')
         }
@@ -189,9 +294,9 @@ export default function WeatherPage() {
       console.error('Search error:', err)
     }
     setLoading(false)
-  }
+  }, [customSearch, checkAndSaveAlerts])
 
-  async function handleRefresh() {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true)
     if (usingGPS) {
       await loadWeatherByGPS()
@@ -202,19 +307,100 @@ export default function WeatherPage() {
     } else {
       await loadWeatherByGPS()
     }
-  }
+  }, [usingGPS, selectedCity, weather, loadWeatherByGPS, loadWeatherByCity])
 
-  function clearSearch() {
+  // ===== ALERT MANAGEMENT =====
+  const markAlertAsRead = useCallback(async (alertId: string) => {
+    try {
+      const { error } = await supabase
+        .from('weather_alerts')
+        .update({ is_read: true })
+        .eq('id', alertId)
+      
+      if (error) throw error
+      
+      setAlerts(prev => prev.map(a => 
+        a.id === alertId ? { ...a, is_read: true } : a
+      ))
+      setAlertCount(prev => Math.max(0, prev - 1))
+    } catch (err) {
+      console.error('Failed to mark alert as read:', err)
+    }
+  }, [supabase])
+
+  const markAllAlertsAsRead = useCallback(async () => {
+    try {
+      const alertIds = alerts.filter(a => !a.is_read).map(a => a.id)
+      if (alertIds.length === 0) return
+      
+      const { error } = await supabase
+        .from('weather_alerts')
+        .update({ is_read: true })
+        .in('id', alertIds)
+      
+      if (error) throw error
+      
+      setAlerts(prev => prev.map(a => ({ ...a, is_read: true })))
+      setAlertCount(0)
+    } catch (err) {
+      console.error('Failed to mark all alerts as read:', err)
+    }
+  }, [alerts, supabase])
+
+  const deleteAlert = useCallback(async (alertId: string) => {
+    try {
+      const { error } = await supabase
+        .from('weather_alerts')
+        .delete()
+        .eq('id', alertId)
+      
+      if (error) throw error
+      
+      setAlerts(prev => prev.filter(a => a.id !== alertId))
+      const wasUnread = alerts.find(a => a.id === alertId && !a.is_read)
+      if (wasUnread) {
+        setAlertCount(prev => Math.max(0, prev - 1))
+      }
+    } catch (err) {
+      console.error('Failed to delete alert:', err)
+    }
+  }, [alerts, supabase])
+
+  const clearSearch = useCallback(() => {
     setCustomSearch('')
     setError('')
-  }
+  }, [])
 
-  // Initial load
+  // ===== AUTO-CHECK ALERTS EVERY 30 MINUTES =====
+  useEffect(() => {
+    if (autoCheckEnabled && weather && currentFarm && user) {
+      alertCheckInterval.current = setInterval(async () => {
+        // Get current location
+        const lat = weather.city ? SA_CITIES.find(c => c.name === weather.city)?.lat : null
+        const lon = weather.city ? SA_CITIES.find(c => c.name === weather.city)?.lon : null
+        
+        if (lat && lon) {
+          await checkAndSaveAlerts(lat, lon)
+        }
+      }, 30 * 60 * 1000) // 30 minutes
+    }
+    
+    return () => {
+      if (alertCheckInterval.current) {
+        clearInterval(alertCheckInterval.current)
+      }
+    }
+  }, [autoCheckEnabled, weather, currentFarm, user, checkAndSaveAlerts])
+
+  // ===== INITIAL LOAD =====
   useEffect(() => {
     if (authChecked && user) {
+      // Load weather
       loadWeatherByGPS()
+      // Fetch existing alerts
+      fetchExistingAlerts()
     }
-  }, [authChecked, user])
+  }, [authChecked, user, loadWeatherByGPS, fetchExistingAlerts])
 
   const advice = weather ? getFarmingAdvice(weather) : []
 
@@ -275,6 +461,18 @@ export default function WeatherPage() {
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
               {currentFarm?.name || 'Farm'}
             </Badge>
+            {alertCount > 0 && (
+              <Badge className="bg-red-500 text-white text-xs font-medium animate-pulse">
+                <Bell size={12} className="mr-1" />
+                {alertCount} Alert{alertCount !== 1 ? 's' : ''}
+              </Badge>
+            )}
+            {checkingAlerts && (
+              <Badge className="bg-gray-500 text-white text-xs font-medium">
+                <RefreshCw size={12} className="mr-1 animate-spin" />
+                Checking
+              </Badge>
+            )}
           </div>
           <p className="text-gray-500 text-sm mt-1">
             {lastUpdated
@@ -283,13 +481,31 @@ export default function WeatherPage() {
             }
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAlerts(!showAlerts)}
+            className={`border-[#2D6A4F] ${alertCount > 0 ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100' : 'text-[#2D6A4F] hover:bg-[#D8F3DC]'}`}
+          >
+            {alertCount > 0 ? (
+              <>
+                <Bell size={14} className="mr-1" />
+                {alertCount}
+              </>
+            ) : (
+              <>
+                <BellOff size={14} className="mr-1" />
+                No Alerts
+              </>
+            )}
+          </Button>
           <Select value={selectedCity} onValueChange={(val) => {
             setSelectedCity(val ?? '')
             if (val) loadWeatherByCity(val)
           }}>
-            <SelectTrigger className="w-48 border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]">
-              <SelectValue placeholder={usingGPS ? 'My Location' : 'Select city'} />
+            <SelectTrigger className="w-44 border-gray-200 focus:border-[#2D6A4F] focus:ring-[#2D6A4F]">
+              <SelectValue placeholder={usingGPS ? '📍 My Location' : 'Select city'} />
             </SelectTrigger>
             <SelectContent>
               {SA_CITIES.map(city => (
@@ -319,6 +535,124 @@ export default function WeatherPage() {
         </div>
       </div>
 
+      {/* Weather Alerts Panel */}
+      {showAlerts && (
+        <Card className="shadow-sm border-red-200 bg-gradient-to-br from-red-50 to-white">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-red-700 flex items-center gap-2">
+              <Bell size={16} />
+              Weather Alerts
+              {alertCount > 0 && (
+                <Badge className="bg-red-500 text-white text-xs">
+                  {alertCount} unread
+                </Badge>
+              )}
+              <Badge className="bg-gray-200 text-gray-600 text-xs">
+                {alerts.length} total
+              </Badge>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {alertCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={markAllAlertsAsRead}
+                  className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
+                >
+                  Mark all read
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAlerts(false)}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Close
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {alerts.length === 0 ? (
+              <div className="flex items-center gap-3 py-4 text-gray-500">
+                <BellOff size={20} />
+                <p className="text-sm">No weather alerts for your area</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                {alerts.map((alert) => {
+                  const severity = alert.severity as keyof typeof SEVERITY_CONFIG
+                  const config = SEVERITY_CONFIG[severity] || SEVERITY_CONFIG.advisory
+                  const alertIcon = ALERT_ICONS[alert.type as keyof typeof ALERT_ICONS] || '⚠️'
+                  const alertLabel = ALERT_LABELS[alert.type as keyof typeof ALERT_LABELS] || alert.type
+                  
+                  return (
+                    <div
+                      key={alert.id}
+                      className={cn(
+                        'flex items-start justify-between p-3 rounded-lg border transition-all',
+                        alert.is_read ? 'bg-white border-gray-200 opacity-60' : `${config.bg} ${config.border} shadow-sm`,
+                      )}
+                    >
+                      <div className="flex gap-3 flex-1 min-w-0">
+                        <span className="text-xl flex-shrink-0">{alertIcon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className={cn(
+                              'text-sm font-medium',
+                              alert.is_read ? 'text-gray-600' : config.text
+                            )}>
+                              {alert.title}
+                            </p>
+                            <Badge className={config.badge}>
+                              {alertLabel}
+                            </Badge>
+                            <Badge className={config.badge}>
+                              {alert.severity.toUpperCase()}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5">{alert.description}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-400">
+                              {new Date(alert.date).toLocaleDateString('en-ZA', { 
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                        {!alert.is_read && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => markAlertAsRead(alert.id)}
+                            className="text-xs text-gray-400 hover:text-gray-600"
+                          >
+                            Dismiss
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteAlert(alert.id)}
+                          className="text-xs text-gray-300 hover:text-red-500"
+                        >
+                          <X size={14} />
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -347,7 +681,7 @@ export default function WeatherPage() {
         </Button>
       </div>
 
-      {error && (
+      {error && !error.includes('alert') && (
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-3 px-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -394,7 +728,7 @@ export default function WeatherPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
                     <Droplets size={16} className="text-[#52B788]" />
                     <div>
@@ -432,7 +766,8 @@ export default function WeatherPage() {
             <Card className="shadow-sm border-[#52B788] bg-gradient-to-br from-white to-[#D8F3DC]/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base text-[#1B4332] flex items-center gap-2">
-                  <span>Today's Farming Advice</span>
+                  <Sparkles size={16} className="text-[#2D6A4F]" />
+                  Today's Farming Advice
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -455,18 +790,18 @@ export default function WeatherPage() {
             <CardContent className="p-0">
               <div className="divide-y divide-gray-100">
                 {weather.forecast.map((day, i) => (
-                  <div key={i} className="flex items-center justify-between px-6 py-3 hover:bg-gray-50/50 transition-colors">
+                  <div key={i} className="flex items-center justify-between px-4 sm:px-6 py-3 hover:bg-gray-50/50 transition-colors flex-wrap gap-2">
                     <div className="w-12">
                       <p className={`text-sm font-medium ${i === 0 ? 'text-[#2D6A4F]' : 'text-gray-700'}`}>
                         {i === 0 ? 'Today' : day.dayName}
                       </p>
                       <p className="text-xs text-gray-400">{day.date.slice(5)}</p>
                     </div>
-                    <div className="flex items-center gap-2 w-32">
+                    <div className="flex items-center gap-2 flex-1 min-w-[80px]">
                       <span className="text-xl">{getWeatherEmoji(day.description)}</span>
                       <p className="text-xs text-gray-500 capitalize truncate">{day.description}</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       {day.rainChance > 0 && (
                         <div className="flex items-center gap-1">
                           <Droplets size={12} className="text-blue-400" />
@@ -479,7 +814,7 @@ export default function WeatherPage() {
                       </div>
                       <div className="flex items-center gap-2 w-20 justify-end">
                         <p className="text-xs text-blue-500 font-medium">{day.tempMin}°</p>
-                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="w-12 sm:w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-blue-300 to-orange-400 rounded-full"
                             style={{ width: `${Math.min(((day.tempMax - day.tempMin) / 20) * 100, 100)}%` }}
@@ -494,6 +829,7 @@ export default function WeatherPage() {
             </CardContent>
           </Card>
 
+          {/* Weather warnings */}
           {weather.forecast.slice(0, 3).some(d => d.rainChance > 50) && (
             <Card className="shadow-sm border-blue-200 bg-gradient-to-br from-blue-50 to-white">
               <CardContent className="py-3 px-4">
