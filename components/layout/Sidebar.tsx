@@ -29,7 +29,8 @@ import {
   Target,
   LifeBuoy,
   CircleDot,
-  ChevronRight
+  ChevronRight,
+  Clock,
 } from 'lucide-react'
 import { useFarm } from '@/lib/farm-context'
 import { cn } from '@/lib/utils'

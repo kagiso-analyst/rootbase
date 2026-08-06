@@ -3,7 +3,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { BarChart2, TrendingUp, TrendingDown, DollarSign, RefreshCw, Sparkles } from 'lucide-react'
+import { BarChart2, TrendingUp, TrendingDown, DollarSign, RefreshCw, Sparkles, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,15 @@ const sections = [
     color: 'text-green-600',
     bg: 'bg-green-50',
     border: 'hover:border-green-200',
+  },
+  {
+    title: 'Recurring',
+    description: 'Automate regular income and expenses',
+    href: '/finances/recurring',
+    icon: Clock,
+    color: 'text-blue-600',
+    bg: 'bg-blue-50',
+    border: 'hover:border-blue-200',
   },
   {
     title: 'Reports',
