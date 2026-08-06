@@ -1,7 +1,7 @@
 // app/page.tsx
 
 import Link from 'next/link'
-import { Check, BarChart2, CheckSquare, BookOpen, Package, Cloud, PawPrint, Wrench, Leaf } from 'lucide-react'  // 👈 ADD Leaf
+import { Check, BarChart2, CheckSquare, BookOpen, Package, Cloud, PawPrint, Wrench, Leaf } from 'lucide-react'
 import { Logo } from '@/components/ui/Logo'
 
 export default function LandingPage() {
@@ -183,15 +183,36 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="py-8 px-6 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-4">
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <Logo variant="text" size="sm" />
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400 text-center sm:text-left">
             © 2026 Eliora Shammah Creative Studios (PTY) LTD · South Africa
           </p>
-          <div className="flex items-center gap-4">
-            <Link href="/login" className="text-xs text-gray-400 hover:text-[#2D6A4F]">Sign In</Link>
-            <Link href="/register" className="text-xs text-gray-400 hover:text-[#2D6A4F]">Register</Link>
-            <Link href="/subscription" className="text-xs text-gray-400 hover:text-[#2D6A4F]">Pricing</Link>
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
+            <Link href="/login" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Sign In
+            </Link>
+            <Link href="/register" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Register
+            </Link>
+            <Link href="/subscription" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Pricing
+            </Link>
+            <Link href="/faq" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              FAQ
+            </Link>
+            <Link href="/support" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Support
+            </Link>
+            <Link href="/privacy" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Terms
+            </Link>
+            <Link href="/refund-policy" className="text-xs text-gray-400 hover:text-[#2D6A4F] transition-colors">
+              Refunds
+            </Link>
           </div>
         </div>
       </footer>
