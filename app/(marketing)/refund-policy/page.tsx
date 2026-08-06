@@ -42,7 +42,7 @@ export default function RefundPolicyPage() {
         </div>
 
         <div className="mt-8 border-t border-gray-200 pt-6 text-xs text-gray-400">
-          <p>Last updated: January 2025</p>
+          <p>Last updated: January 2026</p>
           <p className="mt-1">Contact us at support@rootbase.co.za for any questions about your subscription.</p>
         </div>
       </div>

@@ -48,7 +48,7 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-8 border-t border-gray-200 pt-6 text-xs text-gray-400">
-          <p>Last updated: January 2025</p>
+          <p>Last updated: January 2026</p>
           <p className="mt-1">RootBase is committed to protecting your privacy and ensuring the security of your farm data.</p>
         </div>
       </div>
