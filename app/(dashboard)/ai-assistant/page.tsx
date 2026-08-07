@@ -9,7 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { 
   Sparkles, Send, Bot, TrendingUp, AlertCircle, Lightbulb, 
-  Leaf, DollarSign, Calendar, RefreshCw, X 
+  Leaf, DollarSign, Calendar, RefreshCw, X,
+  Loader2, MessageSquare, CheckCircle, Package, Users,
+  TrendingDown, Cloud, HelpCircle, Target, PieChart
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
@@ -20,8 +22,20 @@ type Insight = {
   type: 'insight' | 'recommendation' | 'alert'
   title: string
   description: string
-  icon: string
+  icon: React.ReactNode
   created_at: string
+}
+
+const ICON_MAP = {
+  profit: <DollarSign className="text-green-500" size={20} />,
+  loss: <AlertCircle className="text-red-500" size={20} />,
+  crop: <Leaf className="text-emerald-500" size={20} />,
+  task: <CheckCircle className="text-orange-500" size={20} />,
+  inventory: <Package className="text-blue-500" size={20} />,
+  insight: <Lightbulb className="text-yellow-500" size={20} />,
+  alert: <AlertCircle className="text-red-500" size={20} />,
+  recommendation: <Target className="text-green-500" size={20} />,
+  general: <Sparkles className="text-purple-500" size={20} />,
 }
 
 export default function AIAssistantPage() {
@@ -33,6 +47,7 @@ export default function AIAssistantPage() {
   const [response, setResponse] = useState('')
   const [isAsking, setIsAsking] = useState(false)
   const [chatHistory, setChatHistory] = useState<{ question: string; answer: string }[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(true)
   const supabase = createClient()
   const { currentFarm, loading: farmLoading } = useFarm()
 
@@ -45,6 +60,7 @@ export default function AIAssistantPage() {
     overdueTasks: 0,
     lowStockItems: 0,
     totalTasks: 0,
+    farmName: '',
   })
 
   useEffect(() => {
@@ -90,6 +106,7 @@ export default function AIAssistantPage() {
         overdueTasks: overdueTasks.length,
         lowStockItems: lowStockItems.length,
         totalTasks: tasksRes.data?.length || 0,
+        farmName: currentFarm.name,
       })
 
       const generatedInsights: Insight[] = []
@@ -101,7 +118,7 @@ export default function AIAssistantPage() {
           type: 'insight',
           title: 'Strong Profitability',
           description: `Your farm has generated R${net.toFixed(2)} in profit. Consider reinvesting in high-performing crops or equipment.`,
-          icon: '💰',
+          icon: ICON_MAP.profit,
           created_at: new Date().toISOString(),
         })
       } else if (net < 0) {
@@ -110,7 +127,7 @@ export default function AIAssistantPage() {
           type: 'alert',
           title: 'Operating at a Loss',
           description: `Your farm is R${Math.abs(net).toFixed(2)} in the red. Review your expense categories and consider cost-cutting measures.`,
-          icon: '⚠️',
+          icon: ICON_MAP.loss,
           created_at: new Date().toISOString(),
         })
       }
@@ -122,7 +139,7 @@ export default function AIAssistantPage() {
           type: 'recommendation',
           title: `${activeCrops.length} Active Crops`,
           description: `You have ${activeCrops.length} crops in the ground. Rotating crops between fields helps maintain soil health.`,
-          icon: '🌱',
+          icon: ICON_MAP.crop,
           created_at: new Date().toISOString(),
         })
       }
@@ -134,7 +151,7 @@ export default function AIAssistantPage() {
           type: 'alert',
           title: `${overdueTasks.length} Overdue Tasks`,
           description: `You have ${overdueTasks.length} overdue tasks. Prioritize them to avoid further delays.`,
-          icon: '📋',
+          icon: ICON_MAP.task,
           created_at: new Date().toISOString(),
         })
       }
@@ -146,7 +163,7 @@ export default function AIAssistantPage() {
           type: 'alert',
           title: 'Low Stock Alert',
           description: `${lowStockItems.length} items are below reorder level. Review: ${lowStockItems.map(i => i.name).join(', ')}`,
-          icon: '📦',
+          icon: ICON_MAP.inventory,
           created_at: new Date().toISOString(),
         })
       }
@@ -158,7 +175,7 @@ export default function AIAssistantPage() {
           type: 'insight',
           title: 'Your Farm is Running Smoothly',
           description: 'Everything looks good! Continue monitoring your crops, finances, and tasks to maintain this momentum.',
-          icon: '✅',
+          icon: ICON_MAP.general,
           created_at: new Date().toISOString(),
         })
       }
@@ -182,46 +199,60 @@ export default function AIAssistantPage() {
 
     setIsAsking(true)
     setResponse('')
+    setShowSuggestions(false)
 
-    // In production, this would call an AI API (OpenAI, Claude, etc.)
-    // For now, we'll use smart responses based on keywords
-    const lowerQuestion = question.toLowerCase()
-    let answer = ''
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: question.trim(),
+          farmData: {
+            ...farmData,
+            farmName: currentFarm?.name,
+          }
+        }),
+      })
 
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    if (lowerQuestion.includes('profit') || lowerQuestion.includes('money') || lowerQuestion.includes('income')) {
-      answer = `Based on your farm data, your current net profit is R${farmData.net.toFixed(2)}. Your top income sources are likely your most profitable crops. I recommend focusing on high-margin crops and tracking expenses closely.`
-    } else if (lowerQuestion.includes('crop') || lowerQuestion.includes('plant') || lowerQuestion.includes('harvest')) {
-      answer = `You have ${farmData.activeCrops} active crops. I recommend checking your planting schedule and ensuring you're rotating crops between fields to maintain soil health. Consider diversifying if you're relying on a single crop.`
-    } else if (lowerQuestion.includes('task') || lowerQuestion.includes('todo') || lowerQuestion.includes('reminder')) {
-      answer = `You have ${farmData.overdueTasks} overdue tasks out of ${farmData.totalTasks} total tasks. I recommend prioritizing urgent tasks first, then tackling high-priority items. Would you like me to help you organize your task list?`
-    } else if (lowerQuestion.includes('weather') || lowerQuestion.includes('rain') || lowerQuestion.includes('sun')) {
-      answer = `Weather plays a crucial role in farming. I recommend checking the weather forecast daily for your area. For optimal results, plan spraying and harvesting during dry conditions, and irrigation during dry spells.`
-    } else if (lowerQuestion.includes('inventory') || lowerQuestion.includes('stock') || lowerQuestion.includes('supply')) {
-      answer = `You have ${farmData.lowStockItems} items that need reordering. I recommend reviewing your inventory weekly and setting up automatic reordering for critical supplies like seed and fertiliser.`
-    } else if (lowerQuestion.includes('help') || lowerQuestion.includes('what can') || lowerQuestion.includes('how to')) {
-      answer = `I can help you with: farm finances, crop management, livestock care, task organization, inventory tracking, and weather planning. Just ask me anything about your farm!`
-    } else {
-      answer = `That's a great question! Based on your farm data, I recommend analyzing your current operations and focusing on what's working best. Would you like me to provide more specific insights about a particular area?`
+      const data = await res.json()
+      
+      if (data.answer) {
+        const answer = data.answer
+        setResponse(answer)
+        setChatHistory(prev => [...prev, { question: question.trim(), answer }])
+      } else if (data.error) {
+        setResponse('⚠️ ' + data.error)
+      } else {
+        setResponse('I couldn\'t process your request. Please try rephrasing your question.')
+      }
+    } catch (err) {
+      console.error('AI error:', err)
+      setResponse('Something went wrong. Please try again later.')
+    } finally {
+      setIsAsking(false)
+      setQuestion('')
     }
-
-    setResponse(answer)
-    setChatHistory(prev => [...prev, { question, answer }])
-    setIsAsking(false)
   }
 
   const clearChat = () => {
     setChatHistory([])
     setResponse('')
     setQuestion('')
+    setShowSuggestions(true)
   }
+
+  const quickQuestions = [
+    { icon: <DollarSign size={14} className="text-green-500" />, label: 'Financial health', query: 'How is my farm doing financially?' },
+    { icon: <Leaf size={14} className="text-emerald-500" />, label: 'Crop rotation advice', query: 'What crops should I plant next season?' },
+    { icon: <CheckCircle size={14} className="text-orange-500" />, label: 'Task management tips', query: 'How can I better manage my farm tasks?' },
+    { icon: <Package size={14} className="text-blue-500" />, label: 'Inventory management', query: 'How can I improve my inventory management?' },
+  ]
 
   if (!authChecked || farmLoading || loading) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
+          <Loader2 size={32} className="animate-spin text-[#2D6A4F] mx-auto mb-3" />
           <p className="text-sm text-gray-400">Loading AI Assistant...</p>
         </div>
       </div>
@@ -281,7 +312,9 @@ export default function AIAssistantPage() {
             <Card key={insight.id} className="shadow-sm border-0 hover:shadow-md transition-shadow">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <div className="text-2xl">{insight.icon}</div>
+                  <div className="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center flex-shrink-0">
+                    {insight.icon}
+                  </div>
                   <div>
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-gray-800">{insight.title}</h3>
@@ -316,13 +349,36 @@ export default function AIAssistantPage() {
           )}
         </CardHeader>
         <CardContent>
+          {/* Quick Questions */}
+          {showSuggestions && chatHistory.length === 0 && (
+            <div className="mb-4">
+              <p className="text-xs text-gray-400 mb-2">Try asking:</p>
+              <div className="flex flex-wrap gap-2">
+                {quickQuestions.map((q) => (
+                  <button
+                    key={q.label}
+                    onClick={() => {
+                      setQuestion(q.query)
+                      setTimeout(() => askQuestion(), 100)
+                    }}
+                    className="text-xs bg-gray-50 hover:bg-[#D8F3DC] border border-gray-200 hover:border-[#2D6A4F] rounded-full px-3 py-1.5 transition-colors flex items-center gap-1"
+                  >
+                    {q.icon}
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Input
               placeholder="Ask anything about your farm..."
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && askQuestion()}
+              onKeyDown={(e) => e.key === 'Enter' && !isAsking && askQuestion()}
               className="flex-1"
+              disabled={isAsking}
             />
             <Button
               className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
@@ -330,7 +386,7 @@ export default function AIAssistantPage() {
               disabled={!question.trim() || isAsking}
             >
               {isAsking ? (
-                <><RefreshCw size={16} className="mr-2 animate-spin" /> Thinking...</>
+                <><Loader2 size={16} className="mr-2 animate-spin" /> Thinking...</>
               ) : (
                 <><Send size={16} className="mr-2" /> Ask</>
               )}
@@ -339,16 +395,20 @@ export default function AIAssistantPage() {
 
           {/* Chat History */}
           {chatHistory.length > 0 && (
-            <div className="mt-4 space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            <div className="mt-4 space-y-3 max-h-[400px] overflow-y-auto pr-1">
               {chatHistory.map((chat, index) => (
                 <div key={index}>
                   <div className="bg-gray-50 rounded-lg p-3 mb-1">
-                    <p className="text-xs text-gray-400 mb-1">You</p>
+                    <p className="text-xs text-gray-400 mb-1 flex items-center gap-1">
+                      <MessageSquare size={12} className="text-gray-400" /> You
+                    </p>
                     <p className="text-sm text-gray-800">{chat.question}</p>
                   </div>
                   <div className="bg-[#D8F3DC]/20 rounded-lg p-3 border border-[#D8F3DC]/30">
-                    <p className="text-xs text-[#2D6A4F] mb-1">AI Assistant</p>
-                    <p className="text-sm text-gray-700">{chat.answer}</p>
+                    <p className="text-xs text-[#2D6A4F] mb-1 flex items-center gap-1">
+                      <Bot size={12} className="text-[#2D6A4F]" /> AI Assistant
+                    </p>
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{chat.answer}</p>
                   </div>
                 </div>
               ))}
@@ -359,7 +419,7 @@ export default function AIAssistantPage() {
             <div className="mt-4 p-4 bg-[#D8F3DC]/30 rounded-lg border border-[#D8F3DC]">
               <div className="flex items-start gap-3">
                 <Bot size={18} className="text-[#2D6A4F] mt-0.5" />
-                <p className="text-sm text-gray-700">{response}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">{response}</p>
               </div>
             </div>
           )}
