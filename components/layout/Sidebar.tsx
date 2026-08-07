@@ -32,10 +32,12 @@ import {
   ChevronRight,
   Clock,
   Sparkles,
+  Users,
 } from 'lucide-react'
 import { useFarm } from '@/lib/farm-context'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/ui/Logo'
+import { useNotifications } from '@/lib/hooks/use-notifications'
 
 // ===== TYPES =====
 type NavItem = {
@@ -76,7 +78,7 @@ const navigation: NavSection[] = [
         name: "Notifications",
         href: "/notifications",
         icon: Bell,
-        badge: 3,
+        badge: 0, // Will be updated dynamically
       },
       {
         name: "Weather",
@@ -164,10 +166,10 @@ const navigation: NavSection[] = [
         icon: FileText,
       },
       {
-      name: "AI Assistant",
-      href: "/ai-assistant",
-      icon: Sparkles,
-    },
+        name: "AI Assistant",
+        href: "/ai-assistant",
+        icon: Sparkles,
+      },
     ],
   },
   {
@@ -183,6 +185,11 @@ const navigation: NavSection[] = [
         href: "/settings",
         icon: Settings,
       },
+      {
+        name: "Support Admin",
+        href: "/support/admin",
+        icon: Users,
+      },
     ],
   },
 ]
@@ -191,12 +198,15 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const pathname = usePathname()
   const { currentFarm } = useFarm()
+  
+  // 👇 USE REAL NOTIFICATIONS
+  const { count: notificationCount } = useNotifications(currentFarm?.id || null)
 
   // Get the actual farm name from context
   const farmName = currentFarm?.name || 'No Farm Selected'
 
-  // Update the farm name in navigation
-  const navWithFarm = navigation.map((section) => {
+  // Update the farm name in navigation and add notification badge
+  const navWithFarmAndBadges = navigation.map((section) => {
     if (section.title === "ACTIVE FARM") {
       return {
         ...section,
@@ -206,9 +216,131 @@ export default function Sidebar() {
         })),
       }
     }
+    // Add notification badge to Notifications item
+    if (section.title === "MAIN") {
+      return {
+        ...section,
+        items: section.items.map((item) => {
+          if (item.name === "Notifications") {
+            return {
+              ...item,
+              badge: notificationCount,
+            }
+          }
+          return item
+        }),
+      }
+    }
     return section
   })
 
+  // ===== RENDER SIDEBAR CONTENT =====
+  const renderSidebarContent = (isMobile: boolean) => (
+    <>
+      {/* Logo Section */}
+      <div className="px-6 py-5 border-b border-[#2D6A4F]/50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Leaf size={28} className="text-[#52B788]" />
+            <div>
+              <span className="text-xl font-bold text-white">RootBase</span>
+              <p className="text-xs text-[#52B788] font-medium">Farm Management</p>
+            </div>
+          </div>
+          {isMobile && (
+            <button 
+              onClick={() => setMobileOpen(false)}
+              className="p-1.5 hover:bg-[#2D6A4F]/40 rounded-lg transition-colors"
+            >
+              <X size={20} className="text-[#52B788]" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 px-4 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2D6A4F] scrollbar-track-transparent">
+        <div className="space-y-6">
+          {/* Active Farm Section */}
+          <div>
+            <p className="text-[10px] text-[#52B788]/70 uppercase tracking-wider font-semibold mb-2">
+              ACTIVE FARM
+            </p>
+            <div className="bg-[#2D6A4F]/30 rounded-lg px-3 py-2.5 border border-[#2D6A4F]/20">
+              <div className="flex items-center gap-2.5">
+                <Leaf size={16} className="text-[#52B788]" />
+                <span className="text-sm font-medium text-white truncate">
+                  {currentFarm?.name || 'No Farm Selected'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Sections */}
+          {navWithFarmAndBadges.slice(1).map((section) => (
+            <div key={section.title}>
+              <p className="text-[10px] text-[#52B788]/70 uppercase tracking-wider font-semibold mb-2">
+                {section.title}
+              </p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
+                  const Icon = item.icon
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => isMobile && setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200",
+                        isActive
+                          ? "bg-[#2D6A4F] text-white shadow-lg shadow-[#2D6A4F]/20"
+                          : "text-[#D8F3DC] hover:bg-[#2D6A4F]/40 hover:text-white"
+                      )}
+                    >
+                      <Icon size={18} className={cn(
+                        "flex-shrink-0",
+                        isActive ? "text-white" : "text-[#52B788]"
+                      )} />
+                      <span className="flex-1">{item.name}</span>
+                      {item.badge !== undefined && item.badge > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center animate-pulse">
+                          {item.badge > 9 ? '9+' : item.badge}
+                        </span>
+                      )}
+                    </Link>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </nav>
+
+      {/* Footer */}
+      <div className="px-6 py-4 border-t border-[#2D6A4F]/50">
+        <Link 
+          href="/support" 
+          className="flex items-center gap-2 text-sm text-[#52B788] hover:text-[#D8F3DC] transition-colors mb-3"
+        >
+          <LifeBuoy size={16} />
+          <span>Need help?</span>
+          <span className="text-[#52B788]/60">Visit support →</span>
+        </Link>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-[#52B788]/50">© 2026 RootBase</p>
+          <span className="text-xs text-[#52B788]/40">v1.0</span>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <CircleDot size={10} className="text-green-400 animate-pulse" />
+          <span className="text-[10px] text-[#52B788]/40">All systems ready</span>
+        </div>
+      </div>
+    </>
+  )
+
+  // ===== RENDER =====
   return (
     <>
       {/* Mobile menu button */}
@@ -232,172 +364,12 @@ export default function Sidebar() {
         "md:hidden fixed top-0 left-0 h-full w-72 bg-gradient-to-b from-[#1B4332] to-[#143025] text-white z-50 transform transition-transform duration-300 ease-in-out shadow-2xl",
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex items-center justify-between px-6 py-5 border-b border-[#2D6A4F]/50">
-          <div className="flex items-center gap-2.5">
-            <Leaf size={28} className="text-[#52B788]" />
-            <div>
-              <span className="text-xl font-bold text-white">RootBase</span>
-              <p className="text-xs text-[#52B788] font-medium">Farm Management</p>
-            </div>
-          </div>
-          <button 
-            onClick={() => setMobileOpen(false)}
-            className="p-1.5 hover:bg-[#2D6A4F]/40 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-[#52B788]" />
-          </button>
-        </div>
-        <nav className="flex-1 px-4 py-4 overflow-y-auto h-[calc(100%-80px)]">
-          <div className="space-y-6">
-            {/* Active Farm Section */}
-            <div>
-              <p className="text-[10px] text-[#52B788]/70 uppercase tracking-wider font-semibold mb-2">
-                ACTIVE FARM
-              </p>
-              <div className="bg-[#2D6A4F]/30 rounded-lg px-3 py-2.5 border border-[#2D6A4F]/20">
-                <div className="flex items-center gap-2.5">
-                  <Leaf size={16} className="text-[#52B788]" />
-                  <span className="text-sm font-medium text-white truncate">
-                    {currentFarm?.name || 'No Farm'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation Sections */}
-            {navWithFarm.slice(1).map((section) => (
-              <div key={section.title}>
-                <p className="text-[10px] text-[#52B788]/70 uppercase tracking-wider font-semibold mb-2">
-                  {section.title}
-                </p>
-                <div className="space-y-1">
-                  {section.items.map((item) => {
-                    const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
-                    const Icon = item.icon
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMobileOpen(false)}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200",
-                          isActive
-                            ? "bg-[#2D6A4F] text-white shadow-lg shadow-[#2D6A4F]/20"
-                            : "text-[#D8F3DC] hover:bg-[#2D6A4F]/40 hover:text-white"
-                        )}
-                      >
-                        <Icon size={18} className={cn(
-                          "flex-shrink-0",
-                          isActive ? "text-white" : "text-[#52B788]"
-                        )} />
-                        <span className="flex-1">{item.name}</span>
-                        {item.badge !== undefined && item.badge > 0 && (
-                          <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                            {item.badge}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </nav>
+        {renderSidebarContent(true)}
       </div>
 
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-64 min-h-screen bg-gradient-to-b from-[#1B4332] to-[#143025] text-white shadow-xl border-r border-[#2D6A4F]/20 flex-shrink-0">
-        {/* Logo with RootBase and Farm Management */}
-        <div className="px-6 py-5 border-b border-[#2D6A4F]/50">
-          <div className="flex items-center gap-2.5">
-            <Leaf size={28} className="text-[#52B788]" />
-            <div>
-              <span className="text-xl font-bold text-white">RootBase</span>
-              <p className="text-xs text-[#52B788] font-medium">Farm Management</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-4 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2D6A4F] scrollbar-track-transparent">
-          <div className="space-y-6">
-            {/* Active Farm Section */}
-            <div>
-              <p className="text-[10px] text-[#52B788]/70 uppercase tracking-wider font-semibold mb-2">
-                ACTIVE FARM
-              </p>
-              <div className="bg-[#2D6A4F]/30 rounded-lg px-3 py-2.5 border border-[#2D6A4F]/20">
-                <div className="flex items-center gap-2.5">
-                  <Leaf size={16} className="text-[#52B788]" />
-                  <span className="text-sm font-medium text-white truncate">
-                    {currentFarm?.name || 'No Farm Selected'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation Sections */}
-            {navWithFarm.slice(1).map((section) => (
-              <div key={section.title}>
-                <p className="text-[10px] text-[#52B788]/70 uppercase tracking-wider font-semibold mb-2">
-                  {section.title}
-                </p>
-                <div className="space-y-1">
-                  {section.items.map((item) => {
-                    const isActive = pathname === item.href || pathname?.startsWith(item.href + '/')
-                    const Icon = item.icon
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200",
-                          isActive
-                            ? "bg-[#2D6A4F] text-white shadow-lg shadow-[#2D6A4F]/20"
-                            : "text-[#D8F3DC] hover:bg-[#2D6A4F]/40 hover:text-white"
-                        )}
-                      >
-                        <Icon size={18} className={cn(
-                          "flex-shrink-0",
-                          isActive ? "text-white" : "text-[#52B788]"
-                        )} />
-                        <span className="flex-1">{item.name}</span>
-                        {item.badge !== undefined && item.badge > 0 && (
-                          <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                            {item.badge}
-                          </span>
-                        )}
-                      </Link>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </nav>
-
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-[#2D6A4F]/50">
-          <Link 
-  href="/support" 
-  className="flex items-center gap-2 text-sm text-[#52B788] hover:text-[#D8F3DC] transition-colors mb-3"
->
-  <LifeBuoy size={16} />
-  <span>Need help?</span>
-  <span className="text-[#52B788]/60">Visit support →</span>
-</Link>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-[#52B788]/50">© 2026 RootBase</p>
-            <span className="text-xs text-[#52B788]/40">v1.0</span>
-          </div>
-          <div className="mt-1.5 flex items-center gap-1.5">
-            <CircleDot size={10} className="text-green-400 animate-pulse" />
-            <span className="text-[10px] text-[#52B788]/40">All systems ready</span>
-          </div>
-        </div>
+        {renderSidebarContent(false)}
       </aside>
     </>
   )
