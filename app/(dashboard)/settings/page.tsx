@@ -3,7 +3,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Save, User, Bell, Shield, Palette, Import, RefreshCw, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { 
+  Save, User, Bell, Shield, Palette, Import, RefreshCw, 
+  CheckCircle, AlertCircle, Eye, EyeOff, Users,
+  Package, Wrench, FileText, BarChart3, CloudRain,
+  Crown, Sparkles, Building2, MapPin, Ruler, Globe, 
+  DollarSign, Phone, Mail, Trash2, UserPlus, UserMinus,
+  UserCog, MoreVertical, Search, Filter, X, Plus, Check,
+  Clock, MailCheck, MailOpen, Inbox, Archive, AlertTriangle,
+  Info, CircleCheck
+} from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,6 +30,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
 import { usePlanRestrictions } from '@/lib/use-plan-restrictions'
+import TeamPage from './team/page'
 
 export default function SettingsPage() {
   // ===== AUTH STATE =====
@@ -134,63 +144,57 @@ export default function SettingsPage() {
   }, [authChecked, user, loadData])
 
   // ===== SAVE PROFILE =====
-  // ===== SAVE PROFILE =====
-async function handleProfileSave() {
-  setLoading(true)
-  setSaveMessage(null)
-  setError(null)
-  
-  try {
-    if (!user) {
-      setSaveMessage({ type: 'error', text: 'You must be logged in to save settings' })
+  async function handleProfileSave() {
+    setLoading(true)
+    setSaveMessage(null)
+    setError(null)
+    
+    try {
+      if (!user) {
+        setSaveMessage({ type: 'error', text: 'You must be logged in to save settings' })
+        setLoading(false)
+        return
+      }
+
+      if (email !== user.email) {
+        const { error: emailError } = await supabase.auth.updateUser({
+          email: email
+        })
+        if (emailError) throw new Error('Failed to update email: ' + emailError.message)
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          full_name: fullName,
+          email: email,
+          phone: phone,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' })
+
+      if (error) throw new Error('Failed to save profile: ' + error.message)
+
+      setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
+      
+      const { data: { user: updatedUser } } = await supabase.auth.getUser()
+      if (updatedUser) setUser(updatedUser)
+      
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('profile-updated'))
+      }
+      
+    } catch (err) {
+      console.error('Profile save error:', err)
+      setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save profile' })
+    } finally {
       setLoading(false)
-      return
+      setTimeout(() => setSaveMessage(null), 3000)
     }
-
-    // Update email if changed
-    if (email !== user.email) {
-      const { error: emailError } = await supabase.auth.updateUser({
-        email: email
-      })
-      if (emailError) throw new Error('Failed to update email: ' + emailError.message)
-    }
-
-    // Update profile
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        user_id: user.id,
-        full_name: fullName,
-        email: email,
-        phone: phone,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' })
-
-    if (error) throw new Error('Failed to save profile: ' + error.message)
-
-    setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
-    
-    // Refresh user data
-    const { data: { user: updatedUser } } = await supabase.auth.getUser()
-    if (updatedUser) setUser(updatedUser)
-    
-    // 🔥 FIX: Dispatch event for TopBar to update
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('profile-updated'))
-    }
-    
-  } catch (err) {
-    console.error('Profile save error:', err)
-    setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save profile' })
-  } finally {
-    setLoading(false)
-    setTimeout(() => setSaveMessage(null), 3000)
   }
-}
 
   // ===== UPDATE PASSWORD =====
   async function handleUpdatePassword() {
-    // Validation
     if (!currentPassword || !newPassword || !confirmPassword) {
       setPasswordMessage({ type: 'error', text: 'Please fill in all password fields' })
       return
@@ -210,7 +214,6 @@ async function handleProfileSave() {
     setPasswordMessage(null)
 
     try {
-      // First verify current password by attempting to sign in
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: currentPassword,
@@ -222,7 +225,6 @@ async function handleProfileSave() {
         return
       }
 
-      // Update password
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       })
@@ -262,7 +264,6 @@ async function handleProfileSave() {
         return
       }
 
-      // Check if farm exists
       const { data: existing } = await supabase
         .from('farms')
         .select('id')
@@ -272,7 +273,6 @@ async function handleProfileSave() {
 
       let error
       if (existing) {
-        // Update existing farm
         const { error: updateError } = await supabase
           .from('farms')
           .update({
@@ -284,7 +284,6 @@ async function handleProfileSave() {
           .eq('id', existing.id)
         error = updateError
       } else {
-        // Create new farm
         const { error: insertError } = await supabase
           .from('farms')
           .insert([{
@@ -302,7 +301,6 @@ async function handleProfileSave() {
 
       setSaveMessage({ type: 'success', text: 'Farm settings saved successfully!' })
       
-      // Refresh farms in context
       await refreshFarms()
       
     } catch (err) {
@@ -325,7 +323,6 @@ async function handleProfileSave() {
     setPasswordMessage(null)
 
     try {
-      // Delete user data from all tables
       const tables = ['profiles', 'farms', 'income', 'expenses', 'crops', 'livestock', 'equipment', 'journal_entries']
       
       for (const table of tables) {
@@ -339,11 +336,9 @@ async function handleProfileSave() {
         }
       }
 
-      // Delete the user account
       const { error } = await supabase.auth.admin.deleteUser(user.id)
       
       if (error) {
-        // If admin delete fails, try to sign out
         await supabase.auth.signOut()
         window.location.href = '/login?deleted=true'
         return
@@ -434,13 +429,16 @@ async function handleProfileSave() {
             <User size={14} className="mr-1.5" /> Profile
           </TabsTrigger>
           <TabsTrigger value="farm" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all">
-            <Palette size={14} className="mr-1.5" /> Farm
+            <Building2 size={14} className="mr-1.5" /> Farm
+          </TabsTrigger>
+          <TabsTrigger value="team" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all">
+            <Users size={14} className="mr-1.5" /> Team
           </TabsTrigger>
           <TabsTrigger value="import" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all">
-            <Import size={14} className="mr-1.5" /> Import Data
+            <Import size={14} className="mr-1.5" /> Import
           </TabsTrigger>
           <TabsTrigger value="notifications" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all">
-            <Bell size={14} className="mr-1.5" /> Notifications
+            <Bell size={14} className="mr-1.5" /> Alerts
           </TabsTrigger>
           <TabsTrigger value="account" className="data-[state=active]:bg-[#2D6A4F] data-[state=active]:text-white data-[state=active]:shadow-sm rounded-md transition-all">
             <Shield size={14} className="mr-1.5" /> Account
@@ -451,12 +449,18 @@ async function handleProfileSave() {
         <TabsContent value="profile" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
-              <CardTitle className="text-base font-semibold text-gray-700">Personal Information</CardTitle>
+              <CardTitle className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <User size={16} className="text-[#2D6A4F]" />
+                Personal Information
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-600">Full Name</Label>
+                  <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <User size={14} className="text-gray-400" />
+                    Full Name
+                  </Label>
                   <Input
                     placeholder="Your full name"
                     value={fullName}
@@ -465,7 +469,10 @@ async function handleProfileSave() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-600">Phone Number</Label>
+                  <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <Phone size={14} className="text-gray-400" />
+                    Phone Number
+                  </Label>
                   <Input
                     placeholder="e.g. 071 234 5678"
                     value={phone}
@@ -475,7 +482,10 @@ async function handleProfileSave() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Email Address</Label>
+                <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                  <Mail size={14} className="text-gray-400" />
+                  Email Address
+                </Label>
                 <Input
                   type="email"
                   placeholder="your@email.com"
@@ -486,7 +496,10 @@ async function handleProfileSave() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-600">Language</Label>
+                  <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <Globe size={14} className="text-gray-400" />
+                    Language
+                  </Label>
                   <Select value={language} onValueChange={(val) => setLanguage(val || 'en')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue />
@@ -502,7 +515,10 @@ async function handleProfileSave() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-600">Currency</Label>
+                  <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <DollarSign size={14} className="text-gray-400" />
+                    Currency
+                  </Label>
                   <Select value={currency} onValueChange={(val) => setCurrency(val || 'ZAR')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue />
@@ -537,11 +553,17 @@ async function handleProfileSave() {
         <TabsContent value="farm" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
-              <CardTitle className="text-base font-semibold text-gray-700">Farm Information</CardTitle>
+              <CardTitle className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <Building2 size={16} className="text-[#2D6A4F]" />
+                Farm Information
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Farm Name <span className="text-red-500">*</span></Label>
+                <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                  <Building2 size={14} className="text-gray-400" />
+                  Farm Name <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   placeholder="e.g. Shammah Family Farm"
                   value={farmName}
@@ -551,7 +573,10 @@ async function handleProfileSave() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-600">Province</Label>
+                  <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <MapPin size={14} className="text-gray-400" />
+                    Province
+                  </Label>
                   <Select value={province} onValueChange={(val) => setProvince(val || '')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue placeholder="Select province..." />
@@ -571,7 +596,10 @@ async function handleProfileSave() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-600">Farm Type</Label>
+                  <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                    <Palette size={14} className="text-gray-400" />
+                    Farm Type
+                  </Label>
                   <Select value={farmType} onValueChange={(val) => setFarmType(val || '')}>
                     <SelectTrigger className="border-gray-200">
                       <SelectValue placeholder="Select type..." />
@@ -590,7 +618,10 @@ async function handleProfileSave() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-600">Total Farm Size (hectares)</Label>
+                <Label className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                  <Ruler size={14} className="text-gray-400" />
+                  Total Farm Size (hectares)
+                </Label>
                 <Input
                   type="number"
                   placeholder="e.g. 50"
@@ -614,13 +645,18 @@ async function handleProfileSave() {
           </Card>
         </TabsContent>
 
+        {/* Team Tab */}
+        <TabsContent value="team" className="mt-4">
+          <TeamPage />
+        </TabsContent>
+
         {/* Import Tab */}
         <TabsContent value="import" className="mt-4 space-y-4">
           <Card className="shadow-sm border-orange-200 bg-gradient-to-br from-orange-50 to-white">
             <CardContent className="py-4 px-5">
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <span className="text-orange-500 text-lg">!</span>
+                  <AlertTriangle size={16} className="text-orange-500" />
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-orange-700 mb-1">Important — Read Before Importing</p>
@@ -637,7 +673,10 @@ async function handleProfileSave() {
 
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
-              <CardTitle className="text-base font-semibold text-gray-700">Import Historical Farm Records</CardTitle>
+              <CardTitle className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <Import size={16} className="text-[#2D6A4F]" />
+                Import Historical Farm Records
+              </CardTitle>
               <p className="text-xs text-gray-400">
                 Add records from before you joined RootBase. Each module accepts any past date.
               </p>
@@ -694,7 +733,8 @@ async function handleProfileSave() {
 
               <div className="mt-4 p-4 bg-gradient-to-br from-[#D8F3DC] to-white rounded-xl border border-[#52B788]/20">
                 <p className="text-sm font-semibold text-[#1B4332] mb-2 flex items-center gap-2">
-                  <span className="text-lg">📖</span> How it works
+                  <Info size={16} className="text-[#2D6A4F]" />
+                  How it works
                 </p>
                 <ol className="space-y-1.5">
                   {[
@@ -720,21 +760,29 @@ async function handleProfileSave() {
         <TabsContent value="notifications" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
-              <CardTitle className="text-base font-semibold text-gray-700">Notification Preferences</CardTitle>
+              <CardTitle className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <Bell size={16} className="text-[#2D6A4F]" />
+                Notification Preferences
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
               {[
-                { label: 'Task due date reminders', desc: 'Get notified when tasks are due', default: true },
-                { label: 'Low stock alerts', desc: 'Alert when inventory falls below reorder level', default: true },
-                { label: 'Equipment service reminders', desc: 'Alert when service is due', default: true },
-                { label: 'Document expiry warnings', desc: 'Alert 30 days before documents expire', default: true },
-                { label: 'Weekly farm summary', desc: 'Receive a weekly summary of your farm activity', default: false },
-                { label: 'Weather alerts', desc: 'Severe weather warnings for your area', default: hasFeature('weatherAlerts') },
-              ].map(({ label, desc, default: defaultChecked }) => (
+                { label: 'Task due date reminders', desc: 'Get notified when tasks are due', default: true, icon: Clock },
+                { label: 'Low stock alerts', desc: 'Alert when inventory falls below reorder level', default: true, icon: Package },
+                { label: 'Equipment service reminders', desc: 'Alert when service is due', default: true, icon: Wrench },
+                { label: 'Document expiry warnings', desc: 'Alert 30 days before documents expire', default: true, icon: FileText },
+                { label: 'Weekly farm summary', desc: 'Receive a weekly summary of your farm activity', default: false, icon: BarChart3 },
+                { label: 'Weather alerts', desc: 'Severe weather warnings for your area', default: hasFeature('weatherAlerts'), icon: CloudRain },
+              ].map(({ label, desc, default: defaultChecked, icon: Icon }) => (
                 <div key={label} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 px-2 rounded-lg transition-colors">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{label}</p>
-                    <p className="text-xs text-gray-400">{desc}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                      <Icon size={14} className="text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{label}</p>
+                      <p className="text-xs text-gray-400">{desc}</p>
+                    </div>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input 
@@ -753,18 +801,23 @@ async function handleProfileSave() {
           </Card>
         </TabsContent>
 
-        {/* Account Tab - WITH WORKING PASSWORD UPDATE */}
+        {/* Account Tab */}
         <TabsContent value="account" className="mt-4">
           <Card className="shadow-sm border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="border-b border-gray-100">
-              <CardTitle className="text-base font-semibold text-gray-700">Account & Security</CardTitle>
+              <CardTitle className="text-base font-semibold text-gray-700 flex items-center gap-2">
+                <Shield size={16} className="text-[#2D6A4F]" />
+                Account & Security
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-4">
-              {/* Subscription info */}
               <div className="p-4 bg-gradient-to-br from-[#D8F3DC] to-white rounded-xl border border-[#52B788]/20">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium text-[#1B4332] capitalize">Plan: {plan} Plan</p>
+                    <p className="text-sm font-medium text-[#1B4332] capitalize flex items-center gap-2">
+                      <Crown size={16} className="text-[#2D6A4F]" />
+                      Plan: {plan} Plan
+                    </p>
                     <p className="text-xs text-[#2D6A4F] mt-1 max-w-md">
                       {plan === 'free' && 'Upgrade to Starter (R199/month) for unlimited fields and financial reports'}
                       {plan === 'starter' && 'Upgrade to Pro (R399/month) for AI Assistant and advanced analytics'}
@@ -780,11 +833,10 @@ async function handleProfileSave() {
                 </div>
               </div>
 
-              {/* Password Change Section - WORKING */}
+              {/* Password Change Section */}
               <div className="space-y-3 pt-2">
                 <p className="text-sm font-medium text-gray-700">Change Password</p>
                 
-                {/* Password message */}
                 {passwordMessage && (
                   <div className={`p-3 rounded-lg flex items-center gap-2 text-sm ${
                     passwordMessage.type === 'success' 
@@ -801,7 +853,6 @@ async function handleProfileSave() {
                 )}
 
                 <div className="space-y-2">
-                  {/* Current Password */}
                   <div className="relative">
                     <Input
                       type={showCurrentPassword ? 'text' : 'password'}
@@ -819,7 +870,6 @@ async function handleProfileSave() {
                     </button>
                   </div>
 
-                  {/* New Password */}
                   <div className="relative">
                     <Input
                       type={showNewPassword ? 'text' : 'password'}
@@ -837,7 +887,6 @@ async function handleProfileSave() {
                     </button>
                   </div>
 
-                  {/* Confirm Password */}
                   <div className="relative">
                     <Input
                       type={showConfirmPassword ? 'text' : 'password'}
@@ -855,7 +904,6 @@ async function handleProfileSave() {
                     </button>
                   </div>
 
-                  {/* Password strength indicator */}
                   {newPassword && newPassword.length > 0 && (
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
@@ -892,7 +940,10 @@ async function handleProfileSave() {
 
               {/* Danger Zone */}
               <div className="pt-4 border-t border-gray-200">
-                <p className="text-sm font-medium text-red-500 mb-2">Danger Zone</p>
+                <p className="text-sm font-medium text-red-500 mb-2 flex items-center gap-2">
+                  <AlertTriangle size={14} />
+                  Danger Zone
+                </p>
                 
                 {!showDeleteConfirm ? (
                   <Button 
@@ -900,6 +951,7 @@ async function handleProfileSave() {
                     className="border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300 text-sm"
                     onClick={() => setShowDeleteConfirm(true)}
                   >
+                    <Trash2 size={14} className="mr-2" />
                     Delete Account
                   </Button>
                 ) : (
