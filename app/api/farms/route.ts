@@ -48,7 +48,7 @@ export async function POST(request: Request) {
     const { count } = await supabase
       .from('farms')
       .select('*', { count: 'exact', head: true })
-      .eq('owner_id', user.id)
+      .eq('user_id', user.id)
 
     // ✅ Determine max farms based on plan
     const maxFarms = profile?.plan === 'enterprise' ? Infinity : 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
         location: body.location || null,
         size: body.size ? parseFloat(body.size) : null,
         unit: body.unit || 'hectares',
-        owner_id: user.id,
+        user_id: user.id,
       })
       .select()
       .single()
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 }
 
 // ✅ GET farms
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
     const { data: farms, error } = await supabase
       .from('farms')
       .select('*')
-      .eq('owner_id', user.id)
+      .eq('user_id', user.id)
       .order('created_at', { ascending: true })
 
     if (error) {
