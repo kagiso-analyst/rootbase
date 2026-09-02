@@ -2,26 +2,27 @@
 
 import { NextResponse } from 'next/server'
 import { buildPayFastData } from '@/lib/payfast'
+import { createClient } from '@/lib/supabase/server'
+import { getPlanById } from '@/lib/payfast'
 
 export async function POST(request: Request) {
-  console.log('🚀 PayFast sign endpoint called')
-  
   try {
-    // ✅ Read ALL variables from environment
-    const isSandbox = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const body = await request.json()
+    const planId = typeof body.plan_id === 'string' ? body.plan_id : typeof body.plan === 'string' ? body.plan : ''
+    const plan = getPlanById(planId)
+    if (!plan || plan.id === 'free') {
+      return NextResponse.json({ error: 'Invalid paid plan selected' }, { status: 400 })
+    }
+
     const merchantId = process.env.PAYFAST_MERCHANT_ID || ''
     const merchantKey = process.env.PAYFAST_MERCHANT_KEY || ''
     const passphrase = process.env.PAYFAST_PASSPHRASE || ''
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || ''
 
-    console.log('🔑 Environment Check:')
-    console.log('  - Mode:', isSandbox ? 'SANDBOX 🧪' : 'PRODUCTION 🔒')
-    console.log('  - Merchant ID:', merchantId || '❌ MISSING')
-    console.log('  - Merchant Key:', merchantKey ? '✅ Set' : '❌ MISSING')
-    console.log('  - Passphrase:', passphrase ? '✅ Set' : '❌ MISSING')
-    console.log('  - App URL:', appUrl || '❌ MISSING')
-
-    // ✅ Validate required fields
     const errors: string[] = []
     if (!merchantId) errors.push('PAYFAST_MERCHANT_ID is missing')
     if (!merchantKey) errors.push('PAYFAST_MERCHANT_KEY is missing')
@@ -41,52 +42,21 @@ export async function POST(request: Request) {
     }
 
     const notifyUrl = `${appUrl}/api/payfast/notify`
-
-    // Parse request body
-    const body = await request.json()
-    console.log('📦 Request body:', {
-      email: body.email_address,
-      amount: body.amount,
-      name: body.name_first,
-    })
-
-    // Validate required fields in request
-    if (!body.email_address || !body.amount) {
-      return NextResponse.json(
-        { error: 'Missing required fields: email_address and amount are required' },
-        { status: 400 }
-      )
-    }
-
-    if (typeof body.amount !== 'string' && typeof body.amount !== 'number') {
-      return NextResponse.json(
-        { error: 'amount must be a number or numeric string' },
-        { status: 400 }
-      )
-    }
-
-    const normalizedAmount = String(body.amount)
-
-    // ✅ Build PayFast data
     const data = buildPayFastData({
       merchantId,
       merchantKey,
       passphrase: passphrase || '',
       notifyUrl,
-      name_first: body.name_first || 'Farmer',
-      name_last: body.name_last || 'User',
-      email_address: body.email_address,
-      amount: normalizedAmount,
-      item_name: body.item_name || 'RootBase Subscription',
-      item_description: body.item_description || '',
-      m_payment_id: body.m_payment_id || `sub_${Date.now()}`,
-      custom_str1: body.plan_id || body.custom_str1 || 'free',
-      custom_str2: body.user_id || body.custom_str2 || body.email_address,
+      name_first: typeof body.name_first === 'string' ? body.name_first : user.user_metadata?.full_name || 'Farmer',
+      name_last: typeof body.name_last === 'string' ? body.name_last : 'User',
+      email_address: user.email || '',
+      amount: plan.price.toFixed(2),
+      item_name: `RootBase ${plan.name} Plan`,
+      item_description: `Monthly subscription to RootBase ${plan.name} plan`,
+      m_payment_id: `sub_${user.id}_${Date.now()}`,
+      custom_str1: plan.id,
+      custom_str2: user.id,
     })
-
-    console.log('✅ PayFast data built successfully')
-    console.log('📤 merchant_id being sent:', data.merchant_id)
-    
     return NextResponse.json({ data })
     
   } catch (error) {

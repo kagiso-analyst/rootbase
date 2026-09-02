@@ -1,17 +1,23 @@
 // app/api/weather/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 
 // ===== CACHE CONFIGURATION =====
 // Cache weather data for 10 minutes to reduce API calls
 const CACHE_DURATION = 600 // seconds (10 minutes)
 
 // ===== ERROR TYPES =====
-interface WeatherError {
-  error: string
-  code?: string
-  message?: string
-}
+const cityQuerySchema = z.string().trim().min(1).max(100)
+const coordinatesSchema = z.object({
+  lat: z.coerce.number().finite().min(-90).max(90),
+  lon: z.coerce.number().finite().min(-180).max(180),
+})
+const bulkSchema = z.object({
+  cities: z.array(z.string().trim().min(1).max(100)).min(1).max(20),
+})
+
+type CityResult = { name?: unknown; country?: unknown; state?: unknown; lat?: unknown; lon?: unknown }
 
 // ===== GET WEATHER DATA =====
 export async function GET(request: NextRequest) {
@@ -33,7 +39,9 @@ export async function GET(request: NextRequest) {
   try {
     // ===== CITY SEARCH =====
     if (q) {
-      return await handleCitySearch(q, apiKey)
+      const parsedQuery = cityQuerySchema.safeParse(q)
+      if (!parsedQuery.success) return NextResponse.json({ error: 'Invalid search query' }, { status: 400 })
+      return await handleCitySearch(parsedQuery.data, apiKey)
     }
 
     // ===== WEATHER BY COORDINATES =====
@@ -45,17 +53,15 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate coordinates
-    const latNum = parseFloat(lat)
-    const lonNum = parseFloat(lon)
-    
-    if (isNaN(latNum) || isNaN(lonNum) || latNum < -90 || latNum > 90 || lonNum < -180 || lonNum > 180) {
+    const coordinates = coordinatesSchema.safeParse({ lat, lon })
+    if (!coordinates.success) {
       return NextResponse.json(
         { error: 'Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180.' },
         { status: 400 }
       )
     }
 
-    return await handleWeatherByCoordinates(latNum, lonNum, apiKey)
+    return await handleWeatherByCoordinates(coordinates.data.lat, coordinates.data.lon, apiKey)
 
   } catch (error) {
     console.error('Weather API error:', error)
@@ -94,12 +100,12 @@ async function handleCitySearch(query: string, apiKey: string) {
     }
 
     // Return only the first 5 results with relevant data
-    const results = data.slice(0, 5).map((city: any) => ({
-      name: city.name || '',
-      country: city.country || '',
-      state: city.state || '',
-      lat: city.lat || 0,
-      lon: city.lon || 0,
+    const results = (data as CityResult[]).slice(0, 5).map((city) => ({
+      name: typeof city.name === 'string' ? city.name : '',
+      country: typeof city.country === 'string' ? city.country : '',
+      state: typeof city.state === 'string' ? city.state : '',
+      lat: typeof city.lat === 'number' ? city.lat : 0,
+      lon: typeof city.lon === 'number' ? city.lon : 0,
     }))
 
     return NextResponse.json(results)
@@ -188,9 +194,8 @@ async function handleWeatherByCoordinates(lat: number, lon: number, apiKey: stri
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { cities } = body
-
-    if (!Array.isArray(cities) || cities.length === 0) {
+    const parsed = bulkSchema.safeParse(body)
+    if (!parsed.success) {
       return NextResponse.json(
         { error: 'Please provide an array of cities' },
         { status: 400 }
@@ -207,10 +212,11 @@ export async function POST(request: NextRequest) {
 
     // Fetch weather for multiple cities
     const results = await Promise.all(
-      cities.map(async (city: string) => {
+      parsed.data.cities.map(async (city) => {
         try {
           const res = await fetch(
-            `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`
+            `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${apiKey}&units=metric`,
+            { signal: AbortSignal.timeout(10000) }
           )
           const data = await res.json()
           return { city, data, success: res.ok }

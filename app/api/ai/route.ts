@@ -1,10 +1,57 @@
 // app/api/ai/route.ts
 
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+import { createClient } from '@/lib/supabase/server'
+
+const requestSchema = z.object({
+  question: z.string().trim().min(1).max(2000),
+})
 
 export async function POST(req: Request) {
   try {
-    const { question, farmData } = await req.json()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    const parsed = requestSchema.safeParse(await req.json())
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'A valid question is required' }, { status: 400 })
+    }
+
+    const question = parsed.data.question
+    const { data: farm } = await supabase
+      .from('farms')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (!farm) return NextResponse.json({ error: 'No farm found' }, { status: 404 })
+
+    const [incomeResult, expenseResult, cropResult, taskResult, inventoryResult] = await Promise.all([
+      supabase.from('income').select('amount').eq('farm_id', farm.id),
+      supabase.from('expenses').select('amount').eq('farm_id', farm.id),
+      supabase.from('crops').select('id', { count: 'exact', head: true }).eq('farm_id', farm.id),
+      supabase.from('tasks').select('id', { count: 'exact', head: true }).eq('farm_id', farm.id).eq('status', 'todo'),
+      supabase.from('inventory_items').select('id', { count: 'exact', head: true }).eq('farm_id', farm.id),
+    ])
+
+    if (incomeResult.error || expenseResult.error) {
+      throw incomeResult.error || expenseResult.error
+    }
+
+    const totalIncome = (incomeResult.data || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
+    const totalExpenses = (expenseResult.data || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)
+    const farmData = {
+      farmName: farm.name,
+      income: totalIncome,
+      expenses: totalExpenses,
+      activeCrops: cropResult.count || 0,
+      overdueTasks: taskResult.count || 0,
+      lowStockItems: inventoryResult.count || 0,
+    }
     
     // Simulate processing time
     await new Promise(resolve => setTimeout(resolve, 1500))

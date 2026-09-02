@@ -3,27 +3,23 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
   MessageCircle,
   RefreshCw,
-  Clock,
   CheckCircle,
-  AlertCircle,
-  Users,
   ArrowLeft,
   Send,
-  User,
+  User as UserIcon,
   Calendar,
   Filter,
-  ChevronDown,
-  ChevronUp,
   ChevronRight
 } from 'lucide-react'
 import {
@@ -78,31 +74,60 @@ const STATUS_LABELS = {
 }
 
 export default function AdminSupportPage() {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isLoadingAdmin, setIsLoadingAdmin] = useState(true)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [, setError] = useState<string | null>(null)
   const [newMessage, setNewMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterPriority, setFilterPriority] = useState<string>('all')
   const supabase = createClient()
 
-  // ===== CHECK AUTH =====
+  // ===== CHECK AUTH & ADMIN STATUS =====
   useEffect(() => {
     async function checkAuth() {
-      const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
-      setAuthChecked(true)
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError) throw authError
+
+        setUser(user)
+
+        if (user) {
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('user_id', user.id)
+            .single()
+
+          if (profileError) throw profileError
+
+          if (profile?.role === 'admin') {
+            setIsAdmin(true)
+          } else {
+            toast.error('You do not have admin access')
+          }
+        }
+      } catch (error) {
+        console.error('Admin access check error:', error)
+        toast.error('Unable to verify admin access')
+      } finally {
+        setAuthChecked(true)
+        setIsLoadingAdmin(false)
+      }
     }
     checkAuth()
   }, [supabase])
 
   // ===== FETCH TICKETS =====
   const fetchTickets = useCallback(async () => {
+    if (!isAdmin) return
+
     setLoading(true)
     setError(null)
 
@@ -133,13 +158,13 @@ export default function AdminSupportPage() {
     } finally {
       setLoading(false)
     }
-  }, [filterStatus, filterPriority, supabase])
+  }, [filterStatus, filterPriority, supabase, isAdmin])
 
   useEffect(() => {
-    if (authChecked) {
+    if (authChecked && isAdmin) {
       fetchTickets()
     }
-  }, [authChecked, fetchTickets])
+  }, [authChecked, isAdmin, fetchTickets])
 
   // ===== FETCH MESSAGES =====
   const fetchMessages = useCallback(async (ticketId: string) => {
@@ -164,7 +189,7 @@ export default function AdminSupportPage() {
   }
 
   // ===== UPDATE TICKET STATUS =====
-  const updateStatus = async (ticketId: string, status: string) => {
+  const updateStatus = async (ticketId: string, status: Ticket['status']) => {
     try {
       const { error } = await supabase
         .from('support_tickets')
@@ -173,7 +198,7 @@ export default function AdminSupportPage() {
 
       if (error) throw error
 
-      setSelectedTicket(prev => prev ? { ...prev, status: status as any } : null)
+      setSelectedTicket(prev => prev ? { ...prev, status } : null)
       fetchTickets()
     } catch (err) {
       console.error('Update status error:', err)
@@ -182,7 +207,7 @@ export default function AdminSupportPage() {
 
   // ===== SEND REPLY =====
   const sendReply = async () => {
-    if (!newMessage.trim() || !selectedTicket) return
+    if (!newMessage.trim() || !selectedTicket || !user) return
 
     setSubmitting(true)
 
@@ -229,13 +254,30 @@ export default function AdminSupportPage() {
     return tickets.filter(t => t.priority === priority).length
   }
 
-  if (!authChecked || loading) {
+  if (!authChecked || isLoadingAdmin || (isAdmin && loading)) {
     return (
       <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-[#2D6A4F] border-t-transparent mx-auto mb-3"></div>
           <p className="text-sm text-gray-400">Loading support dashboard...</p>
         </div>
+      </div>
+    )
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+        <div className="text-5xl mb-4">🚫</div>
+        <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Access Denied</h2>
+        <p className="text-sm text-gray-500 max-w-md">
+          You do not have permission to access the admin support dashboard.
+        </p>
+        <Link href="/dashboard">
+          <Button className="mt-4 bg-[#2D6A4F] hover:bg-[#1B4332] text-white">
+            Return to Dashboard
+          </Button>
+        </Link>
       </div>
     )
   }
@@ -349,7 +391,7 @@ export default function AdminSupportPage() {
                   Category: {selectedTicket.category} · Created {formatDate(selectedTicket.created_at)}
                 </p>
                 <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                  <User size={12} className="text-gray-400" />
+                  <UserIcon size={12} className="text-gray-400" />
                   <span>{selectedTicket.profiles?.full_name || 'Unknown'}</span>
                   <span>·</span>
                   <span>{selectedTicket.profiles?.email || 'No email'}</span>

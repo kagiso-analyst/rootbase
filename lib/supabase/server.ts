@@ -2,6 +2,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 export async function createClient() {
   const cookieStore = await cookies()
@@ -51,9 +52,42 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function requireAuth() {
   const user = await getCurrentUser()
   if (!user) {
-    throw new Error('Authentication required')
+    redirect('/login')
   }
   return user
+}
+
+export async function requireAdmin() {
+  const user = await requireAuth()
+  const supabase = await createClient()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (profile?.role !== 'admin') {
+    redirect('/dashboard')
+  }
+
+  return user
+}
+
+export async function verifyFarmOwnership(farmId: string) {
+  const user = await requireAuth()
+  const supabase = await createClient()
+  const { data: farm } = await supabase
+    .from('farms')
+    .select('id')
+    .eq('id', farmId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (!farm) {
+    throw new Error('Farm not found or access denied')
+  }
+
+  return farm
 }
 
 // ===== HELPER: Get user with role =====
