@@ -1,4 +1,4 @@
-# 🌱 RootBase — Farm Management for African Farmers
+#  RootBase — Farm Management for African Farmers
 
 > The all-in-one digital farm manager built for African farmers. Track finances, crops, livestock, weather, tasks, and more — beautifully, in one place.
 
@@ -78,12 +78,6 @@ The production build requires valid environment configuration. Diagnostic pages 
 - Rotate all provider credentials before deployment and store them in the hosting provider's secret manager.
 
 Local Supabase state, generated build files, environment files, and migration files are excluded by `.gitignore` in this workspace. If migrations are used for deployment, remove the migration ignore rule and commit them as versioned database source.
-
-## ⚠️ Current Gaps
-
-- Automated tests for authentication, RLS, payments, roles, and rate limiting are not yet included.
-- ESLint still reports existing `any` usage and unused-variable warnings that should be resolved before release.
-- PayFast, OpenWeather, Upstash, Supabase, and AI workflows require environment-backed integration testing.
 
 ## 🛠️ Tech Stack
 
