@@ -3,9 +3,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { 
   ArrowLeft, Package, Trash2, TrendingUp, TrendingDown, 
-  Clock, RefreshCw, Edit, Save, X, AlertTriangle,
+  Clock, RefreshCw, Edit,
   Plus, Calendar, MapPin, DollarSign
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -65,7 +66,7 @@ type InventoryItem = {
 
 export default function InventoryDetailPage() {
   // ===== AUTH STATE =====
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<SupabaseUser | null>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const supabase = createClient()
 
@@ -98,6 +99,7 @@ export default function InventoryDetailPage() {
   const [editUnitCost, setEditUnitCost] = useState('')
   const [editStorageLocation, setEditStorageLocation] = useState('')
   const [editExpiryDate, setEditExpiryDate] = useState('')
+  const [now] = useState(() => Date.now())
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -174,43 +176,21 @@ export default function InventoryDetailPage() {
 
     try {
       const quantityNum = parseFloat(quantity)
-      const newQuantity = type === 'in' 
-        ? (item?.current_quantity || 0) + quantityNum
-        : (item?.current_quantity || 0) - quantityNum
-
-      if (type === 'out' && newQuantity < 0) {
-        setError('Insufficient stock')
-        setSaving(false)
+      if (!Number.isFinite(quantityNum) || quantityNum <= 0) {
+        setError('Quantity must be greater than zero')
         return
       }
 
-      // Start transaction
-      const { error: movementError } = await supabase
-        .from('stock_movements')
-        .insert([{
-          inventory_item_id: itemId,
-          user_id: user.id,
-          farm_id: currentFarm.id,
-          quantity: quantityNum,
-          type,
-          reason,
-          date: new Date().toISOString(),
-        }])
+      const { error: movementError } = await supabase.rpc('update_inventory_with_movement', {
+        p_item_id: itemId,
+        p_quantity: quantityNum,
+        p_type: type,
+        p_reason: reason.trim(),
+        p_farm_id: currentFarm.id,
+        p_user_id: user.id,
+      })
 
       if (movementError) throw movementError
-
-      // Update inventory quantity
-      const { error: updateError } = await supabase
-        .from('inventory_items')
-        .update({ 
-          current_quantity: newQuantity,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', itemId)
-        .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id)
-
-      if (updateError) throw updateError
 
       // Refresh data
       await fetchData()
@@ -404,7 +384,7 @@ export default function InventoryDetailPage() {
   // ===== ACTUAL PAGE =====
   const isLowStock = item.reorder_level > 0 && item.current_quantity <= item.reorder_level
   const isExpiring = item.expiry_date && Math.ceil(
-    (new Date(item.expiry_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (new Date(item.expiry_date).getTime() - now) / (1000 * 60 * 60 * 24)
   ) <= 30
 
   return (
@@ -643,7 +623,7 @@ export default function InventoryDetailPage() {
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
               <Package size={32} className="mb-3 opacity-30" />
               <p className="text-sm font-medium text-gray-600">No movements recorded</p>
-              <p className="text-xs text-gray-400 mt-1">Click "Record Movement" to track stock changes</p>
+              <p className="text-xs text-gray-400 mt-1">Click &quot;Record Movement&quot; to track stock changes</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">

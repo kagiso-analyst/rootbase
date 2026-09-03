@@ -62,3 +62,11 @@ coverage/
 *.pem
 *.key
 *.log
+
+# Supabase local files
+.supabase/                    
+supabase/.env                 
+supabase/studio/              
+
+# Docker
+docker-compose.override.yml 
