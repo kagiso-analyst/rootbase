@@ -69,4 +69,11 @@ supabase/.env
 supabase/studio/              
 
 # Docker
-docker-compose.override.yml 
+docker-compose.override.yml
+
+# Generated interview documentation
+ARCHITECTURE_AND_CAREER_GUIDE.md
+QUICK_REFERENCE.md
+INTERVIEW_FAQ.md
+INTERVIEW_PREP_SUMMARY.md
+START_HERE.md
