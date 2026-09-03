@@ -3,6 +3,13 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { z } from 'zod'
+
+const inviteSchema = z.object({
+  email: z.string().email().max(320),
+  role: z.enum(['admin', 'manager', 'viewer']),
+  farmId: z.string().uuid(),
+})
 
 // Secure token generation
 function generateSecureToken(): string {
@@ -33,12 +40,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { email, role, farmId } = await request.json()
-
-    // ✅ Validate input
-    if (!email || !role || !farmId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    let requestBody: unknown
+    try {
+      requestBody = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
+
+    const parsedInput = inviteSchema.safeParse(requestBody)
+    if (!parsedInput.success) {
+      return NextResponse.json({ error: 'Invalid invitation details' }, { status: 400 })
+    }
+    const { email, role, farmId } = parsedInput.data
 
     // ✅ Verify user has permission to invite
     const { data: currentMember } = await supabase

@@ -48,11 +48,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  if (pathname.startsWith('/dashboard') && !user) {
+  if (!user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (pathname.startsWith('/dashboard/support/admin') && user) {
+  if (pathname === '/support/admin') {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')

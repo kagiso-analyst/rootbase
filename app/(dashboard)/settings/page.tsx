@@ -39,7 +39,7 @@ export default function SettingsPage() {
   const supabase = createClient()
 
   // ===== FARM CONTEXT =====
-  const { currentFarm, refreshFarms, loading: farmLoading } = useFarm()
+  const { currentFarm, farms, switchFarm, deleteFarm, refreshFarms, loading: farmLoading } = useFarm()
 
   // ===== PLAN RESTRICTIONS =====
   const { plan, hasFeature, loading: planLoading } = usePlanRestrictions()
@@ -327,7 +327,7 @@ export default function SettingsPage() {
       
       for (const table of tables) {
         const { error } = await supabase
-          .from(table)
+          .from(table as any)
           .delete()
           .eq('user_id', user.id)
         
@@ -641,6 +641,47 @@ export default function SettingsPage() {
                   <><Save size={15} className="mr-2" /> Save Changes</>
                 )}
               </Button>
+
+              <div className="border-t border-gray-100 pt-4 space-y-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700">Your farms</h3>
+                  <p className="text-xs text-gray-400 mt-1">Switch between farms or remove one you no longer manage.</p>
+                </div>
+                <div className="space-y-2">
+                  {farms.map((farm) => (
+                    <div key={farm.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 p-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-800">{farm.name}</p>
+                        <p className="text-xs text-gray-400">{farm.total_hectares || 0} hectares · {farm.province || 'No province'}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {currentFarm?.id === farm.id ? (
+                          <Badge className="bg-[#D8F3DC] text-[#2D6A4F]">Active</Badge>
+                        ) : (
+                          <Button variant="outline" size="sm" onClick={() => switchFarm(farm.id)}>
+                            Use farm
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Delete ${farm.name}`}
+                          disabled={farms.length <= 1}
+                          onClick={async () => {
+                            if (window.confirm(`Delete ${farm.name}? All data linked to this farm may also be removed.`)) {
+                              await deleteFarm(farm.id)
+                              await refreshFarms()
+                            }
+                          }}
+                          className="text-gray-400 hover:text-red-600"
+                        >
+                          <Trash2 size={15} />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

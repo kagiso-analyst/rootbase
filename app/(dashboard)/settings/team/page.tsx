@@ -199,7 +199,7 @@ export default function TeamPage() {
             user_id: user.id,
             role: 'owner',
             status: 'active',
-            email: user.email,
+            email: user.email || '',
           }])
 
         if (insertError && insertError.code !== '23505') {
@@ -241,15 +241,15 @@ export default function TeamPage() {
 
         transformedMembers.push({
           id: member.id,
-          user_id: member.user_id,
+          user_id: member.user_id || '',
           email: email,
           full_name: fullName,
-          role: member.role,
-          status: member.status || 'active',
+          role: member.role as TeamMember['role'],
+          status: (member.status || 'active') as TeamMember['status'],
           avatar_url: undefined,
           invited_at: member.created_at,
           accepted_at: member.updated_at,
-          invited_by: member.invited_by,
+          invited_by: member.invited_by || '',
         })
       }
 

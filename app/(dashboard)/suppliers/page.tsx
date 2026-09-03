@@ -132,7 +132,7 @@ export default function SuppliersPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch suppliers: ' + error.message)
-      if (data) setSuppliers(data)
+      if (data) setSuppliers(data as Supplier[])
       
     } catch (err) {
       console.error('Suppliers error:', err)
@@ -195,7 +195,7 @@ export default function SuppliersPage() {
       if (error) throw new Error('Failed to save supplier: ' + error.message)
 
       if (data) {
-        setSuppliers((prev) => [data, ...prev])
+        setSuppliers((prev) => [data as Supplier, ...prev])
         setName('') 
         setCategory('') 
         setContactPerson('') 

@@ -138,7 +138,7 @@ export default function TasksPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch tasks: ' + error.message)
-      if (data) setTasks(data)
+      if (data) setTasks(data as Task[])
       
     } catch (err) {
       console.error('Tasks error:', err)
@@ -225,8 +225,8 @@ export default function TasksPage() {
         .from('tasks')
         .update({ status: newStatus })
         .eq('id', id)
-        .eq('user_id', user?.id)
-        .eq('farm_id', currentFarm?.id)
+        .eq('user_id', user?.id || '')
+        .eq('farm_id', currentFarm?.id || '')
 
       if (error) throw new Error('Failed to update task: ' + error.message)
 

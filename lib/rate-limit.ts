@@ -29,6 +29,10 @@ function getClientKey(request: NextRequest, userId?: string) {
 
 export async function checkApiRateLimit(request: NextRequest, userId?: string) {
   if (!apiRateLimiter) {
+    if (process.env.NODE_ENV === 'production') {
+      return { success: false, limit: 0, remaining: 0, reset: Date.now() + 60_000 }
+    }
+
     return { success: true, limit: 60, remaining: 60, reset: Date.now() + 60_000 }
   }
 

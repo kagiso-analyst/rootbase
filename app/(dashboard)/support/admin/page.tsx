@@ -151,7 +151,7 @@ export default function AdminSupportPage() {
       const { data, error } = await query
 
       if (error) throw error
-      setTickets(data || [])
+      setTickets((data || []) as unknown as Ticket[])
     } catch (err) {
       console.error('Fetch tickets error:', err)
       setError('Failed to load tickets')

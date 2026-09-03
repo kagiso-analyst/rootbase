@@ -67,6 +67,7 @@ coverage/
 .supabase/                    
 supabase/.env                 
 supabase/studio/              
+supabase/migrations/
 
 # Docker
 docker-compose.override.yml

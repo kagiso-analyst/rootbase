@@ -145,7 +145,7 @@ export default function SupportPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setTickets(data || [])
+      setTickets((data || []) as Ticket[])
     } catch (err) {
       console.error('Fetch tickets error:', err)
       setError('Failed to load support tickets')
@@ -208,7 +208,7 @@ export default function SupportPage() {
 
       if (error) throw error
 
-      setTickets(prev => [data, ...prev])
+      setTickets(prev => [data as Ticket, ...prev])
       setOpenDialog(false)
       resetForm()
     } catch (err) {

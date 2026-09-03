@@ -29,6 +29,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid merchant' }, { status: 400 })
     }
 
+    const validationUrl = process.env.NEXT_PUBLIC_PAYFAST_SANDBOX === 'true'
+      ? 'https://sandbox.payfast.co.za/eng/query/validate'
+      : 'https://www.payfast.co.za/eng/query/validate'
+    const validationResponse = await fetch(validationUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams(data).toString(),
+    })
+    const validationResult = await validationResponse.text()
+    if (!validationResponse.ok || validationResult.trim() !== 'VALID') {
+      console.error('PayFast ITN validation failed')
+      return NextResponse.json({ error: 'Invalid payment notification' }, { status: 400 })
+    }
+
     const paymentStatus = data.payment_status
     const amount = data.amount
     const email = data.email_address
@@ -49,6 +63,17 @@ export async function POST(request: Request) {
       }
 
       const supabase = createSupabaseClient(supabaseUrl, serviceRoleKey)
+      const { data: profile, error: profileLookupError } = await supabase
+        .from('profiles')
+        .select('user_id, email')
+        .eq('user_id', userId)
+        .maybeSingle()
+
+      if (profileLookupError) throw profileLookupError
+      if (!profile || profile.email?.toLowerCase() !== email.toLowerCase()) {
+        return NextResponse.json({ error: 'Payment owner could not be verified' }, { status: 400 })
+      }
+
       const { data: existing, error: lookupError } = await supabase
         .from('subscriptions')
         .select('id')
@@ -62,6 +87,7 @@ export async function POST(request: Request) {
         .from('subscriptions')
         .insert({
           user_email: email,
+          user_id: userId,
           plan: plan.id,
           status: 'active',
           payment_id: mPaymentId,

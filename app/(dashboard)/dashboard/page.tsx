@@ -193,14 +193,16 @@ export default function DashboardPage() {
           .select('amount')
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
-          .gte('date', firstOfMonth),
+          .gte('date', firstOfMonth)
+          .lte('date', now.toISOString().split('T')[0]),
         // Current month expenses
         supabase
           .from('expenses')
           .select('amount')
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
-          .gte('date', firstOfMonth),
+          .gte('date', firstOfMonth)
+          .lte('date', now.toISOString().split('T')[0]),
         // Active crops
         supabase
           .from('crops')
@@ -239,7 +241,7 @@ export default function DashboardPage() {
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
           .order('date', { ascending: false })
-          .limit(5),
+          .gte('date', new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).toISOString().split('T')[0]),
         // Recent expenses
         supabase
           .from('expenses')
@@ -247,7 +249,7 @@ export default function DashboardPage() {
           .eq('user_id', user.id)
           .eq('farm_id', currentFarm.id)
           .order('date', { ascending: false })
-          .limit(5),
+          .gte('date', new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6).toISOString().split('T')[0]),
         // Previous month income for trend
         supabase
           .from('income')
@@ -281,8 +283,8 @@ export default function DashboardPage() {
       setPrevExpenses(prevExpensesTotal)
       setActiveCrops(cropsRes.count || 0)
       setOpenTasks(tasksCountRes.count || 0)
-      setTasks(tasksRes.data || [])
-      setEntries(journalRes.data || [])
+      setTasks((tasksRes.data || []) as Task[])
+      setEntries((journalRes.data || []) as JournalEntry[])
 
       // Build weekly chart data
       const weekData: MonthlyData[] = []
@@ -376,6 +378,18 @@ export default function DashboardPage() {
       fetchDashboardData()
     }
   }, [authChecked, user, fetchDashboardData])
+
+  useEffect(() => {
+    if (!user || !currentFarm) return
+
+    const channel = supabase
+      .channel(`dashboard-${currentFarm.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'income', filter: `farm_id=eq.${currentFarm.id}` }, fetchDashboardData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `farm_id=eq.${currentFarm.id}` }, fetchDashboardData)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [currentFarm, fetchDashboardData, supabase, user])
 
   const net = income - expenses
   const isProfit = net >= 0

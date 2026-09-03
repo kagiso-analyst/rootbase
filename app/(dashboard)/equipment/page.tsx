@@ -243,7 +243,7 @@ export default function EquipmentPage() {
           category,
           make: make || null,
           model: model || null,
-          year: year || null,
+          year: year ? parseInt(year, 10) : null,
           serial_number: serialNumber || null,
           purchase_date: purchaseDate || null,
           purchase_price: parseFloat(purchasePrice) || 0,
@@ -267,7 +267,7 @@ export default function EquipmentPage() {
           currentHours: parseFloat(String(data.current_hours)) || 0,
           nextServiceHours: parseFloat(String(data.next_service_hours)) || 0,
         }
-        setEquipment((prev) => [newEquipment, ...prev])
+        setEquipment((prev) => [newEquipment as unknown as Equipment, ...prev])
         // Reset form
         setName('')
         setCategory('')

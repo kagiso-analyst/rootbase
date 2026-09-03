@@ -136,7 +136,17 @@ export default function CropsPage() {
         .order('created_at', { ascending: false })
       
       if (error) throw new Error('Failed to fetch crops: ' + error.message)
-      if (data) setCrops(data)
+      if (data) setCrops(data.map(item => ({
+        ...item,
+        variety: item.variety ?? null,
+        field_name: item.field_name ?? null,
+        season: item.season ?? null,
+        planting_date: item.planting_date ?? '',
+        expected_harvest_date: item.expected_harvest_date ?? '',
+        area_planted_ha: item.area_planted_ha ?? 0,
+        status: item.status as CropStatus,
+        notes: item.notes ?? null,
+      })) as Crop[])
       
     } catch (err) {
       console.error('Crops error:', err)
@@ -185,7 +195,17 @@ export default function CropsPage() {
       if (error) throw new Error('Failed to save crop: ' + error.message)
 
       if (data) {
-        setCrops((prev) => [data, ...prev])
+        setCrops((prev) => [{
+          ...data,
+          variety: data.variety ?? null,
+          field_name: data.field_name ?? null,
+          season: data.season ?? null,
+          planting_date: data.planting_date ?? '',
+          expected_harvest_date: data.expected_harvest_date ?? '',
+          area_planted_ha: data.area_planted_ha ?? 0,
+          status: data.status as CropStatus,
+          notes: data.notes ?? null,
+        } as Crop, ...prev])
         // Reset form
         setCropName('')
         setVariety('')

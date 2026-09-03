@@ -140,10 +140,10 @@ export default function CropDetailPage() {
         id: item.id,
         cropId: item.crop_id,
         type: item.activity_type as ActivityType,
-        description: item.description,
-        date: item.date,
+        description: item.description || '',
+        date: item.date || '',
         product: item.product || '',
-        rate: item.rate || '',
+        rate: String(item.rate || ''),
       }))
       
       setActivities(mappedActivities)
@@ -218,7 +218,7 @@ export default function CropDetailPage() {
           activity_type: activityType,
           description,
           product: product || null,
-          rate: rate || null,
+          rate: rate ? parseFloat(rate) : null,
           date,
           user_id: user.id,
           farm_id: currentFarm.id,
@@ -232,10 +232,10 @@ export default function CropDetailPage() {
         id: data.id,
         cropId: data.crop_id,
         type: data.activity_type as ActivityType,
-        description: data.description,
-        date: data.date,
+        description: data.description || '',
+        date: data.date || '',
         product: data.product || '',
-        rate: data.rate || '',
+        rate: String(data.rate || ''),
       }
 
       setActivities(prev => [newActivity, ...prev])

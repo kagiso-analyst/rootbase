@@ -246,7 +246,6 @@ export default function JournalPage() {
           field_name: fieldName || null,
           crop_name: cropName || null,
           weather_conditions: weatherConditions || null,
-          mood: mood || null,
           tags,
           entry_date: entryDate,
           user_id: user.id,
@@ -258,7 +257,7 @@ export default function JournalPage() {
       if (error) throw new Error('Failed to save entry: ' + error.message)
 
       if (data) {
-        setEntries((prev) => [data, ...prev])
+        setEntries((prev) => [data as JournalEntry, ...prev])
         setTitle('')
         setContent('')
         setEntryType('General')

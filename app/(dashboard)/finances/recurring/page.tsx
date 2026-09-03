@@ -131,7 +131,7 @@ export default function RecurringTransactionsPage() {
         .order('next_date', { ascending: true })
 
       if (error) throw error
-      setTransactions(data || [])
+      setTransactions((data || []) as RecurringTransaction[])
     } catch (err) {
       console.error('Fetch error:', err)
       setError('Failed to load recurring transactions')

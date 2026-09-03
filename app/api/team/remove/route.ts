@@ -2,6 +2,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const removeMemberSchema = z.object({
+  memberId: z.string().uuid(),
+  farmId: z.string().uuid(),
+})
 
 export async function POST(request: Request) {
   try {
@@ -26,11 +32,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { memberId, farmId } = await request.json()
-
-    if (!memberId || !farmId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    let requestBody: unknown
+    try {
+      requestBody = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
+
+    const parsedInput = removeMemberSchema.safeParse(requestBody)
+    if (!parsedInput.success) {
+      return NextResponse.json({ error: 'Invalid member details' }, { status: 400 })
+    }
+    const { memberId, farmId } = parsedInput.data
 
     // Verify user is owner or admin
     const { data: currentMember } = await supabase

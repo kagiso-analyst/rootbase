@@ -52,7 +52,7 @@ export default function ExpensesPage() {
   const supabase = createClient()
 
   // ===== FARM CONTEXT =====
-  const { currentFarm, loading: farmLoading } = useFarm()
+  const { currentFarm, farms, loading: farmLoading } = useFarm()
 
   // ===== DATA STATE =====
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -64,6 +64,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(false)
   const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showAllFarms, setShowAllFarms] = useState(false)
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function ExpensesPage() {
 
   // ===== FETCH EXPENSES =====
   const fetchExpenses = useCallback(async () => {
-    if (!currentFarm || !user) {
+    if ((!currentFarm && !showAllFarms) || !user || farms.length === 0) {
       setExpenses([])
       setFetching(false)
       return
@@ -97,7 +98,7 @@ export default function ExpensesPage() {
         .from('expenses')
         .select('*')
         .eq('user_id', user.id)
-        .eq('farm_id', currentFarm.id)
+        .in('farm_id', showAllFarms ? farms.map((farm) => farm.id) : [currentFarm!.id])
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch expenses: ' + error.message)
@@ -117,7 +118,7 @@ export default function ExpensesPage() {
     } finally {
       setFetching(false)
     }
-  }, [currentFarm, user, supabase])
+  }, [currentFarm, farms, showAllFarms, user, supabase])
 
   useEffect(() => {
     if (authChecked && user) {
@@ -125,7 +126,19 @@ export default function ExpensesPage() {
     }
   }, [authChecked, user, fetchExpenses])
 
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel(`expenses-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `user_id=eq.${user.id}` }, fetchExpenses)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchExpenses, supabase, user])
+
   const total = expenses.reduce((sum, e) => sum + Number(e.amount), 0)
+  const farmNames = new Map(farms.map((farm) => [farm.id, farm.name]))
 
   // ===== ADD EXPENSE =====
   async function handleAdd() {
@@ -155,7 +168,17 @@ export default function ExpensesPage() {
       if (error) throw new Error('Failed to save expense: ' + error.message)
 
       if (data) {
-        setExpenses((prev) => [data, ...prev])
+        const savedExpense: Expense = {
+          id: String(data.id),
+          category: String(data.category || ''),
+          description: data.description ? String(data.description) : '',
+          amount: Number(data.amount) || 0,
+          date: String(data.date || date),
+          created_at: data.created_at ? String(data.created_at) : '',
+          user_id: String(data.user_id || user.id),
+          farm_id: data.farm_id ? String(data.farm_id) : currentFarm.id,
+        }
+        setExpenses((prev) => [savedExpense, ...prev])
         setCategory('')
         setDescription('')
         setAmount('')
@@ -226,7 +249,7 @@ export default function ExpensesPage() {
   }
 
   // ===== NO FARM SELECTED =====
-  if (!currentFarm) {
+  if (!currentFarm && farms.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-5xl mb-4">🏠</div>
@@ -299,7 +322,7 @@ export default function ExpensesPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Expenses</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              💰 {currentFarm.name}
+              💰 {showAllFarms ? 'All farms' : currentFarm?.name}
             </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1">
@@ -308,13 +331,22 @@ export default function ExpensesPage() {
           </p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
-            className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
-            onClick={() => setOpen(true)}
+            variant="outline"
+            className="border-[#2D6A4F] text-[#2D6A4F]"
+            onClick={() => setShowAllFarms((value) => !value)}
           >
-            <Plus size={16} className="mr-2" /> Add Expense
+            {showAllFarms ? 'Current farm only' : 'All farms'}
           </Button>
+          <Dialog open={open} onOpenChange={setOpen}>
+            <Button
+              className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              onClick={() => setOpen(true)}
+              disabled={!currentFarm}
+            >
+              <Plus size={16} className="mr-2" /> Add Expense
+            </Button>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Add Expense</DialogTitle>
@@ -365,7 +397,8 @@ export default function ExpensesPage() {
               </Button>
             </div>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       {expenses.length === 0 ? (
@@ -406,7 +439,8 @@ export default function ExpensesPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-800">{expense.description}</p>
                       <p className="text-xs text-gray-400">
-                        {expense.category} · {expense.date}
+                         {expense.category} · {expense.date}
+                         {showAllFarms && expense.farm_id ? ` · ${farmNames.get(expense.farm_id) || 'Farm'}` : ''}
                       </p>
                     </div>
                   </div>

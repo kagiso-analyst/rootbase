@@ -21,7 +21,7 @@
 |  **Inventory** | Stock management with reorder alerts |
 |  **Equipment** | Maintenance logs and service reminders |
 |  **Tasks** | Task management with priorities and due dates |
-|  **Journal** | Daily farm diary with tags and mood tracking |
+|  **Journal** | Daily farm diary with tags and farm context |
 |  **Weather** | Real-time weather with farming advice |
 |  **Documents** | Store farm registrations and insurance |
 |  **Suppliers** | Manage your farm suppliers |
@@ -46,6 +46,44 @@
 - Switch farms instantly
 
 ---
+
+## 🚀 Local Setup
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Fill in the values in `.env.local` before using Supabase, weather, PayFast, or rate-limited API features. Never commit `.env`, `.env.local`, or other files containing real credentials.
+
+### Validation Commands
+
+```bash
+npm run typecheck
+npm run build
+npm run lint
+```
+
+The production build requires valid environment configuration. Diagnostic pages such as `/test` and `/test-signup` render only during development.
+
+## 🔐 Production Notes
+
+- Supabase authentication and row-level data isolation protect farm data.
+- Non-public routes and API routes require an authenticated session.
+- Team role changes are restricted to `admin`, `manager`, and `viewer`; owner privileges cannot be assigned through team APIs.
+- PayFast notifications are signature-checked, validated with PayFast, and matched to the verified user profile before activation.
+- API rate limiting uses Upstash Redis. In production, missing Redis configuration fails closed.
+- Security headers, Sentry error reporting, and generic user-facing error messages are enabled.
+- Rotate all provider credentials before deployment and store them in the hosting provider's secret manager.
+
+Local Supabase state, generated build files, environment files, and migration files are excluded by `.gitignore` in this workspace. If migrations are used for deployment, remove the migration ignore rule and commit them as versioned database source.
+
+## ⚠️ Current Gaps
+
+- Automated tests for authentication, RLS, payments, roles, and rate limiting are not yet included.
+- ESLint still reports existing `any` usage and unused-variable warnings that should be resolved before release.
+- PayFast, OpenWeather, Upstash, Supabase, and AI workflows require environment-backed integration testing.
 
 ## 🛠️ Tech Stack
 

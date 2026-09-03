@@ -155,7 +155,18 @@ export default function LivestockPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch animals: ' + error.message)
-      if (data) setAnimals(data)
+      if (data) setAnimals(data.map(item => ({
+        ...item,
+        tag_number: item.tag_number ?? null,
+        breed: item.breed ?? null,
+        sex: item.sex ?? null,
+        date_of_birth: item.date_of_birth ?? null,
+        purchase_date: item.purchase_date ?? null,
+        purchase_price: item.purchase_price ?? 0,
+        current_weight_kg: item.current_weight_kg ?? 0,
+        status: item.status as LivestockStatus,
+        notes: item.notes ?? null,
+      })))
       
     } catch (err) {
       console.error('Animals fetch error:', err)
@@ -179,7 +190,15 @@ export default function LivestockPage() {
         .order('date', { ascending: false })
 
       if (error) throw new Error('Failed to fetch health events: ' + error.message)
-      if (data) setHealthEvents(data)
+      if (data) setHealthEvents(data.map(item => ({
+        ...item,
+        animal_id: item.animal_id || '',
+        animal_tag: item.animal_tag ?? null,
+        event_type: item.event_type || '',
+        description: item.description || '',
+        date: item.date || '',
+        product: item.product ?? null,
+      })))
       
     } catch (err) {
       console.error('Health events fetch error:', err)
@@ -234,7 +253,7 @@ export default function LivestockPage() {
       if (error) throw new Error('Failed to save animal: ' + error.message)
 
       if (data) {
-        setAnimals((prev) => [data, ...prev])
+        setAnimals((prev) => [data as unknown as Animal, ...prev])
         setTagNumber('')
         setSpecies('')
         setBreed('')
@@ -270,7 +289,7 @@ export default function LivestockPage() {
       const { data, error } = await supabase
         .from('health_events')
         .insert([{
-          animal_id: selectedAnimalId,
+          livestock_id: selectedAnimalId,
           animal_tag: animal?.tag_number || animal?.species || 'Unknown',
           event_type: eventType,
           description: eventDescription,
@@ -285,7 +304,7 @@ export default function LivestockPage() {
       if (error) throw new Error('Failed to save health event: ' + error.message)
 
       if (data) {
-        setHealthEvents((prev) => [data, ...prev])
+        setHealthEvents((prev) => [data as HealthEvent, ...prev])
         setSelectedAnimalId('')
         setEventType('')
         setEventDescription('')

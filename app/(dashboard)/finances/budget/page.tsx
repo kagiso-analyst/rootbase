@@ -224,14 +224,15 @@ export default function BudgetPage() {
   // ===== DELETE BUDGET =====
   async function handleDelete(id: string) {
     if (!confirm('Are you sure you want to delete this budget?')) return
+    if (!user || !currentFarm) return
 
     try {
       const { error } = await supabase
         .from('budgets')
         .delete()
         .eq('id', id)
-        .eq('user_id', user?.id)
-        .eq('farm_id', currentFarm?.id)
+        .eq('user_id', user.id)
+        .eq('farm_id', currentFarm.id)
 
       if (error) throw error
       fetchBudgets()

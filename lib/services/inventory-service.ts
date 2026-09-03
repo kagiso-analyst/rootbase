@@ -59,10 +59,10 @@ export class InventoryService {
         .from('inventory_items')
         .select('*')
         .eq('farm_id', farmId)
-        .lte('current_quantity', this.supabase.raw('reorder_level'))
+      const lowStockItems = (data || []).filter(item => item.current_quantity <= item.reorder_level)
 
       if (error) throw new Error(error.message)
-      return data || []
+      return lowStockItems
     } catch (error) {
       console.error('Error fetching low stock items:', error)
       throw error

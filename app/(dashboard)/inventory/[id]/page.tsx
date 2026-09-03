@@ -151,7 +151,7 @@ export default function InventoryDetailPage() {
         .limit(50)
 
       if (movementError) throw movementError
-      setMovements(movementData || [])
+      setMovements((movementData || []) as StockMovement[])
     } catch (err) {
       console.error('Fetch error:', err)
       setError('Failed to load data')

@@ -42,7 +42,7 @@ export default function FinancialReportsPage() {
   const supabase = createClient()
 
   // ===== FARM CONTEXT =====
-  const { currentFarm, loading: farmLoading } = useFarm()
+  const { currentFarm, farms, loading: farmLoading } = useFarm()
 
   // ===== DATA STATE =====
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -60,6 +60,7 @@ export default function FinancialReportsPage() {
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
   const [dateRangeType, setDateRangeType] = useState<'preset' | 'custom'>('preset')
+  const [showAllFarms, setShowAllFarms] = useState(false)
 
   // ===== CHECK AUTH =====
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function FinancialReportsPage() {
 
   // ===== FETCH DATA =====
   const fetchData = useCallback(async () => {
-    if (!currentFarm || !user) {
+    if ((!currentFarm && !showAllFarms) || !user || farms.length === 0) {
       setTransactions([])
       setMonthlySummary([])
       setLoading(false)
@@ -90,12 +91,13 @@ export default function FinancialReportsPage() {
     setError(null)
     
     try {
+      const farmIds = showAllFarms ? farms.map((farm) => farm.id) : [currentFarm!.id]
       const [incomeRes, expensesRes] = await Promise.all([
         supabase
           .from('income')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
+          .in('farm_id', farmIds)
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
@@ -103,7 +105,7 @@ export default function FinancialReportsPage() {
           .from('expenses')
           .select('*')
           .eq('user_id', user.id)
-          .eq('farm_id', currentFarm.id)
+          .in('farm_id', farmIds)
           .gte('date', startDate)
           .lte('date', endDate)
           .order('date', { ascending: false }),
@@ -165,13 +167,25 @@ export default function FinancialReportsPage() {
       setLoading(false)
       setIsRefreshing(false)
     }
-  }, [startDate, endDate, currentFarm, user, supabase])
+  }, [startDate, endDate, currentFarm, farms, showAllFarms, user, supabase])
 
   useEffect(() => {
     if (authChecked && user) {
       fetchData()
     }
   }, [authChecked, user, fetchData])
+
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase
+      .channel(`financial-reports-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'income', filter: `user_id=eq.${user.id}` }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses', filter: `user_id=eq.${user.id}` }, fetchData)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [fetchData, supabase, user])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -210,8 +224,8 @@ const incomeByCategory = income
 
   const PRESET_RANGES = [
     { label: 'This Month', days: 0, type: 'month' },
-    { label: 'Last 3 Months', days: 90 },
-    { label: 'Last 6 Months', days: 180 },
+    { label: 'Last 3 Months', months: 3 },
+    { label: 'Last 6 Months', months: 6 },
     { label: 'This Year', days: 0, type: 'year' },
     { label: 'All Time', days: 0, type: 'all' },
   ]
@@ -229,7 +243,8 @@ const incomeByCategory = income
       start = '2020-01-01'
     } else {
       const d = new Date()
-      d.setDate(d.getDate() - (preset.days || 90))
+      d.setMonth(d.getMonth() - (preset.months || 3))
+      d.setDate(1)
       start = d.toISOString().split('T')[0]
     }
 
@@ -242,6 +257,7 @@ const incomeByCategory = income
     if (transactions.length === 0) return
     
     const headers = ['Date', 'Type', 'Category', 'Description', 'Amount', 'Buyer', 'Farm']
+    const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`
     const rows = filtered.map(t => [
       t.date,
       t.type,
@@ -249,12 +265,12 @@ const incomeByCategory = income
       t.description,
       t.type === 'income' ? t.amount : -t.amount,
       t.buyer_name || '',
-      currentFarm?.name || ''
+      showAllFarms ? (farms.find((farm) => farm.id === t.farm_id)?.name || '') : (currentFarm?.name || '')
     ])
     
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.join(','))
+      ...rows.map(row => row.map(escapeCsv).join(','))
     ].join('\n')
     
     const blob = new Blob([csvContent], { type: 'text/csv' })
@@ -268,17 +284,22 @@ const incomeByCategory = income
 
   // ===== PDF EXPORT HANDLER =====
   const handleExportPDF = () => {
+    const filteredIncome = filtered.filter((transaction) => transaction.type === 'income')
+    const filteredExpenses = filtered.filter((transaction) => transaction.type === 'expense')
+    const filteredIncomeTotal = filteredIncome.reduce((sum, transaction) => sum + transaction.amount, 0)
+    const filteredExpenseTotal = filteredExpenses.reduce((sum, transaction) => sum + transaction.amount, 0)
+    const filteredNet = filteredIncomeTotal - filteredExpenseTotal
     const pdfData = {
       startDate,
       endDate,
-      income,
-      expenses,
-      totalIncome,
-      totalExpenses,
-      net: netProfit,
-      isProfit,
-      profitMargin,
-      farmName: currentFarm?.name || 'Farm'
+      income: filteredIncome,
+      expenses: filteredExpenses,
+      totalIncome: filteredIncomeTotal,
+      totalExpenses: filteredExpenseTotal,
+      net: filteredNet,
+      isProfit: filteredNet >= 0,
+      profitMargin: filteredIncomeTotal > 0 ? ((filteredNet / filteredIncomeTotal) * 100).toFixed(1) : '0',
+      farmName: showAllFarms ? 'All farms' : currentFarm?.name || 'Farm'
     }
     return <FinancialReportPDF data={pdfData} />
   }
@@ -315,7 +336,7 @@ const incomeByCategory = income
   }
 
   // ===== NO FARM SELECTED =====
-  if (!currentFarm) {
+  if (!currentFarm && farms.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
         <div className="text-5xl mb-4">🏠</div>
@@ -369,7 +390,7 @@ const incomeByCategory = income
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Financial Reports</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              📊 {currentFarm.name}
+              📊 {showAllFarms ? 'All farms' : currentFarm?.name}
             </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1">
@@ -412,6 +433,13 @@ const incomeByCategory = income
           >
             <RefreshCw size={14} className={`mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+          <Button
+            variant="outline"
+            className="border-[#2D6A4F] text-[#2D6A4F] hover:bg-[#D8F3DC]"
+            onClick={() => setShowAllFarms((value) => !value)}
+          >
+            {showAllFarms ? 'Current farm only' : 'All farms'}
           </Button>
         </div>
       </div>

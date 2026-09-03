@@ -2,6 +2,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const updateRoleSchema = z.object({
+  memberId: z.string().uuid(),
+  role: z.enum(['admin', 'manager', 'viewer']),
+  farmId: z.string().uuid(),
+})
 
 export async function POST(request: Request) {
   try {
@@ -26,11 +33,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { memberId, role, farmId } = await request.json()
-
-    if (!memberId || !role || !farmId) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    let requestBody: unknown
+    try {
+      requestBody = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
     }
+
+    const parsedInput = updateRoleSchema.safeParse(requestBody)
+    if (!parsedInput.success) {
+      return NextResponse.json({ error: 'Invalid role update details' }, { status: 400 })
+    }
+    const { memberId, role, farmId } = parsedInput.data
 
     // Verify user is owner or admin
     const { data: currentMember } = await supabase

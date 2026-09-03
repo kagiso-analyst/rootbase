@@ -93,7 +93,7 @@ export default function TopBar() {
     try {
       // First check if the table exists by trying to get a single row
       const { error: tableCheckError } = await supabase
-        .from(table)
+        .from(table as any)
         .select('id', { count: 'exact', head: true })
         .limit(1)
       
@@ -111,7 +111,7 @@ export default function TopBar() {
       
       // Now run the actual count query
       const { count, error } = await supabase
-        .from(table)
+        .from(table as any)
         .select('id', { count: 'exact', head: true })
         .match(query)
       
