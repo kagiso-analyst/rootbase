@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { checkApiRateLimit, rateLimitHeaders } from '@/lib/rate-limit'
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request })
@@ -27,6 +28,19 @@ export async function proxy(request: NextRequest) {
     '/refund-policy', '/accept-invitation', '/subscription/success',
     '/subscription/cancel', '/api/payfast/notify',
   ].includes(pathname)
+
+  if (pathname.startsWith('/api/')) {
+    const rateLimit = await checkApiRateLimit(request, user?.id)
+    const headers = rateLimitHeaders(rateLimit.limit, rateLimit.remaining, rateLimit.reset)
+    if (!rateLimit.success) {
+      return NextResponse.json(
+        { error: 'Too many requests', retryAfter: Math.ceil((rateLimit.reset - Date.now()) / 1000) },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.reset - Date.now()) / 1000)), ...headers } }
+      )
+    }
+
+    Object.entries(headers).forEach(([key, value]) => response.headers.set(key, value))
+  }
 
   if (isPublic) return response
 

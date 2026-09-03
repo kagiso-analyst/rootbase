@@ -3,6 +3,7 @@
 'use client'
 
 import { Component, ReactNode } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -27,6 +28,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Error caught by boundary:', error, errorInfo)
+    Sentry.withScope((scope) => {
+      scope.setExtras({ componentStack: errorInfo.componentStack })
+      Sentry.captureException(error)
+    })
   }
 
   render() {

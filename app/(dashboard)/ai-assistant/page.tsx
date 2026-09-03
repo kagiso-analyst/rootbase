@@ -17,6 +17,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
 
+// ✅ FIX: Define proper types
 type Insight = {
   id: string
   type: 'insight' | 'recommendation' | 'alert'
@@ -24,6 +25,51 @@ type Insight = {
   description: string
   icon: React.ReactNode
   created_at: string
+}
+
+// ✅ FIX: Define database types
+type IncomeRecord = {
+  amount: number
+  category: string
+}
+
+type ExpenseRecord = {
+  amount: number
+  category: string
+}
+
+type CropRecord = {
+  status: string
+  crop_name: string
+}
+
+type TaskRecord = {
+  status: string
+  priority: string
+  due_date: string
+}
+
+type InventoryRecord = {
+  name: string
+  current_quantity: number
+  reorder_level: number
+}
+
+// ✅ FIX: Define farm data type
+type FarmData = {
+  income: number
+  expenses: number
+  net: number
+  activeCrops: number
+  overdueTasks: number
+  lowStockItems: number
+  totalTasks: number
+  farmName: string
+}
+
+type ChatHistory = {
+  question: string
+  answer: string
 }
 
 const ICON_MAP = {
@@ -46,13 +92,13 @@ export default function AIAssistantPage() {
   const [question, setQuestion] = useState('')
   const [response, setResponse] = useState('')
   const [isAsking, setIsAsking] = useState(false)
-  const [chatHistory, setChatHistory] = useState<{ question: string; answer: string }[]>([])
+  const [chatHistory, setChatHistory] = useState<ChatHistory[]>([])
   const [showSuggestions, setShowSuggestions] = useState(true)
   const supabase = createClient()
   const { currentFarm, loading: farmLoading } = useFarm()
 
-  // Store fetched data for use in chat
-  const [farmData, setFarmData] = useState<any>({
+  // ✅ FIX: Properly typed farm data
+  const [farmData, setFarmData] = useState<FarmData>({
     income: 0,
     expenses: 0,
     net: 0,
@@ -81,7 +127,7 @@ export default function AIAssistantPage() {
     setLoading(true)
 
     try {
-      // Fetch farm data for insights
+      // ✅ FIX: Add proper type assertions
       const [incomeRes, expensesRes, cropsRes, tasksRes, inventoryRes] = await Promise.all([
         supabase.from('income').select('amount, category').eq('user_id', user.id).eq('farm_id', currentFarm.id),
         supabase.from('expenses').select('amount, category').eq('user_id', user.id).eq('farm_id', currentFarm.id),
@@ -90,12 +136,19 @@ export default function AIAssistantPage() {
         supabase.from('inventory_items').select('name, current_quantity, reorder_level').eq('user_id', user.id).eq('farm_id', currentFarm.id),
       ])
 
-      const totalIncome = incomeRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
-      const totalExpenses = expensesRes.data?.reduce((s, r) => s + Number(r.amount), 0) || 0
+      // ✅ FIX: Properly type the data
+      const incomeData = (incomeRes.data || []) as IncomeRecord[]
+      const expensesData = (expensesRes.data || []) as ExpenseRecord[]
+      const cropsData = (cropsRes.data || []) as CropRecord[]
+      const tasksData = (tasksRes.data || []) as TaskRecord[]
+      const inventoryData = (inventoryRes.data || []) as InventoryRecord[]
+
+      const totalIncome = incomeData.reduce((s, r) => s + Number(r.amount), 0)
+      const totalExpenses = expensesData.reduce((s, r) => s + Number(r.amount), 0)
       const net = totalIncome - totalExpenses
-      const activeCrops = cropsRes.data?.filter(c => c.status === 'active') || []
-      const overdueTasks = tasksRes.data?.filter(t => t.status !== 'done' && new Date(t.due_date) < new Date()) || []
-      const lowStockItems = inventoryRes.data?.filter(i => i.reorder_level > 0 && i.current_quantity <= i.reorder_level) || []
+      const activeCrops = cropsData.filter(c => c.status === 'active')
+      const overdueTasks = tasksData.filter(t => t.status !== 'done' && new Date(t.due_date) < new Date())
+      const lowStockItems = inventoryData.filter(i => i.reorder_level > 0 && i.current_quantity <= i.reorder_level)
 
       // Store data for chat
       setFarmData({
@@ -105,7 +158,7 @@ export default function AIAssistantPage() {
         activeCrops: activeCrops.length,
         overdueTasks: overdueTasks.length,
         lowStockItems: lowStockItems.length,
-        totalTasks: tasksRes.data?.length || 0,
+        totalTasks: tasksData.length,
         farmName: currentFarm.name,
       })
 
