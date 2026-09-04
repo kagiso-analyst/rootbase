@@ -28,18 +28,38 @@ export async function fetchWeather(lat: number, lon: number): Promise<WeatherDat
   try {
     // Add timestamp to prevent caching issues
     const res = await fetch(`/api/weather?lat=${lat}&lon=${lon}&_=${Date.now()}`)
-    const json = await res.json()
+    const json = await res.json() as {
+      current?: {
+        cod?: number
+        main: { temp: number; feels_like: number; humidity: number }
+        wind: { speed: number }
+        weather: Array<{ description: string; icon: string }>
+        name: string
+        sys: { country: string; sunrise: number; sunset: number }
+      }
+      forecast?: {
+        list?: Array<{
+          dt_txt: string
+          dt: number
+          main: { temp: number; humidity: number }
+          weather: Array<{ description: string; icon: string }>
+          wind: { speed: number }
+          pop?: number
+        }>
+      } | null
+      error?: string
+    }
     
-    if (!json.current || json.current.cod !== 200) {
-      console.warn('Weather API returned error:', json)
+    if (!res.ok || !json.current || (json.current.cod !== undefined && json.current.cod !== 200)) {
+      console.warn('Weather API returned error:', json.error || json)
       return null
     }
 
     const current = json.current
-    const forecastData = json.forecast
+    const forecastData = json.forecast?.list || []
 
     const dailyMap: Record<string, any[]> = {}
-    forecastData.list?.forEach((item: any) => {
+    forecastData.forEach((item) => {
       const date = item.dt_txt.split(' ')[0]
       if (!dailyMap[date]) dailyMap[date] = []
       dailyMap[date].push(item)
