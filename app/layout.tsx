@@ -3,6 +3,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
+import PwaRegistration from '@/components/layout/PwaRegistration'
 
 export const metadata: Metadata = {
   title: 'RootBase — Farm Management for African Farmers',
@@ -25,6 +26,7 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.ico',
   },
+  manifest: '/manifest.webmanifest',
 }
 
 export default function RootLayout({
@@ -35,6 +37,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body suppressHydrationWarning>
+        <PwaRegistration />
         {children}
         <Toaster />
       </body>

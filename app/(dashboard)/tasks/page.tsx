@@ -26,6 +26,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
+import { Database } from '@/lib/database.types'
+import { drainOfflineMutations, enqueueMutation } from '@/lib/offline-queue'
 import Link from 'next/link'
 
 type Priority = 'low' | 'medium' | 'high' | 'urgent'
@@ -138,9 +140,26 @@ export default function TasksPage() {
         .order('created_at', { ascending: false })
 
       if (error) throw new Error('Failed to fetch tasks: ' + error.message)
-      if (data) setTasks(data as Task[])
+      if (data) {
+        const nextTasks = data as Task[]
+        setTasks(nextTasks)
+        window.localStorage.setItem(`rootbase-tasks-${currentFarm.id}`, JSON.stringify(nextTasks))
+      }
       
     } catch (err) {
+      if (!navigator.onLine && currentFarm) {
+        try {
+          const cachedTasks = window.localStorage.getItem(`rootbase-tasks-${currentFarm.id}`)
+          if (cachedTasks) {
+            setTasks(JSON.parse(cachedTasks) as Task[])
+            setError(null)
+            return
+          }
+        } catch {
+          // Fall through to the normal error state when the local cache is invalid.
+        }
+      }
+
       console.error('Tasks error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load tasks. Please refresh the page.')
     } finally {
@@ -149,11 +168,33 @@ export default function TasksPage() {
     }
   }, [currentFarm, user, supabase])
 
+  const syncOfflineTasks = useCallback(async () => {
+    if (!navigator.onLine || !user || !currentFarm) return
+
+    const result = await drainOfflineMutations(async (mutation) => {
+      if (mutation.table !== 'tasks' || mutation.operation !== 'insert') {
+        throw new Error(`Unsupported offline mutation: ${mutation.table}/${mutation.operation}`)
+      }
+
+      const taskInsert = mutation.payload as Database['public']['Tables']['tasks']['Insert']
+      const { error } = await supabase.from('tasks').insert(taskInsert)
+      if (error) throw error
+    })
+
+    if (result.synced > 0) await fetchTasks()
+  }, [currentFarm, fetchTasks, supabase, user])
+
   useEffect(() => {
     if (authChecked && user) {
       fetchTasks()
+      void syncOfflineTasks()
     }
-  }, [authChecked, user, fetchTasks])
+  }, [authChecked, user, fetchTasks, syncOfflineTasks])
+
+  useEffect(() => {
+    window.addEventListener('online', syncOfflineTasks)
+    return () => window.removeEventListener('online', syncOfflineTasks)
+  }, [syncOfflineTasks])
 
   // ===== REFRESH HANDLER =====
   const handleRefresh = async () => {
@@ -206,6 +247,45 @@ export default function TasksPage() {
       }
       
     } catch (err) {
+      if (!navigator.onLine || err instanceof TypeError) {
+        const offlineTask: Task = {
+          id: `offline-${crypto.randomUUID()}`,
+          title,
+          description: description || null,
+          priority,
+          status: 'todo',
+          due_date: dueDate || null,
+          category: category || null,
+          created_at: new Date().toISOString(),
+          user_id: user.id,
+          farm_id: currentFarm.id,
+        }
+
+        enqueueMutation({
+          table: 'tasks',
+          operation: 'insert',
+          payload: {
+            title: offlineTask.title,
+            description: offlineTask.description,
+            priority: offlineTask.priority,
+            status: offlineTask.status,
+            due_date: offlineTask.due_date,
+            category: offlineTask.category,
+            user_id: offlineTask.user_id,
+            farm_id: offlineTask.farm_id,
+          },
+        })
+        setTasks((prev) => [offlineTask, ...prev])
+        setTitle('')
+        setDescription('')
+        setPriority('medium')
+        setDueDate('')
+        setCategory('')
+        setOpen(false)
+        setError(null)
+        return
+      }
+
       console.error('Task save error:', err)
       setError(err instanceof Error ? err.message : 'Failed to save task. Please try again.')
     } finally {

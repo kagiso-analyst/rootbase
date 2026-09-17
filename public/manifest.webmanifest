@@ -1,0 +1,10 @@
+{
+  "name": "RootBase Farm Management",
+  "short_name": "RootBase",
+  "description": "Farm operations management for African farmers.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F9FAFB",
+  "theme_color": "#1B4332",
+  "lang": "en-ZA"
+}

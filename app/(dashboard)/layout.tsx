@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Sidebar from '@/components/layout/Sidebar'
 import TopBar from '@/components/layout/TopBar'
+import OfflineStatus from '@/components/layout/OfflineStatus'
 import { FarmProvider } from '@/lib/farm-context'
 import { Loader2 } from 'lucide-react'
 
@@ -103,6 +104,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <FarmProvider>
       <div className="flex min-h-screen w-full overflow-hidden bg-[#F9FAFB]">
+        <OfflineStatus />
         <Sidebar />
         <div className="flex-1 flex min-h-screen flex-col overflow-hidden">
           <TopBar />
