@@ -658,7 +658,15 @@ export default function SettingsPage() {
                         {currentFarm?.id === farm.id ? (
                           <Badge className="bg-[#D8F3DC] text-[#2D6A4F]">Active</Badge>
                         ) : (
-                          <Button variant="outline" size="sm" onClick={() => switchFarm(farm.id)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              void switchFarm(farm.id).catch((switchError) => {
+                                setError(switchError instanceof Error ? switchError.message : 'Failed to switch farm')
+                              })
+                            }}
+                          >
                             Use farm
                           </Button>
                         )}

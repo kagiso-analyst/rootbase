@@ -374,7 +374,11 @@ export default function TopBar() {
               {farms.map(farm => (
                 <DropdownMenuItem
                   key={farm.id}
-                  onClick={() => switchFarm(farm.id)}
+                  onClick={() => {
+                    void switchFarm(farm.id).catch((error) => {
+                      console.error('Unable to switch farm:', error)
+                    })
+                  }}
                   className={cn(
                     "cursor-pointer rounded-lg transition-all py-2 px-3",
                     farm.is_active 

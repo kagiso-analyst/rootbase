@@ -35,7 +35,7 @@ export function FarmProvider({ children }: { children: ReactNode }) {
   const [currentFarm, setCurrentFarm] = useState<Farm | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   // ===== LOAD FARMS =====
   const loadFarms = useCallback(async () => {
