@@ -330,7 +330,7 @@ export default function AIAssistantPage() {
   if (!currentFarm) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-        <div className="text-5xl mb-4">🏠</div>
+        <div className="text-5xl mb-4"></div>
         <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
         <p className="text-sm text-gray-500">Please select a farm to use the AI Assistant.</p>
         <Link href="/settings">
