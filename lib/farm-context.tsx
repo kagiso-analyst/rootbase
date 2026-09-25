@@ -149,6 +149,11 @@ export function FarmProvider({ children }: { children: ReactNode }) {
         throw new Error('Failed to switch farm: ' + updateError2.message)
       }
 
+      // Update the UI and browser persistence as soon as the farm switch succeeds.
+      setCurrentFarm(farm)
+      setFarms(prev => prev.map(f => ({ ...f, is_active: f.id === farmId })))
+      localStorage.setItem('currentFarmId', farmId)
+
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ active_farm_id: farmId })
@@ -156,15 +161,7 @@ export function FarmProvider({ children }: { children: ReactNode }) {
 
       if (profileError) {
         console.error('Error saving active farm:', profileError)
-        throw new Error('Failed to save active farm: ' + profileError.message)
       }
-
-      // Update state
-      setCurrentFarm(farm)
-      setFarms(prev => prev.map(f => ({ ...f, is_active: f.id === farmId })))
-      
-      // Save to localStorage for persistence
-      localStorage.setItem('currentFarmId', farmId)
 
       console.log('✅ Farm switched successfully to:', farm.name)
       
