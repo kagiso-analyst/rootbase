@@ -171,7 +171,14 @@ export default function DocumentsPage() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) setSelectedFile(file)
+    if (!file) return
+    if (file.size > 50 * 1024 * 1024) {
+      setError('Files must be smaller than 50 MB.')
+      e.target.value = ''
+      return
+    }
+    setError(null)
+    setSelectedFile(file)
   }
 
   // ===== ADD DOCUMENT =====
@@ -186,13 +193,25 @@ export default function DocumentsPage() {
     setError(null)
     
     try {
+      let filePath: string | null = null
+      if (selectedFile) {
+        const safeFileName = selectedFile.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+        filePath = `${user.id}/${currentFarm.id}/${crypto.randomUUID()}-${safeFileName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('documents')
+          .upload(filePath, selectedFile, { upsert: false })
+
+        if (uploadError) throw new Error('Failed to upload file: ' + uploadError.message)
+      }
+
       const docData = {
         name,
         category,
         description: description || null,
         expiry_date: expiryDate || null,
         file_name: selectedFile?.name || null,
-        file_url: selectedFile ? URL.createObjectURL(selectedFile) : null,
+        file_url: filePath,
         uploaded_at: new Date().toISOString().split('T')[0],
         user_id: user.id,
         farm_id: currentFarm.id,
@@ -204,7 +223,10 @@ export default function DocumentsPage() {
         .select()
         .single()
 
-      if (error) throw new Error('Failed to save document: ' + error.message)
+      if (error) {
+        if (filePath) await supabase.storage.from('documents').remove([filePath])
+        throw new Error('Failed to save document: ' + error.message)
+      }
 
       const newDoc: Document = {
         id: data.id,
@@ -241,6 +263,7 @@ export default function DocumentsPage() {
     if (!currentFarm || !user) return
     
     try {
+      const document = documents.find((item) => item.id === id)
       const { error } = await supabase
         .from('documents')
         .delete()
@@ -250,12 +273,34 @@ export default function DocumentsPage() {
 
       if (error) throw new Error('Failed to delete document: ' + error.message)
 
+      if (document?.fileUrl) {
+        const { error: storageError } = await supabase.storage
+          .from('documents')
+          .remove([document.fileUrl])
+        if (storageError) console.error('Failed to remove document file:', storageError)
+      }
+
       setDocuments(prev => prev.filter(d => d.id !== id))
       
     } catch (err) {
       console.error('Delete error:', err)
       setError(err instanceof Error ? err.message : 'Failed to delete document')
     }
+  }
+
+  async function handleDownload(document: Document) {
+    if (!document.fileUrl) return
+
+    const { data, error: signedUrlError } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(document.fileUrl, 60 * 5)
+
+    if (signedUrlError || !data?.signedUrl) {
+      setError('Unable to open this document. Please try again.')
+      return
+    }
+
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
   }
 
   // ===== LOADING STATE =====
@@ -538,7 +583,8 @@ export default function DocumentsPage() {
                     </div>
                     <button
                       onClick={() => handleDelete(doc.id)}
-                      className="text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      aria-label={`Delete ${doc.name}`}
+                      className="text-gray-300 hover:text-red-400 transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -573,9 +619,13 @@ export default function DocumentsPage() {
                   )}
 
                   {doc.fileUrl && (
-                    <p className="inline-flex items-center gap-1.5 mt-3 text-xs text-[#2D6A4F] hover:underline cursor-pointer">
+                    <button
+                      type="button"
+                      onClick={() => void handleDownload(doc)}
+                      className="inline-flex items-center gap-1.5 mt-3 text-xs text-[#2D6A4F] hover:underline cursor-pointer"
+                    >
                       <Download size={12} /> {doc.fileName}
-                    </p>
+                    </button>
                   )}
                 </CardContent>
               </Card>
