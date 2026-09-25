@@ -65,7 +65,8 @@ export function DropdownMenuContent({
   children,
   className,
   align = 'end',
-}: React.HTMLAttributes<HTMLDivElement> & { align?: 'start' | 'end' | 'center' }) {
+  pushContent = false,
+}: React.HTMLAttributes<HTMLDivElement> & { align?: 'start' | 'end' | 'center'; pushContent?: boolean }) {
   const { open, setOpen } = useDropdownMenu()
 
   useEffect(() => {
@@ -85,7 +86,9 @@ export function DropdownMenuContent({
     <div
       data-dropdown-menu-content
       className={cn(
-        'absolute z-50 mt-2 min-w-[12rem] rounded-xl border border-gray-200 bg-white p-1 shadow-xl',
+        pushContent
+          ? 'relative z-50 mt-2 min-w-[12rem] rounded-xl border border-gray-200 bg-white p-1 shadow-xl'
+          : 'absolute z-50 mt-2 min-w-[12rem] rounded-xl border border-gray-200 bg-white p-1 shadow-xl',
         align === 'end' ? 'right-0' : align === 'start' ? 'left-0' : 'left-1/2 -translate-x-1/2',
         className,
       )}
