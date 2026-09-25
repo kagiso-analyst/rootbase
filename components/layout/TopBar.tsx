@@ -336,7 +336,7 @@ export default function TopBar() {
   const planBadge = getPlanBadge(userPlan)
 
   return (
-    <header className="min-h-16 h-auto border-b border-gray-200/80 bg-white/95 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6 shadow-sm">
+    <header className="h-16 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6 shadow-sm">
       {/* Left section */}
       <div className="flex items-center gap-4">
         <Logo variant="icon" size="sm" className="md:hidden" />
@@ -366,7 +366,7 @@ export default function TopBar() {
                 <ChevronDown size={12} className="text-[#2D6A4F]/60" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" pushContent className="w-64 p-1 shadow-xl border-gray-100">
+            <DropdownMenuContent align="start" className="w-64 p-1 shadow-xl border-gray-100">
               <DropdownMenuLabel className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold px-2 py-1.5">
                 Your Farms
               </DropdownMenuLabel>
