@@ -63,12 +63,19 @@ export function FarmProvider({ children }: { children: ReactNode }) {
         setFarms(data)
         
         const savedFarmId = localStorage.getItem('currentFarmId')
-        let activeFarm = data.find(f => f.is_active)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('active_farm_id')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        const activeFarm = data.find(f => f.is_active)
+        const persistedFarmId = savedFarmId || profile?.active_farm_id
         
-        if (savedFarmId) {
-          const savedFarm = data.find(f => f.id === savedFarmId)
+        if (persistedFarmId) {
+          const savedFarm = data.find(f => f.id === persistedFarmId)
           if (savedFarm) {
             setCurrentFarm(savedFarm)
+            setFarms(data.map(f => ({ ...f, is_active: f.id === savedFarm.id })))
             // Update is_active in database
             await supabase
               .from('farms')
@@ -78,6 +85,10 @@ export function FarmProvider({ children }: { children: ReactNode }) {
               .from('farms')
               .update({ is_active: true })
               .eq('id', savedFarm.id)
+            await supabase
+              .from('profiles')
+              .update({ active_farm_id: savedFarm.id })
+              .eq('user_id', user.id)
             setLoading(false)
             return
           }
@@ -136,6 +147,16 @@ export function FarmProvider({ children }: { children: ReactNode }) {
       if (updateError2) {
         console.error('Error activating farm:', updateError2)
         throw new Error('Failed to switch farm: ' + updateError2.message)
+      }
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ active_farm_id: farmId })
+        .eq('user_id', user.id)
+
+      if (profileError) {
+        console.error('Error saving active farm:', profileError)
+        throw new Error('Failed to save active farm: ' + profileError.message)
       }
 
       // Update state
