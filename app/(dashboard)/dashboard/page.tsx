@@ -522,7 +522,7 @@ export default function DashboardPage() {
           </Badge>
         </div>
         <p className="text-gray-500 text-sm mt-1 flex items-center gap-2">
-          <span>{greeting || 'Good morning'} 👋</span>
+          <span>{greeting || 'Good morning'}</span>
         </p>
         <p className="text-sm text-gray-400">Here's what's happening on your farm today.</p>
       </div>
