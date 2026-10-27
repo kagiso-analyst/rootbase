@@ -259,7 +259,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2D6A4F] scrollbar-track-transparent">
+      <nav className="min-h-0 flex-1 px-4 py-4 overflow-y-auto scrollbar-thin scrollbar-thumb-[#2D6A4F] scrollbar-track-transparent">
         <div className="space-y-6">
           {/* Active Farm Section */}
           <div>
@@ -361,7 +361,7 @@ export default function Sidebar() {
 
       {/* Mobile drawer */}
       <div className={cn(
-        "md:hidden fixed top-0 left-0 h-full w-72 bg-gradient-to-b from-[#1B4332] to-[#143025] text-white z-50 transform transition-transform duration-300 ease-in-out shadow-2xl",
+        "md:hidden fixed top-0 left-0 flex h-dvh w-72 flex-col overflow-hidden bg-gradient-to-b from-[#1B4332] to-[#143025] text-white z-50 transform transition-transform duration-300 ease-in-out shadow-2xl",
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {renderSidebarContent(true)}
