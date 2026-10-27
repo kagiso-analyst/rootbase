@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { Toaster } from '@/components/ui/sonner'
 import PwaRegistration from '@/components/layout/PwaRegistration'
+import { Providers } from '@/components/providers'
 
 export const metadata: Metadata = {
   title: 'RootBase — Farm Management for African Farmers',
@@ -37,9 +38,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body suppressHydrationWarning>
-        <PwaRegistration />
-        {children}
-        <Toaster />
+        <Providers>
+          <PwaRegistration />
+          {children}
+          <Toaster />
+        </Providers>
       </body>
     </html>
   )

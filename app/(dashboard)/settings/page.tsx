@@ -3,6 +3,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useTheme } from 'next-themes'
 import { 
   Save, User, Bell, Shield, Palette, Import, RefreshCw, 
   CheckCircle, AlertCircle, Eye, EyeOff, Users,
@@ -37,6 +38,7 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const supabase = createClient()
+  const { theme, setTheme } = useTheme()
 
   // ===== FARM CONTEXT =====
   const { currentFarm, farms, switchFarm, deleteFarm, refreshFarms, loading: farmLoading } = useFarm()
@@ -156,12 +158,19 @@ export default function SettingsPage() {
         return
       }
 
+      let emailConfirmationPending = false
       if (email !== user.email) {
         const { error: emailError } = await supabase.auth.updateUser({
           email: email
         })
         if (emailError) throw new Error('Failed to update email: ' + emailError.message)
+        emailConfirmationPending = true
       }
+
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: { full_name: fullName },
+      })
+      if (metadataError) throw new Error('Failed to update account details: ' + metadataError.message)
 
       const { error } = await supabase
         .from('profiles')
@@ -175,10 +184,16 @@ export default function SettingsPage() {
 
       if (error) throw new Error('Failed to save profile: ' + error.message)
 
-      setSaveMessage({ type: 'success', text: 'Profile saved successfully!' })
+      setSaveMessage({
+        type: 'success',
+        text: emailConfirmationPending
+          ? 'Profile saved. Check your email to confirm the new address.'
+          : 'Profile saved successfully!',
+      })
       
       const { data: { user: updatedUser } } = await supabase.auth.getUser()
       if (updatedUser) setUser(updatedUser)
+      await loadData()
       
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new Event('profile-updated'))
@@ -545,6 +560,23 @@ export default function SettingsPage() {
                   <><Save size={15} className="mr-2" /> Save Changes</>
                 )}
               </Button>
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <Label className="text-sm font-medium text-gray-600">Appearance</Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(['light', 'dark', 'system'] as const).map((mode) => (
+                    <Button
+                      key={mode}
+                      type="button"
+                      variant={theme === mode ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setTheme(mode)}
+                      className={theme === mode ? 'bg-[#2D6A4F] text-white' : ''}
+                    >
+                      {mode[0].toUpperCase() + mode.slice(1)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

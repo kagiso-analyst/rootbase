@@ -202,6 +202,74 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Shared dark-mode surface overrides for the existing dashboard components. */
+.dark body {
+  background: #101814;
+  color: #E5EEE8;
+}
+
+.dark .bg-white,
+.dark .bg-white\/80,
+.dark .bg-white\/95 {
+  background-color: #18251E;
+}
+
+.dark .bg-gray-50,
+.dark .bg-gray-50\/80,
+.dark .bg-gray-50\/50,
+.dark .bg-gray-100 {
+  background-color: #223229;
+}
+
+.dark .bg-gray-200 {
+  background-color: #30443A;
+}
+
+.dark .text-gray-800,
+.dark .text-gray-700,
+.dark .text-gray-600 {
+  color: #D7E5DC;
+}
+
+.dark .text-gray-500,
+.dark .text-gray-400 {
+  color: #A9BDB0;
+}
+
+.dark .border-gray-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #30443A;
+}
+
+.dark input,
+.dark textarea,
+.dark [data-slot='select-trigger'] {
+  background-color: #18251E;
+  color: #E5EEE8;
+  border-color: #40574A;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #8EA496;
+}
+
+.dark [data-slot='select-content'],
+.dark [data-slot='dropdown-menu-content'],
+.dark [data-slot='dialog-content'] {
+  background-color: #18251E;
+  color: #E5EEE8;
+  border-color: #40574A;
+}
+
+.dark .shadow-sm,
+.dark .shadow-md,
+.dark .shadow-lg,
+.dark .shadow-xl {
+  --tw-shadow-color: #07100B;
+}
+
 /* ============================================
    BASE STYLES
    ============================================ */
