@@ -332,7 +332,7 @@ export default function SupportPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link href="/dashboard">
               <Button variant="ghost" size="icon" className="h-8 w-8">
                 <ArrowLeft size={18} />
@@ -361,7 +361,7 @@ export default function SupportPage() {
           </div>
         </div>
         <Button
-          className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+          className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white sm:w-auto"
           onClick={() => setOpenDialog(true)}
         >
           <Plus size={16} className="mr-2" /> New Ticket

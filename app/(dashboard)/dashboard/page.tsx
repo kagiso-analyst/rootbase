@@ -593,7 +593,7 @@ export default function DashboardPage() {
       {/* Open Tasks Card */}
       <Card className="shadow-sm border-0 bg-white hover:shadow-md transition-shadow">
         <CardContent className="pt-4 pb-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
                 <CheckSquare size={20} className="text-orange-500" />
@@ -603,7 +603,7 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold text-[#1B4332]">{openTasks}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-gray-400">{openTasks} tasks pending</span>
               <Link href="/tasks" className="text-sm text-[#2D6A4F] hover:underline">View all →</Link>
             </div>

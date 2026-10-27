@@ -398,7 +398,7 @@ export default function CropDetailPage() {
                 {crop.status}
               </Badge>
               <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-                🌱 {currentFarm.name}
+                {currentFarm.name}
               </Badge>
             </div>
             <p className="text-gray-500 text-sm mt-1">

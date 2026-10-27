@@ -312,7 +312,7 @@ export default function BudgetPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Budget Planning</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
               {currentFarm.name}
@@ -322,10 +322,10 @@ export default function BudgetPage() {
             Plan and track your farm spending against budgets
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
           {/* Month/Year selector */}
           <Select value={String(selectedMonth)} onValueChange={(val) => setSelectedMonth(parseInt(val || '1'))}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-[calc(50vw-2rem)] min-w-28 sm:w-32">
               <SelectValue placeholder="Month" />
             </SelectTrigger>
             <SelectContent>
@@ -335,7 +335,7 @@ export default function BudgetPage() {
             </SelectContent>
           </Select>
           <Select value={String(selectedYear)} onValueChange={(val) => setSelectedYear(parseInt(val || '2026'))}>
-            <SelectTrigger className="w-24">
+            <SelectTrigger className="w-[calc(50vw-2rem)] min-w-24 sm:w-24">
               <SelectValue placeholder="Year" />
             </SelectTrigger>
             <SelectContent>
@@ -346,7 +346,7 @@ export default function BudgetPage() {
           </Select>
           <Dialog open={open} onOpenChange={setOpen}>
             <Button
-              className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white sm:w-auto"
               onClick={() => {
                 setEditing(null)
                 resetForm()

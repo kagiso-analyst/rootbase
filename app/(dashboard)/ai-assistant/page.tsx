@@ -424,7 +424,7 @@ export default function AIAssistantPage() {
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               placeholder="Ask anything about your farm..."
               value={question}
@@ -434,7 +434,7 @@ export default function AIAssistantPage() {
               disabled={isAsking}
             />
             <Button
-              className="bg-[#2D6A4F] hover:bg-[#1B4332] text-white"
+              className="w-full bg-[#2D6A4F] hover:bg-[#1B4332] text-white sm:w-auto"
               onClick={askQuestion}
               disabled={!question.trim() || isAsking}
             >

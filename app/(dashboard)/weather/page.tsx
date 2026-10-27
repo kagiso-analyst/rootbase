@@ -538,8 +538,8 @@ export default function WeatherPage() {
       {/* Weather Alerts Panel */}
       {showAlerts && (
         <Card className="shadow-sm border-red-200 bg-gradient-to-br from-red-50 to-white">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-red-700 flex items-center gap-2">
+          <CardHeader className="pb-2 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-sm font-semibold text-red-700">
               <Bell size={16} />
               Weather Alerts
               {alertCount > 0 && (
@@ -551,7 +551,7 @@ export default function WeatherPage() {
                 {alerts.length} total
               </Badge>
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               {alertCount > 0 && (
                 <Button
                   variant="ghost"

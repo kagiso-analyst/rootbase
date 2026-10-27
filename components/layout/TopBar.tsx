@@ -52,7 +52,7 @@ export default function TopBar() {
     alerts: 0
   })
   const [greeting, setGreeting] = useState('Good morning')
-  const [greetingEmoji, setGreetingEmoji] = useState('🌱')
+  const [greetingEmoji, setGreetingEmoji] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [farmMenuOpen, setFarmMenuOpen] = useState(false)
@@ -352,7 +352,7 @@ export default function TopBar() {
           <span className="text-sm font-semibold text-[#1B4332]">
             {userName ? userName.split(' ')[0] : 'Farmer'}
           </span>
-          <span className="text-sm">{greetingEmoji}</span>
+          {greetingEmoji && <span className="text-sm">{greetingEmoji}</span>}
         </div>
 
         <div className="hidden sm:block w-px h-6 bg-gray-200" />
