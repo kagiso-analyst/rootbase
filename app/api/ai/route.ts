@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       } else if (net < 0) {
         answer = `📉 Your farm is currently operating at a loss of R${Math.abs(net).toFixed(2)}. I recommend reviewing your expense categories to identify cost-saving opportunities. Consider negotiating with suppliers or optimizing input usage.`
       } else {
-        answer = `💰 Your farm is breaking even. This is a good starting point! Focus on increasing revenue or reducing costs. I can help you analyze which expenses to cut first.`
+        answer = ` Your farm is breaking even. This is a good starting point! Focus on increasing revenue or reducing costs. I can help you analyze which expenses to cut first.`
       }
     }
 

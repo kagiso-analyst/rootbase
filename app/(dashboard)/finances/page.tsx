@@ -235,7 +235,7 @@ export default function FinancesPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-[#1B4332]">Finances</h1>
             <Badge className="bg-[#D8F3DC] text-[#2D6A4F] text-xs font-medium">
-              💰 {currentFarm.name}
+               {currentFarm.name}
             </Badge>
           </div>
           <p className="text-gray-500 text-sm mt-1">
