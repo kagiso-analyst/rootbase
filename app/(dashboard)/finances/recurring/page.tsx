@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
+import { formatZAR } from '@/lib/utils'
 import Link from 'next/link'
 
 type RecurringTransaction = {
@@ -572,7 +573,7 @@ export default function RecurringTransactionsPage() {
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-gray-400 font-medium">Monthly Total</p>
             <p className="text-2xl font-bold text-blue-600">
-              R{totalMonthly.toFixed(2)}
+              {formatZAR(totalMonthly)}
             </p>
           </CardContent>
         </Card>

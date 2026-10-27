@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
+import { formatZAR } from '@/lib/utils'
 import Link from 'next/link'
 
 const sections = [
@@ -289,18 +290,18 @@ export default function FinancesPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-4 text-center shadow-sm border border-gray-100">
               <p className="text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">Income</p>
-              <p className="text-2xl font-bold text-green-600">R{income.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-green-600">{formatZAR(income)}</p>
               <div className="mt-1 w-12 h-0.5 bg-green-200 mx-auto rounded-full"></div>
             </div>
             <div className="bg-white rounded-xl p-4 text-center shadow-sm border border-gray-100">
               <p className="text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">Expenses</p>
-              <p className="text-2xl font-bold text-red-500">R{expenses.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-red-500">{formatZAR(expenses)}</p>
               <div className="mt-1 w-12 h-0.5 bg-red-200 mx-auto rounded-full"></div>
             </div>
             <div className={`bg-white rounded-xl p-4 text-center shadow-sm border ${isProfit ? 'border-green-200' : 'border-red-200'}`}>
               <p className="text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">Net {isProfit ? 'Profit' : 'Loss'}</p>
               <p className={`text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
-                {isProfit ? '+' : '-'}R{Math.abs(net).toFixed(2)}
+                {isProfit ? '+' : '-'}{formatZAR(Math.abs(net))}
               </p>
               <div className={`mt-1 w-12 h-0.5 ${isProfit ? 'bg-[#52B788]' : 'bg-red-200'} mx-auto rounded-full`}></div>
             </div>

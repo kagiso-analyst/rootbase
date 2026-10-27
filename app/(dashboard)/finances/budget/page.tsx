@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
+import { formatZAR } from '@/lib/utils'
 import Link from 'next/link'
 
 const CATEGORIES = [
@@ -438,20 +439,20 @@ export default function BudgetPage() {
         <Card className="shadow-sm border-0 bg-gradient-to-br from-blue-50 to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-gray-400 font-medium">Total Budget</p>
-            <p className="text-2xl font-bold text-blue-600">R{totalBudget.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-blue-600">{formatZAR(totalBudget)}</p>
           </CardContent>
         </Card>
         <Card className="shadow-sm border-0 bg-gradient-to-br from-orange-50 to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-gray-400 font-medium">Total Spent</p>
-            <p className="text-2xl font-bold text-orange-600">R{totalSpent.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-orange-600">{formatZAR(totalSpent)}</p>
           </CardContent>
         </Card>
         <Card className={`shadow-sm border-0 bg-gradient-to-br ${totalRemaining >= 0 ? 'from-green-50 to-white' : 'from-red-50 to-white'}`}>
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-gray-400 font-medium">Remaining</p>
             <p className={`text-2xl font-bold ${totalRemaining >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-              R{totalRemaining.toFixed(2)}
+              {formatZAR(totalRemaining)}
             </p>
           </CardContent>
         </Card>

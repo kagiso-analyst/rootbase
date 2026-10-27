@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
-import { getSeasonalGreeting, cn } from '@/lib/utils'
+import { getSeasonalGreeting, formatZAR, cn } from '@/lib/utils'
 import Link from 'next/link'
 import { fetchWeather, getWeatherEmoji, type WeatherData } from '@/lib/weather'
 import { Button } from '@/components/ui/button'
@@ -445,7 +445,7 @@ export default function DashboardPage() {
   if (!user) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-        <div className="text-5xl mb-4">🔒</div>
+        <div className="text-5xl mb-4"></div>
         <h2 className="text-xl font-semibold text-[#1B4332] mb-2">Please Log In</h2>
         <p className="text-sm text-gray-500">You need to be logged in to see your dashboard.</p>
         <Link href="/login">
@@ -461,7 +461,7 @@ export default function DashboardPage() {
   if (!currentFarm) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-        <div className="text-5xl mb-4">🏠</div>
+        <div className="text-5xl mb-4"></div>
         <h2 className="text-xl font-semibold text-[#1B4332] mb-2">No Farm Selected</h2>
         <p className="text-sm text-gray-500">Please select or create a farm to view your dashboard.</p>
         <Link href="/settings">
@@ -486,7 +486,7 @@ export default function DashboardPage() {
         <Card className="shadow-sm border-red-200 bg-red-50">
           <CardContent className="py-4 px-6 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-red-500 text-lg">⚠️</span>
+              <span className="text-red-500 text-lg"></span>
               <p className="text-sm text-red-700">{error}</p>
             </div>
             <Button
@@ -537,7 +537,7 @@ export default function DashboardPage() {
                 <TrendingUp size={16} className="text-green-600" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-green-600">R{income.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-green-600">{formatZAR(income)}</p>
             <p className="text-xs text-gray-400 mt-1">
               This month {incomeGrowth >= 0 ? '↑' : '↓'} {Math.abs(incomeGrowth).toFixed(1)}% vs last month
             </p>
@@ -552,7 +552,7 @@ export default function DashboardPage() {
                 <TrendingDown size={16} className="text-red-500" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-red-500">R{expenses.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-red-500">{formatZAR(expenses)}</p>
             <p className="text-xs text-gray-400 mt-1">
               This month {expenseGrowth >= 0 ? '↑' : '↓'} {Math.abs(expenseGrowth).toFixed(1)}% vs last month
             </p>
@@ -568,7 +568,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <p className={`text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
-              {isProfit ? '+' : '-'}R{Math.abs(net).toFixed(2)}
+              {isProfit ? '+' : '-'}{formatZAR(Math.abs(net))}
             </p>
             <p className="text-xs text-gray-400 mt-1">
               This month {netGrowth >= 0 ? '↑' : '↓'} {Math.abs(netGrowth).toFixed(1)}% vs last month

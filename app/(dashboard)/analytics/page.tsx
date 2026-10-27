@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { createClient } from '@/lib/supabase/client'
 import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
+import { formatZAR } from '@/lib/utils'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, LineChart, Line,
@@ -336,7 +337,7 @@ export default function AnalyticsPage() {
                 <TrendingUp size={16} className="text-green-600" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-green-600">R{totalIncome.toFixed(0)}</p>
+            <p className="text-2xl font-bold text-green-600">{formatZAR(totalIncome)}</p>
             <p className="text-xs text-gray-400 mt-1">All time</p>
           </CardContent>
         </Card>
@@ -349,7 +350,7 @@ export default function AnalyticsPage() {
                 <TrendingDown size={16} className="text-red-500" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-red-500">R{totalExpenses.toFixed(0)}</p>
+            <p className="text-2xl font-bold text-red-500">{formatZAR(totalExpenses)}</p>
             <p className="text-xs text-gray-400 mt-1">All time</p>
           </CardContent>
         </Card>
@@ -363,7 +364,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
             <p className={`text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
-              {isProfit ? '+' : '-'}R{Math.abs(net).toFixed(0)}
+              {isProfit ? '+' : '-'}{formatZAR(Math.abs(net))}
             </p>
             <p className="text-xs text-gray-400 mt-1">Margin: {profitMargin.toFixed(1)}%</p>
           </CardContent>

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
+import { formatZAR } from '@/lib/utils'
 import { useFarm } from '@/lib/farm-context'
 import Link from 'next/link'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line} from 'recharts'
@@ -500,7 +501,7 @@ const incomeByCategory = income
                       <div key={cat} className="group">
                         <div className="flex flex-col gap-0.5 text-xs mb-1 sm:flex-row sm:items-center sm:justify-between">
                           <span className="min-w-0 break-words text-gray-600 font-medium">{cat}</span>
-                          <span className="shrink-0 font-medium text-green-600 sm:text-right">R{amount.toFixed(2)} ({pct}%)</span>
+                          <span className="shrink-0 font-medium text-green-600 sm:text-right">{formatZAR(amount)} ({pct}%)</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                           <div 
@@ -534,7 +535,7 @@ const incomeByCategory = income
                       <div key={cat} className="group">
                         <div className="flex flex-col gap-0.5 text-xs mb-1 sm:flex-row sm:items-center sm:justify-between">
                           <span className="min-w-0 break-words text-gray-600 font-medium">{cat}</span>
-                          <span className="shrink-0 font-medium text-red-500 sm:text-right">R{amount.toFixed(2)} ({pct}%)</span>
+                          <span className="shrink-0 font-medium text-red-500 sm:text-right">{formatZAR(amount)} ({pct}%)</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                           <div 

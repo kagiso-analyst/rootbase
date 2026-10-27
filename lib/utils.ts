@@ -67,6 +67,13 @@ export function formatCurrency(amount: number, currency: string = 'ZAR'): string
   }).format(amount)
 }
 
+export function formatZAR(amount: number): string {
+  return `R${new Intl.NumberFormat('en-ZA', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)}`
+}
+
 export function daysBetween(date1: string | Date, date2: string | Date): number {
   const d1 = typeof date1 === 'string' ? new Date(date1) : date1
   const d2 = typeof date2 === 'string' ? new Date(date2) : date2
@@ -204,6 +211,7 @@ export default {
   formatDate,
   formatDateTime,
   formatCurrency,
+  formatZAR,
   daysBetween,
   isOverdue,
   getWeekStart,

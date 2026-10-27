@@ -1,6 +1,7 @@
 // components/export/FinancialReportPDF.tsx
 
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
+import { formatZAR } from '@/lib/utils'
 
 // Register a font (optional)
 Font.register({
@@ -208,16 +209,16 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
         <View style={styles.metric}>
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Total Income</Text>
-            <Text style={[styles.metricValue, { color: '#16A34A' }]}>R{data.totalIncome.toFixed(2)}</Text>
+            <Text style={[styles.metricValue, { color: '#16A34A' }]}>{formatZAR(data.totalIncome)}</Text>
           </View>
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Total Expenses</Text>
-            <Text style={[styles.metricValue, { color: '#DC2626' }]}>R{data.totalExpenses.toFixed(2)}</Text>
+            <Text style={[styles.metricValue, { color: '#DC2626' }]}>{formatZAR(data.totalExpenses)}</Text>
           </View>
           <View style={styles.metricRow}>
             <Text style={styles.metricLabel}>Net {data.isProfit ? 'Profit' : 'Loss'}</Text>
             <Text style={[styles.metricValue, { color: data.isProfit ? '#16A34A' : '#DC2626' }]}>
-              {data.isProfit ? '+' : '-'}R{Math.abs(data.net).toFixed(2)}
+              {data.isProfit ? '+' : '-'}{formatZAR(Math.abs(data.net))}
             </Text>
           </View>
           <View style={styles.metricRow}>
@@ -253,7 +254,7 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
                     )}
                   </Text>
                   <Text style={[styles.rowAmount, { color: '#16A34A' }]}>
-                    R{item.amount.toFixed(2)}
+                    {formatZAR(item.amount)}
                   </Text>
                 </View>
               ))}
@@ -261,7 +262,7 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
           )}
           <View style={styles.totalRow}>
             <Text style={styles.totalText}>Total Income</Text>
-            <Text style={[styles.totalAmount, { color: '#16A34A' }]}>R{data.totalIncome.toFixed(2)}</Text>
+            <Text style={[styles.totalAmount, { color: '#16A34A' }]}>{formatZAR(data.totalIncome)}</Text>
           </View>
         </View>
 
@@ -281,7 +282,7 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
                     )}
                   </Text>
                   <Text style={[styles.rowAmount, { color: '#DC2626' }]}>
-                    R{item.amount.toFixed(2)}
+                    {formatZAR(item.amount)}
                   </Text>
                 </View>
               ))}
@@ -289,7 +290,7 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
           )}
           <View style={styles.totalRow}>
             <Text style={styles.totalText}>Total Expenses</Text>
-            <Text style={[styles.totalAmount, { color: '#DC2626' }]}>R{data.totalExpenses.toFixed(2)}</Text>
+            <Text style={[styles.totalAmount, { color: '#DC2626' }]}>{formatZAR(data.totalExpenses)}</Text>
           </View>
         </View>
 
@@ -310,7 +311,7 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
             styles.netAmount,
             { color: data.isProfit ? '#16A34A' : '#DC2626' }
           ]}>
-            {data.isProfit ? '+' : '-'}R{Math.abs(data.net).toFixed(2)}
+            {data.isProfit ? '+' : '-'}{formatZAR(Math.abs(data.net))}
           </Text>
         </View>
 
