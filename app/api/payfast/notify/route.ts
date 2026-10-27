@@ -85,14 +85,14 @@ export async function POST(request: Request) {
 
       const { error: insertError } = await supabase
         .from('subscriptions')
-        .insert({
+        .upsert({
           user_email: email,
           user_id: userId,
           plan: plan.id,
           status: 'active',
           payment_id: mPaymentId,
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        })
+        }, { onConflict: 'payment_id', ignoreDuplicates: true })
 
       if (insertError) throw insertError
 

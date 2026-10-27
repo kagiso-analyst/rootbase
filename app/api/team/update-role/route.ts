@@ -54,7 +54,14 @@ export async function POST(request: Request) {
       .eq('user_id', user.id)
       .single()
 
-    if (!currentMember || (currentMember.role !== 'owner' && currentMember.role !== 'admin')) {
+    const { data: ownedFarm } = await supabase
+      .from('farms')
+      .select('id')
+      .eq('id', farmId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (!ownedFarm && (!currentMember || (currentMember.role !== 'owner' && currentMember.role !== 'admin'))) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
     }
 

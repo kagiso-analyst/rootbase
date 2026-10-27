@@ -232,3 +232,14 @@ export function getPlanCta(planId: string): string {
 export function getPayFastEnvironment(): 'sandbox' | 'production' {
   return PAYFAST_CONFIG.sandbox ? 'sandbox' : 'production'
 }
+
+export function getMaxFarms(planId: string): number {
+  switch (planId) {
+    case 'pro':
+      return 3
+    case 'business':
+      return Infinity
+    default:
+      return 1
+  }
+}

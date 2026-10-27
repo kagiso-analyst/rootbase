@@ -55,6 +55,7 @@ export default function TopBar() {
   const [greetingEmoji, setGreetingEmoji] = useState('🌱')
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [farmMenuOpen, setFarmMenuOpen] = useState(false)
   
   const { currentFarm, farms, switchFarm } = useFarm()
   const notificationInterval = useRef<NodeJS.Timeout | null>(null)
@@ -334,9 +335,14 @@ export default function TopBar() {
   }, [currentFarm, fetchNotificationCount])
 
   const planBadge = getPlanBadge(userPlan)
+  const farmMenuHeight = 140 + farms.length * 58
 
   return (
-    <header className="h-16 border-b border-gray-200/80 bg-white/95 backdrop-blur-sm flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6 shadow-sm">
+    <header className={cn(
+      'relative border-b border-gray-200/80 bg-white/95 backdrop-blur-sm px-4 md:px-6 pl-16 md:pl-6 shadow-sm',
+      !farmMenuOpen && 'h-16'
+    )} style={farmMenuOpen ? { height: `${farmMenuHeight}px` } : undefined}>
+      <div className="flex h-16 items-center justify-between">
       {/* Left section */}
       <div className="flex items-center gap-4">
         <Logo variant="icon" size="sm" className="md:hidden" />
@@ -352,7 +358,7 @@ export default function TopBar() {
         <div className="hidden sm:block w-px h-6 bg-gray-200" />
 
         {farms.length > 0 && (
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={setFarmMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
@@ -564,6 +570,7 @@ export default function TopBar() {
         >
           <LogOut size={18} className="text-gray-400" />
         </Button>
+      </div>
       </div>
     </header>
   )

@@ -19,10 +19,25 @@ function useDropdownMenu() {
   return context
 }
 
-export function DropdownMenu({ children }: { children: React.ReactNode }) {
+export function DropdownMenu({
+  children,
+  onOpenChange,
+}: {
+  children: React.ReactNode
+  onOpenChange?: (open: boolean) => void
+}) {
   const [open, setOpen] = useState(false)
+  useEffect(() => {
+    onOpenChange?.(open)
+  }, [open, onOpenChange])
+
   return (
-    <DropdownMenuContext.Provider value={{ open, setOpen }}>
+    <DropdownMenuContext.Provider value={{ open, setOpen: (value) => {
+      setOpen((previous) => {
+        const nextOpen = typeof value === 'function' ? value(previous) : value
+        return nextOpen
+      })
+    } }}>
       <div className="relative">{children}</div>
     </DropdownMenuContext.Provider>
   )

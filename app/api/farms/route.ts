@@ -2,6 +2,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getMaxFarms } from '@/lib/payfast'
 
 export async function POST(request: Request) {
   try {
@@ -38,12 +39,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Farm name must be less than 100 characters' }, { status: 400 })
     }
 
+    const totalHectares = body.total_hectares === undefined || body.total_hectares === ''
+      ? 0
+      : Number(body.total_hectares)
+    if (!Number.isFinite(totalHectares) || totalHectares < 0) {
+      return NextResponse.json({ error: 'Total hectares must be a non-negative number' }, { status: 400 })
+    }
+
     // ✅ Check plan limits
-    const { data: profile } = await supabase
-      .from('profiles')
+    const { data: subscription } = await supabase
+      .from('subscriptions')
       .select('plan')
       .eq('user_id', user.id)
-      .single()
+      .eq('status', 'active')
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order('expires_at', { ascending: false, nullsFirst: true })
+      .limit(1)
+      .maybeSingle()
 
     const { count } = await supabase
       .from('farms')
@@ -51,9 +63,7 @@ export async function POST(request: Request) {
       .eq('user_id', user.id)
 
     // ✅ Determine max farms based on plan
-    const maxFarms = profile?.plan === 'enterprise' ? Infinity : 
-                     profile?.plan === 'business' ? 10 : 
-                     profile?.plan === 'premium' ? 5 : 1
+    const maxFarms = getMaxFarms(subscription?.plan || 'free')
 
     if (count && count >= maxFarms) {
       return NextResponse.json({
@@ -66,9 +76,9 @@ export async function POST(request: Request) {
       .from('farms')
       .insert({
         name: body.name.trim(),
-        location: body.location || null,
-        size: body.size ? parseFloat(body.size) : null,
-        unit: body.unit || 'hectares',
+        farm_type: typeof body.farm_type === 'string' ? body.farm_type.trim() || null : null,
+        province: typeof body.province === 'string' ? body.province.trim() || null : null,
+        total_hectares: totalHectares,
         user_id: user.id,
       })
       .select()

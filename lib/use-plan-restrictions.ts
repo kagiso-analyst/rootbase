@@ -4,7 +4,6 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useFarm } from '@/lib/farm-context'
 
 export type Plan = 'free' | 'starter' | 'pro' | 'business'
 
@@ -103,7 +102,7 @@ const PLAN_FEATURES: Record<Plan, PlanFeatures> = {
     stockMovementTracking: true,
   },
   business: {
-    maxFarms: 10,
+    maxFarms: Infinity,
     maxCrops: 999,
     maxLivestock: 999,
     maxInventory: 999,
@@ -132,7 +131,6 @@ export function usePlanRestrictions() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
-  const { currentFarm } = useFarm()
 
   useEffect(() => {
     async function fetchUserPlan() {
@@ -147,9 +145,12 @@ export function usePlanRestrictions() {
         // Check subscription table first
         const { data: subscription, error: subError } = await supabase
           .from('subscriptions')
-          .select('plan')
+          .select('plan, expires_at')
           .eq('user_email', user.email || '')
           .eq('status', 'active')
+          .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+          .order('expires_at', { ascending: false, nullsFirst: true })
+          .limit(1)
           .maybeSingle()
 
         if (subscription && !subError) {
