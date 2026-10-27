@@ -25,7 +25,7 @@ const Toaster = ({
   const { theme = "system" } = useTheme()
 
   return (
-    // ✅ Wrap Sonner in a div to prevent hydration issues
+    // Wrap Sonner in a div to prevent hydration issues
     <div className="fixed z-50 top-0 right-0 w-full pointer-events-none">
       <Sonner
         theme={theme as ToasterProps["theme"]}

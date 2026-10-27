@@ -172,7 +172,7 @@ export default function SubscriptionPage() {
 
       if (!res.ok) {
         const errorText = await res.text()
-        console.error('❌ API Error:', errorText)
+        console.error('API Error:', errorText)
         throw new Error(`Payment setup failed: ${res.status} - ${errorText}`)
       }
 
@@ -182,7 +182,7 @@ export default function SubscriptionPage() {
         throw new Error(apiError || 'Payment setup failed. Please try again.')
       }
 
-      console.log('✅ Payment data received, redirecting to PayFast...')
+      console.log('Payment data received, redirecting to PayFast...')
 
       const isSandbox = PAYFAST_CONFIG.sandbox
       const action = isSandbox

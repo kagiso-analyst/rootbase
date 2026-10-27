@@ -35,16 +35,16 @@ export default function TestSignupPage() {
 
       if (error) {
         console.error('Signup error:', error)
-        setStatus('❌ Failed')
+        setStatus('Failed')
         setError(error.message || 'Unknown error')
       } else {
         console.log('Signup success:', data)
-        setStatus('✅ Success! User created: ' + data.user?.email)
+        setStatus('Success! User created: ' + data.user?.email)
         setError('')
       }
     } catch (err: any) {
       console.error('Exception:', err)
-      setStatus('❌ Exception')
+      setStatus('Exception')
       setError(err.message || 'Unknown error')
     } finally {
       setLoading(false)

@@ -30,15 +30,15 @@ export default function TestPage() {
         if (error) {
           console.error('Session error:', error)
           setError(error.message)
-          setStatus('❌ Failed')
+          setStatus('Failed')
         } else {
-          console.log('✅ Connection successful!')
-          setStatus('✅ Connected successfully!')
+          console.log('Connection successful!')
+          setStatus('Connected successfully!')
         }
       } catch (err: any) {
         console.error('Test error:', err)
         setError(err.message || 'Unknown error')
-        setStatus('❌ Failed')
+        setStatus('Failed')
       }
     }
     
