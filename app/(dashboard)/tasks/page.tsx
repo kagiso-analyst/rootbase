@@ -561,7 +561,7 @@ export default function TasksPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Priority</Label>
                     <Select
@@ -622,7 +622,7 @@ export default function TasksPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'To Do', value: todoTasks.length, color: 'text-[#2D6A4F]', bg: 'bg-[#D8F3DC]/30' },
           { label: 'Overdue', value: overdueTasks.length, color: 'text-red-500', bg: 'bg-red-50' },

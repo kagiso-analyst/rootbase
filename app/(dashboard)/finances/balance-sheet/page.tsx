@@ -405,7 +405,7 @@ export default function BalanceSheetPage() {
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="shadow-sm border-0 bg-gradient-to-br from-green-50 to-white">
               <CardContent className="pt-4 pb-4 text-center">
                 <p className="text-xs text-gray-400 font-medium">Total Assets</p>
@@ -434,12 +434,12 @@ export default function BalanceSheetPage() {
                 className="pb-2 cursor-pointer hover:bg-gray-50/50 rounded-t-lg transition-colors"
                 onClick={() => toggleSection('assets')}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-base flex items-center gap-2 text-green-700">
                     <Building2 size={16} className="text-green-600" />
                     Assets
                   </CardTitle>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span className="text-sm font-semibold text-green-700">
                       {formatCurrency(data.totals.assets)}
                     </span>
@@ -471,8 +471,8 @@ export default function BalanceSheetPage() {
                       {data.assets.fixed.map((item, index) => {
                         const isNumber = typeof item.amount === 'number'
                         return (
-                          <div key={index} className="flex items-center justify-between py-1.5 border-b border-gray-50">
-                            <span className="text-sm text-gray-600">{item.name}</span>
+                          <div key={index} className="flex items-start justify-between gap-3 py-1.5 border-b border-gray-50">
+                            <span className="min-w-0 break-words text-sm text-gray-600">{item.name}</span>
                             <span className="text-sm font-medium text-green-600">
                               {isNumber ? formatCurrency(item.amount) : item.amount}
                             </span>
@@ -513,8 +513,8 @@ export default function BalanceSheetPage() {
                       <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Current Liabilities</p>
                       <div className="space-y-1">
                         {data.liabilities.current.map((item, index) => (
-                          <div key={index} className="flex items-center justify-between py-1.5 border-b border-gray-50">
-                            <span className="text-sm text-gray-600">{item.name}</span>
+                          <div key={index} className="flex items-start justify-between gap-3 py-1.5 border-b border-gray-50">
+                            <span className="min-w-0 break-words text-sm text-gray-600">{item.name}</span>
                             <span className="text-sm font-medium text-red-500">
                               {formatCurrency(item.amount)}
                             </span>

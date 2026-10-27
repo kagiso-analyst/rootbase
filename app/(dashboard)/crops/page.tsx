@@ -400,7 +400,7 @@ export default function CropsPage() {
                   onChange={(e) => setVariety((e.target as HTMLInputElement).value)} />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Field / Block</Label>
                   <Input placeholder="e.g. Field A" value={fieldName}
@@ -413,7 +413,7 @@ export default function CropsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Planting Date</Label>
                   <Input type="date" value={plantingDate}
@@ -426,7 +426,7 @@ export default function CropsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label>Area (hectares)</Label>
                   <Input type="number" placeholder="0.0" value={areaPlantedHa}

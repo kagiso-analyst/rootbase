@@ -237,7 +237,7 @@ export default function ProfitabilityPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="shadow-sm border-0 bg-gradient-to-br from-green-50 to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-xs text-gray-400 font-medium">Total Profit</p>

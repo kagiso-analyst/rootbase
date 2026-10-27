@@ -580,7 +580,7 @@ export default function LivestockPage() {
                   <DialogTitle>Add Animal</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-2">
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Species</Label>
                       <Select value={species} onValueChange={(val) => setSpecies(val || '')}>
@@ -602,7 +602,7 @@ export default function LivestockPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Breed <span className="text-gray-400">(optional)</span></Label>
                       <Input
@@ -624,7 +624,7 @@ export default function LivestockPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Date of Birth <span className="text-gray-400">(optional)</span></Label>
                       <Input
@@ -644,7 +644,7 @@ export default function LivestockPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Purchase Date <span className="text-gray-400">(optional)</span></Label>
                       <Input
@@ -664,7 +664,7 @@ export default function LivestockPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label>Status</Label>
                       <Select value={status} onValueChange={(val) => setStatus((val || 'active') as LivestockStatus)}>

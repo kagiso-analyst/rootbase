@@ -571,7 +571,7 @@ export default function EquipmentPage() {
                     onChange={(e) => setServiceDesc((e.target as HTMLInputElement).value)}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Cost (ZAR)</Label>
                     <Input
@@ -623,7 +623,7 @@ export default function EquipmentPage() {
                 <DialogTitle>Add Equipment</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Name</Label>
                     <Input
@@ -645,7 +645,7 @@ export default function EquipmentPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-2">
                     <Label>Make</Label>
                     <Input placeholder="e.g. John Deere" value={make}
@@ -663,7 +663,7 @@ export default function EquipmentPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Serial Number</Label>
                     <Input placeholder="Optional" value={serialNumber}
@@ -676,7 +676,7 @@ export default function EquipmentPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Current Hours</Label>
                     <Input type="number" placeholder="0" value={currentHours}
@@ -689,7 +689,7 @@ export default function EquipmentPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Next Service Date</Label>
                     <Input type="date" value={nextServiceDate}
@@ -722,7 +722,7 @@ export default function EquipmentPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC] to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-[#2D6A4F]">{equipment.length}</p>

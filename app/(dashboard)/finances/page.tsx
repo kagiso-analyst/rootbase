@@ -286,7 +286,7 @@ export default function FinancesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-4 text-center shadow-sm border border-gray-100">
               <p className="text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">Income</p>
               <p className="text-2xl font-bold text-green-600">R{income.toFixed(2)}</p>

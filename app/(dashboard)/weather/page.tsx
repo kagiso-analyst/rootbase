@@ -728,7 +728,7 @@ export default function WeatherPage() {
                   </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-2">
                     <Droplets size={16} className="text-[#52B788]" />
                     <div>

@@ -498,9 +498,9 @@ const incomeByCategory = income
                     const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0
                     return (
                       <div key={cat} className="group">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-600 font-medium">{cat}</span>
-                          <span className="font-medium text-green-600">R{amount.toFixed(2)} ({pct}%)</span>
+                        <div className="flex flex-col gap-0.5 text-xs mb-1 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="min-w-0 break-words text-gray-600 font-medium">{cat}</span>
+                          <span className="shrink-0 font-medium text-green-600 sm:text-right">R{amount.toFixed(2)} ({pct}%)</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                           <div 
@@ -532,9 +532,9 @@ const incomeByCategory = income
                     const pct = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0
                     return (
                       <div key={cat} className="group">
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-600 font-medium">{cat}</span>
-                          <span className="font-medium text-red-500">R{amount.toFixed(2)} ({pct}%)</span>
+                        <div className="flex flex-col gap-0.5 text-xs mb-1 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="min-w-0 break-words text-gray-600 font-medium">{cat}</span>
+                          <span className="shrink-0 font-medium text-red-500 sm:text-right">R{amount.toFixed(2)} ({pct}%)</span>
                         </div>
                         <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                           <div 
@@ -552,7 +552,7 @@ const incomeByCategory = income
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card className="shadow-sm border-0 bg-gradient-to-br from-green-50 to-white">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between mb-2">
@@ -561,7 +561,7 @@ const incomeByCategory = income
                 <ArrowUpRight size={16} className="text-green-600" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-green-600">R{totalIncome.toFixed(2)}</p>
+            <p className="break-all text-2xl font-bold text-green-600">R{totalIncome.toFixed(2)}</p>
             <p className="text-xs text-gray-400 mt-1">{income.length} transactions</p>
           </CardContent>
         </Card>
@@ -573,7 +573,7 @@ const incomeByCategory = income
                 <ArrowDownRight size={16} className="text-red-500" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-red-500">R{totalExpenses.toFixed(2)}</p>
+            <p className="break-all text-2xl font-bold text-red-500">R{totalExpenses.toFixed(2)}</p>
             <p className="text-xs text-gray-400 mt-1">{expenses.length} transactions</p>
           </CardContent>
         </Card>
@@ -585,7 +585,7 @@ const incomeByCategory = income
                 <DollarSign size={16} className={isProfit ? 'text-[#2D6A4F]' : 'text-red-500'} />
               </div>
             </div>
-            <p className={`text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
+            <p className={`break-all text-2xl font-bold ${isProfit ? 'text-[#2D6A4F]' : 'text-red-500'}`}>
               {isProfit ? '+' : '-'}R{Math.abs(netProfit).toFixed(2)}
             </p>
             <p className="text-xs text-gray-400 mt-1">Margin: {profitMargin}%</p>
@@ -599,7 +599,7 @@ const incomeByCategory = income
                 <BarChart2 size={16} className="text-blue-600" />
               </div>
             </div>
-            <p className="text-2xl font-bold text-[#1B4332]">
+            <p className="break-all text-2xl font-bold text-[#1B4332]">
               R{monthlySummary.length > 0
                 ? (netProfit / monthlySummary.length).toFixed(0)
                 : '0'}
@@ -702,7 +702,7 @@ const incomeByCategory = income
           ) : (
             <>
               {/* Running balance header */}
-              <div className="grid grid-cols-4 px-6 py-2.5 bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              <div className="hidden grid-cols-4 px-6 py-2.5 bg-gray-50/80 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wider sm:grid">
                 <span>Date</span>
                 <span className="col-span-2">Description</span>
                 <span className="text-right">Amount</span>
@@ -720,11 +720,11 @@ const incomeByCategory = income
                 return withBalance.reverse().map((t) => (
                   <div
                     key={t.id}
-                    className={`grid grid-cols-4 px-6 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors text-sm`}
+                    className="grid grid-cols-1 gap-1 px-4 py-3 border-b border-gray-50 hover:bg-gray-50/50 transition-colors text-sm sm:grid-cols-4 sm:gap-0 sm:px-6"
                   >
-                    <div className="text-xs text-gray-400 self-center font-mono">{t.date}</div>
-                    <div className="col-span-2 self-center">
-                      <p className="font-medium text-gray-800 truncate">{t.description}</p>
+                    <div className="text-xs text-gray-400 self-center font-mono sm:col-span-1">{t.date}</div>
+                    <div className="self-center min-w-0 sm:col-span-2">
+                      <p className="break-words font-medium text-gray-800">{t.description}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <Badge className={`text-xs font-medium ${t.type === 'income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                           {t.category}
@@ -734,7 +734,7 @@ const incomeByCategory = income
                         )}
                       </div>
                     </div>
-                    <div className="text-right self-center">
+                    <div className="text-left self-center sm:text-right">
                       <p className={`font-semibold ${t.type === 'income' ? 'text-green-600' : 'text-red-500'}`}>
                         {t.type === 'income' ? '+' : '-'}R{t.amount.toFixed(2)}
                       </p>
@@ -748,7 +748,7 @@ const incomeByCategory = income
 
               {/* Totals footer */}
               <div className="px-6 py-4 bg-gray-50/80 border-t border-gray-200">
-                <div className="grid grid-cols-3 gap-4 text-center max-w-2xl mx-auto">
+                <div className="grid grid-cols-1 gap-3 text-center max-w-2xl mx-auto sm:grid-cols-3 sm:gap-4">
                   <div className="bg-white rounded-lg p-3 shadow-sm">
                     <p className="text-xs text-gray-400 font-medium">Total Income</p>
                     <p className="text-sm font-bold text-green-600">+R{totalIncome.toFixed(2)}</p>

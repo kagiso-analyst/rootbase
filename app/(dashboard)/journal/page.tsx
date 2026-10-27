@@ -441,7 +441,7 @@ export default function JournalPage() {
                 <DialogTitle>New Journal Entry</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Date</Label>
                     <Input
@@ -499,7 +499,7 @@ export default function JournalPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>
                       Field / Block{' '}

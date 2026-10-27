@@ -481,7 +481,7 @@ export default function CropDetailPage() {
                   </div>
 
                   {(activityType === 'Spraying' || activityType === 'Fertilising') && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label>Product</Label>
                         <Input
@@ -591,7 +591,7 @@ export default function CropDetailPage() {
               <CardTitle className="text-base">Crop Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-xs text-gray-400">Crop Name</p>
                   <p className="text-sm font-medium text-gray-800">{crop.crop_name}</p>
@@ -651,7 +651,7 @@ export default function CropDetailPage() {
 
                 {editingYield ? (
                   <div className="space-y-3 bg-[#F8FBF9] p-4 rounded-lg border border-gray-100">
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <Label className="text-xs text-gray-500">Expected Yield</Label>
                         <Input
@@ -715,7 +715,7 @@ export default function CropDetailPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 bg-[#F8FBF9] p-4 rounded-lg border border-gray-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#F8FBF9] p-4 rounded-lg border border-gray-100">
                     <div>
                       <p className="text-xs text-gray-400">Expected Yield</p>
                       <p className="text-sm font-medium text-gray-800">

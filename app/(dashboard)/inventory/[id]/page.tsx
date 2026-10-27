@@ -491,7 +491,7 @@ export default function InventoryDetailPage() {
               <Label>Item Name</Label>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={editCategory} onValueChange={(val) => setEditCategory(val || '')}>
@@ -511,7 +511,7 @@ export default function InventoryDetailPage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Reorder Level</Label>
                 <Input type="number" value={editReorderLevel} onChange={(e) => setEditReorderLevel(e.target.value)} />

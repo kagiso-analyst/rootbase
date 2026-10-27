@@ -383,7 +383,7 @@ export default function InventoryPage() {
                   <Input placeholder="e.g. LAN Fertiliser 28%" value={name}
                     onChange={(e) => setName(e.target.value)} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Category</Label>
                     <Select value={category} onValueChange={(val) => setCategory(val || '')}>
@@ -403,7 +403,7 @@ export default function InventoryPage() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Current Quantity</Label>
                     <Input type="number" placeholder="0" value={currentQuantity}
@@ -415,7 +415,7 @@ export default function InventoryPage() {
                       onChange={(e) => setReorderLevel(e.target.value)} />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>Unit Cost (ZAR)</Label>
                     <Input type="number" placeholder="0.00" value={unitCost}
@@ -443,7 +443,7 @@ export default function InventoryPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="shadow-sm border-0 bg-gradient-to-br from-[#D8F3DC] to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-3xl font-bold text-[#2D6A4F]">{items.length}</p>

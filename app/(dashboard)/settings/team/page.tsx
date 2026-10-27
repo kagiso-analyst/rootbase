@@ -578,7 +578,7 @@ export default function TeamPage() {
       </div>
 
       {/* Stats - unchanged */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="shadow-sm border-0 bg-gradient-to-br from-blue-50 to-white">
           <CardContent className="pt-4 pb-4 text-center">
             <p className="text-2xl font-bold text-blue-600">{members.length}</p>

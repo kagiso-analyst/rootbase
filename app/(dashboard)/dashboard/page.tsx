@@ -418,7 +418,7 @@ export default function DashboardPage() {
           <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse mb-2" />
           <div className="h-4 w-64 bg-gray-100 rounded animate-pulse" />
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="bg-white rounded-xl p-4 border border-gray-100">
               <div className="h-3 w-20 bg-gray-100 rounded animate-pulse mb-3" />
@@ -528,7 +528,7 @@ export default function DashboardPage() {
       </div>
 
       {/* KPI Cards - With trend percentages */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="shadow-sm border-0 bg-white hover:shadow-md transition-shadow">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between mb-1">
@@ -625,7 +625,7 @@ export default function DashboardPage() {
           </div>
           <div className="text-4xl">{getWeatherEmoji(weather.description)}</div>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm w-full md:w-auto">
+        <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-4 gap-3 text-sm w-full md:w-auto">
           <div className="text-center bg-white/10 rounded-lg px-3 py-2">
             <p className="text-[#D8F3DC] text-xs">Humidity</p>
             <p className="font-semibold">{weather.humidity}%</p>

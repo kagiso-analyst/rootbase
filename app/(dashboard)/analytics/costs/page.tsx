@@ -341,7 +341,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="shadow-sm border-0 bg-gradient-to-br from-green-50 to-white">
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center justify-between mb-2">
@@ -398,7 +398,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Quick stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'Inventory Items', value: inventoryItems, icon: Package, color: 'text-amber-500', bg: 'bg-amber-50' },
           { label: 'Livestock', value: livestockCount, icon: Tractor, color: 'text-purple-500', bg: 'bg-purple-50' },
@@ -489,9 +489,9 @@ export default function AnalyticsPage() {
                   const pct = totalIncome > 0 ? Math.round((amount / totalIncome) * 100) : 0
                   return (
                     <div key={category} className="group">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-600 font-medium truncate">{category}</span>
-                        <span className="font-medium text-green-600">R{amount.toFixed(0)} ({pct}%)</span>
+                      <div className="flex flex-col gap-0.5 text-xs mb-1 sm:flex-row sm:justify-between">
+                        <span className="min-w-0 break-words text-gray-600 font-medium">{category}</span>
+                        <span className="shrink-0 font-medium text-green-600 sm:text-right">R{amount.toFixed(0)} ({pct}%)</span>
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                         <div 
@@ -525,9 +525,9 @@ export default function AnalyticsPage() {
                   const pct = totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0
                   return (
                     <div key={category} className="group">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span className="text-gray-600 font-medium truncate">{category}</span>
-                        <span className="font-medium text-red-500">R{amount.toFixed(0)} ({pct}%)</span>
+                      <div className="flex flex-col gap-0.5 text-xs mb-1 sm:flex-row sm:justify-between">
+                        <span className="min-w-0 break-words text-gray-600 font-medium">{category}</span>
+                        <span className="shrink-0 font-medium text-red-500 sm:text-right">R{amount.toFixed(0)} ({pct}%)</span>
                       </div>
                       <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
                         <div 
@@ -548,7 +548,7 @@ export default function AnalyticsPage() {
       )}
 
       {/* Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 min-[360px]:grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: 'View Reports', href: '/finances/reports', icon: BarChart2, color: 'bg-blue-50 text-blue-700 hover:bg-blue-100' },
           { label: 'Cost Calculator', href: '/analytics/costs', icon: Calculator, color: 'bg-[#D8F3DC] text-[#1B4332] hover:bg-[#52B788]/20' },
