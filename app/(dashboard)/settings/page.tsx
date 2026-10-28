@@ -172,7 +172,7 @@ export default function SettingsPage() {
       })
       if (metadataError) throw new Error('Failed to update account details: ' + metadataError.message)
 
-      const { error } = await supabase
+      const { data: savedProfile, error } = await supabase
         .from('profiles')
         .upsert({
           user_id: user.id,
@@ -181,9 +181,17 @@ export default function SettingsPage() {
           phone: phone,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' })
+        .select('full_name, email, phone')
+        .single()
 
       if (error) throw new Error('Failed to save profile: ' + error.message)
+      if (!savedProfile || savedProfile.full_name !== fullName) {
+        throw new Error('Profile was not updated. Please try again.')
+      }
 
+      setFullName(savedProfile.full_name || fullName)
+      setEmail(savedProfile.email || email)
+      setPhone(savedProfile.phone || phone)
       setSaveMessage({
         type: 'success',
         text: emailConfirmationPending
@@ -192,11 +200,21 @@ export default function SettingsPage() {
       })
       
       const { data: { user: updatedUser } } = await supabase.auth.getUser()
-      if (updatedUser) setUser(updatedUser)
+      if (updatedUser) {
+        setUser({
+          ...updatedUser,
+          user_metadata: {
+            ...updatedUser.user_metadata,
+            full_name: fullName,
+          },
+        })
+      }
       await loadData()
       
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('profile-updated'))
+        window.dispatchEvent(new CustomEvent('profile-updated', {
+          detail: { fullName },
+        }))
       }
       
     } catch (err) {

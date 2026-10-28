@@ -308,7 +308,14 @@ export default function TopBar() {
 
   // ===== REFRESH ON PROFILE CHANGE =====
   useEffect(() => {
-    const handleProfileUpdate = () => {
+    const handleProfileUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ fullName?: string }>).detail
+      if (detail?.fullName) {
+        setUserName(detail.fullName)
+        const seasonal = getSeasonalGreeting(detail.fullName)
+        setGreeting(seasonal.greeting)
+        setGreetingEmoji(seasonal.emoji)
+      }
       fetchUserData()
     }
     window.addEventListener('profile-updated', handleProfileUpdate)
