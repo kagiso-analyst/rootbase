@@ -293,14 +293,20 @@ const incomeByCategory = income
     const pdfData = {
       startDate,
       endDate,
-      income: filteredIncome,
-      expenses: filteredExpenses,
       totalIncome: filteredIncomeTotal,
       totalExpenses: filteredExpenseTotal,
       net: filteredNet,
       isProfit: filteredNet >= 0,
       profitMargin: filteredIncomeTotal > 0 ? ((filteredNet / filteredIncomeTotal) * 100).toFixed(1) : '0',
-      farmName: showAllFarms ? 'All farms' : currentFarm?.name || 'Farm'
+      farmName: showAllFarms ? 'All farms' : currentFarm?.name || 'Farm',
+      income: filteredIncome.map((transaction) => ({
+        ...transaction,
+        farm_name: farms.find((farm) => farm.id === transaction.farm_id)?.name || null,
+      })),
+      expenses: filteredExpenses.map((transaction) => ({
+        ...transaction,
+        farm_name: farms.find((farm) => farm.id === transaction.farm_id)?.name || null,
+      })),
     }
     return <FinancialReportPDF data={pdfData} />
   }
@@ -412,7 +418,7 @@ const incomeByCategory = income
           {/* PDF Export Button */}
           <PDFDownloadLink
             document={handleExportPDF()}
-            fileName={`financial_report_${currentFarm?.name || 'farm'}_${new Date().toISOString().split('T')[0]}.pdf`}
+            fileName={`financial_report_${showAllFarms ? 'all-farms' : currentFarm?.name || 'farm'}_${new Date().toISOString().split('T')[0]}.pdf`}
           >
             {({ loading }) => (
               <Button

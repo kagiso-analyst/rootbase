@@ -58,6 +58,11 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8
   },
+  rowDetails: {
+    fontSize: 8,
+    color: '#6B7280',
+    marginTop: 2
+  },
   rowAmount: {
     fontSize: 10,
     fontWeight: 'medium'
@@ -154,6 +159,7 @@ interface ReportTransaction {
   amount: number
   date: string
   buyer_name?: string | null
+  farm_name?: string | null
 }
 
 interface ReportData {
@@ -172,7 +178,7 @@ interface ReportData {
 export function FinancialReportPDF({ data }: { data: ReportData }) {
   // Format dates for better display
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr)
+    const d = new Date(`${dateStr}T00:00:00`)
     return d.toLocaleDateString('en-ZA', { 
       year: 'numeric', 
       month: 'short', 
@@ -252,6 +258,10 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
                     {item.buyer_name && (
                         <Text style={styles.categoryBadge}> - {item.buyer_name}</Text>
                     )}
+                    <Text style={styles.rowDetails}>
+                      {formatDate(item.date)}
+                      {item.farm_name ? ` - ${item.farm_name}` : ''}
+                    </Text>
                   </Text>
                   <Text style={[styles.rowAmount, { color: '#16A34A' }]}>
                     {formatZAR(item.amount)}
@@ -280,6 +290,10 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
                     {item.category && (
                       <Text style={styles.categoryBadge}> {item.category}</Text>
                     )}
+                    <Text style={styles.rowDetails}>
+                      {formatDate(item.date)}
+                      {item.farm_name ? ` - ${item.farm_name}` : ''}
+                    </Text>
                   </Text>
                   <Text style={[styles.rowAmount, { color: '#DC2626' }]}>
                     {formatZAR(item.amount)}
