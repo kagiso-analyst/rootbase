@@ -338,7 +338,7 @@ export function FinancialReportPDF({ data }: { data: ReportData }) {
   const lastMonth = new Date(`${endMonth}-01T00:00:00`)
 
   while (cursor <= lastMonth) {
-    const key = cursor.toISOString().slice(0, 7)
+    const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`
     const transactions = allTransactions
       .filter((transaction) => transaction.date.slice(0, 7) === key)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
