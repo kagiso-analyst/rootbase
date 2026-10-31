@@ -1,156 +1,277 @@
 // components/export/FinancialReportPDF.tsx
 
-import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
 import { formatZAR } from '@/lib/utils'
 
-// Register a font (optional)
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcC73FwrK3iLTeHuS_fvQtMwCp50KnMa2JL7SUc.woff2' }
-  ]
-})
+const colors = {
+  ink: '#172B1F',
+  green: '#2D6A4F',
+  lightGreen: '#E8F3EC',
+  muted: '#66736B',
+  border: '#DCE5DF',
+  soft: '#F6F8F7',
+  income: '#16794A',
+  expense: '#B42318',
+}
 
 const styles = StyleSheet.create({
   page: {
-    padding: 40,
+    paddingTop: 42,
+    paddingBottom: 48,
+    paddingHorizontal: 42,
     backgroundColor: '#FFFFFF',
-    fontFamily: 'Helvetica'
+    fontFamily: 'Helvetica',
+    color: colors.ink,
   },
   header: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#2D6A4F',
-    paddingBottom: 15,
-    marginBottom: 20
+    borderBottomWidth: 3,
+    borderBottomColor: colors.green,
+    paddingBottom: 14,
+    marginBottom: 18,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  brand: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.green,
+    letterSpacing: 1.2,
+  },
+  statementLabel: {
+    fontSize: 8,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    textAlign: 'right',
   },
   title: {
-    fontSize: 24,
+    fontSize: 23,
     fontWeight: 'bold',
-    color: '#1B4332'
+    color: colors.ink,
+    marginTop: 12,
   },
   subtitle: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 4
+    fontSize: 10,
+    color: colors.muted,
+    marginTop: 5,
+  },
+  metadata: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    padding: 10,
+  },
+  metadataItem: {
+    width: '50%',
+    marginBottom: 7,
+  },
+  metadataLabel: {
+    fontSize: 7,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 3,
+  },
+  metadataValue: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: colors.ink,
   },
   section: {
-    marginBottom: 20
+    marginBottom: 18,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: 'bold',
-    color: '#1B4332',
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-    paddingBottom: 4
+    color: colors.ink,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+    marginBottom: 7,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6'
-  },
-  rowText: {
-    fontSize: 10,
-    color: '#374151',
-    flex: 1,
-    marginRight: 8
-  },
-  rowDetails: {
-    fontSize: 8,
-    color: '#6B7280',
-    marginTop: 2
-  },
-  rowAmount: {
-    fontSize: 10,
-    fontWeight: 'medium'
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    marginTop: 4,
-    borderTopWidth: 2,
-    borderTopColor: '#D1D5DB'
-  },
-  totalText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#1B4332'
-  },
-  totalAmount: {
-    fontSize: 12,
-    fontWeight: 'bold'
-  },
-  netRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    marginTop: 8,
-    backgroundColor: '#D8F3DC',
+  summaryTable: {
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 4,
-    paddingHorizontal: 12
   },
-  netText: {
-    fontSize: 14,
+  summaryHeader: {
+    flexDirection: 'row',
+    backgroundColor: colors.green,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+  },
+  summaryHeaderText: {
+    fontSize: 7,
     fontWeight: 'bold',
-    color: '#1B4332'
+    color: '#FFFFFF',
+    textTransform: 'uppercase',
   },
-  netAmount: {
-    fontSize: 14,
-    fontWeight: 'bold'
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  summaryTotalRow: {
+    backgroundColor: colors.lightGreen,
+    borderBottomWidth: 0,
+  },
+  monthColumn: {
+    width: '26%',
+  },
+  amountColumn: {
+    width: '19%',
+    textAlign: 'right',
+  },
+  transactionColumn: {
+    width: '17%',
+    textAlign: 'right',
+  },
+  tableText: {
+    fontSize: 8,
+    color: colors.ink,
+  },
+  tableMuted: {
+    fontSize: 8,
+    color: colors.muted,
+  },
+  tableAmount: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    marginBottom: 18,
+  },
+  metricCard: {
+    width: '24%',
+    marginRight: '1.33%',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+    padding: 9,
+  },
+  lastMetricCard: {
+    marginRight: 0,
+  },
+  metricLabel: {
+    fontSize: 7,
+    color: colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 5,
+  },
+  metricValue: {
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  monthSection: {
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 4,
+  },
+  monthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.soft,
+    paddingVertical: 8,
+    paddingHorizontal: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  monthTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: colors.ink,
+  },
+  monthNet: {
+    fontSize: 9,
+    fontWeight: 'bold',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    paddingVertical: 6,
+    paddingHorizontal: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEF2EF',
+  },
+  detailDate: {
+    width: '15%',
+    fontSize: 7,
+    color: colors.muted,
+  },
+  detailDescription: {
+    width: '42%',
+    paddingRight: 6,
+    fontSize: 8,
+    color: colors.ink,
+  },
+  detailType: {
+    width: '18%',
+    fontSize: 7,
+    textTransform: 'uppercase',
+  },
+  detailAmount: {
+    width: '25%',
+    fontSize: 8,
+    fontWeight: 'bold',
+    textAlign: 'right',
+  },
+  detailMeta: {
+    fontSize: 7,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  monthFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 7,
+    paddingHorizontal: 9,
+    backgroundColor: colors.soft,
+  },
+  monthFooterText: {
+    fontSize: 8,
+    fontWeight: 'bold',
+    color: colors.ink,
+  },
+  emptyText: {
+    fontSize: 8,
+    color: colors.muted,
+    fontStyle: 'italic',
+    padding: 10,
   },
   footer: {
     position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
+    bottom: 25,
+    left: 42,
+    right: 42,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between'
-  },
-  footerText: {
-    fontSize: 8,
-    color: '#9CA3AF'
-  },
-  metric: {
-    backgroundColor: '#F9FAFB',
-    padding: 8,
-    borderRadius: 4,
-    marginBottom: 10
-  },
-  metricRow: {
+    borderTopColor: colors.border,
+    paddingTop: 7,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 2
   },
-  metricLabel: {
-    fontSize: 9,
-    color: '#6B7280'
+  footerText: {
+    fontSize: 7,
+    color: '#89958D',
   },
-  metricValue: {
-    fontSize: 9,
-    fontWeight: 'bold'
-  },
-  emptyText: {
-    fontSize: 10,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-    paddingVertical: 4
-  },
-  categoryBadge: {
-    fontSize: 8,
-    color: '#6B7280',
-    marginLeft: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 2
-  }
 })
 
 interface ReportTransaction {
@@ -158,6 +279,7 @@ interface ReportTransaction {
   category: string | null
   amount: number
   date: string
+  type?: 'income' | 'expense'
   buyer_name?: string | null
   farm_name?: string | null
 }
@@ -175,173 +297,207 @@ interface ReportData {
   farmName: string
 }
 
+type MonthlyStatement = {
+  key: string
+  label: string
+  income: number
+  expenses: number
+  transactions: ReportTransaction[]
+}
+
 export function FinancialReportPDF({ data }: { data: ReportData }) {
-  // Format dates for better display
-  const formatDate = (dateStr: string) => {
-    const d = new Date(`${dateStr}T00:00:00`)
-    return d.toLocaleDateString('en-ZA', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+  const formatDate = (dateStr: string) => new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-ZA', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+
+  const formatMonth = (monthKey: string) => new Date(`${monthKey}-01T00:00:00`).toLocaleDateString('en-ZA', {
+    year: 'numeric',
+    month: 'long',
+  })
+
+  const formatGeneratedAt = () => new Date().toLocaleDateString('en-ZA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+
+  const truncateText = (text: string, maxLength = 42) =>
+    text.length > maxLength ? `${text.substring(0, maxLength)}...` : text
+
+  const allTransactions = [...data.income, ...data.expenses].map((transaction) => ({
+    ...transaction,
+    type: transaction.type || (data.income.includes(transaction) ? 'income' : 'expense'),
+  }))
+
+  const startMonth = data.startDate.slice(0, 7)
+  const endMonth = data.endDate.slice(0, 7)
+  const monthlyStatements: MonthlyStatement[] = []
+  const cursor = new Date(`${startMonth}-01T00:00:00`)
+  const lastMonth = new Date(`${endMonth}-01T00:00:00`)
+
+  while (cursor <= lastMonth) {
+    const key = cursor.toISOString().slice(0, 7)
+    const transactions = allTransactions
+      .filter((transaction) => transaction.date.slice(0, 7) === key)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    monthlyStatements.push({
+      key,
+      label: formatMonth(key),
+      income: transactions.filter((transaction) => transaction.type === 'income').reduce((sum, transaction) => sum + transaction.amount, 0),
+      expenses: transactions.filter((transaction) => transaction.type === 'expense').reduce((sum, transaction) => sum + transaction.amount, 0),
+      transactions,
     })
+    cursor.setMonth(cursor.getMonth() + 1)
   }
 
-  // Truncate long descriptions
-  const truncateText = (text: string, maxLength: number = 40) => {
-    if (!text) return ''
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text
-  }
-
-  // Sort transactions by date (newest first)
-  const sortByDate = (items: ReportTransaction[]) => {
-    return [...items].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }
-
-  const sortedIncome = sortByDate(data.income)
-  const sortedExpenses = sortByDate(data.expenses)
+  const renderFooter = () => (
+    <View style={styles.footer} fixed>
+      <Text style={styles.footerText}>RootBase | Confidential financial statement</Text>
+      <Text style={styles.footerText}>Page <Text render={({ pageNumber, totalPages }) => `${pageNumber} of ${totalPages}`} /></Text>
+    </View>
+  )
 
   return (
-    <Document>
-      <Page size="A4" style={styles.page}>
-        {/* Header */}
+    <Document title={`RootBase Financial Statement - ${data.farmName}`}>
+      <Page size="A4" style={styles.page} wrap>
         <View style={styles.header}>
-          <Text style={styles.title}>RootBase Financial Report</Text>
-          <Text style={styles.subtitle}>
-            {data.farmName} - {formatDate(data.startDate)} to {formatDate(data.endDate)}
-          </Text>
+          <View style={styles.brandRow}>
+            <Text style={styles.brand}>ROOTBASE</Text>
+            <Text style={styles.statementLabel}>Financial activity statement</Text>
+          </View>
+          <Text style={styles.title}>Financial Report</Text>
+          <Text style={styles.subtitle}>A clear record of income, expenses and net result for the selected reporting period.</Text>
         </View>
 
-        {/* Metrics Summary */}
-        <View style={styles.metric}>
-          <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Total Income</Text>
-            <Text style={[styles.metricValue, { color: '#16A34A' }]}>{formatZAR(data.totalIncome)}</Text>
+        <View style={styles.metadata}>
+          <View style={styles.metadataItem}>
+            <Text style={styles.metadataLabel}>Statement scope</Text>
+            <Text style={styles.metadataValue}>{data.farmName}</Text>
           </View>
-          <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Total Expenses</Text>
-            <Text style={[styles.metricValue, { color: '#DC2626' }]}>{formatZAR(data.totalExpenses)}</Text>
+          <View style={styles.metadataItem}>
+            <Text style={styles.metadataLabel}>Reporting period</Text>
+            <Text style={styles.metadataValue}>{formatDate(data.startDate)} - {formatDate(data.endDate)}</Text>
           </View>
-          <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Net {data.isProfit ? 'Profit' : 'Loss'}</Text>
-            <Text style={[styles.metricValue, { color: data.isProfit ? '#16A34A' : '#DC2626' }]}>
+          <View style={styles.metadataItem}>
+            <Text style={styles.metadataLabel}>Prepared on</Text>
+            <Text style={styles.metadataValue}>{formatGeneratedAt()}</Text>
+          </View>
+          <View style={styles.metadataItem}>
+            <Text style={styles.metadataLabel}>Activity recorded</Text>
+            <Text style={styles.metadataValue}>{allTransactions.length} transactions</Text>
+          </View>
+        </View>
+
+        <View style={styles.metricGrid}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Total income</Text>
+            <Text style={[styles.metricValue, { color: colors.income }]}>{formatZAR(data.totalIncome)}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>Total expenses</Text>
+            <Text style={[styles.metricValue, { color: colors.expense }]}>{formatZAR(data.totalExpenses)}</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>{data.isProfit ? 'Net profit' : 'Net loss'}</Text>
+            <Text style={[styles.metricValue, { color: data.isProfit ? colors.income : colors.expense }]}>
               {data.isProfit ? '+' : '-'}{formatZAR(Math.abs(data.net))}
             </Text>
           </View>
-          <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Profit Margin</Text>
-            <Text style={[styles.metricValue, { color: data.isProfit ? '#16A34A' : '#DC2626' }]}>
-              {data.profitMargin}%
-            </Text>
-          </View>
-          <View style={styles.metricRow}>
-            <Text style={styles.metricLabel}>Total Transactions</Text>
-            <Text style={[styles.metricValue, { color: '#374151' }]}>
-              {data.income.length + data.expenses.length}
-            </Text>
+          <View style={[styles.metricCard, styles.lastMetricCard]}>
+            <Text style={styles.metricLabel}>Profit margin</Text>
+            <Text style={[styles.metricValue, { color: data.isProfit ? colors.income : colors.expense }]}>{data.profitMargin}%</Text>
           </View>
         </View>
 
-        {/* Income Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Income ({data.income.length} transactions)</Text>
-          {data.income.length === 0 ? (
-            <Text style={styles.emptyText}>No income recorded in this period</Text>
-          ) : (
-            <>
-              {sortedIncome.map((item, index) => (
-                <View key={index} style={styles.row}>
-                  <Text style={styles.rowText}>
-                    {truncateText(item.description || 'Unnamed')}
-                    {item.category && (
-                      <Text style={styles.categoryBadge}> {item.category}</Text>
-                    )}
-                    {item.buyer_name && (
-                        <Text style={styles.categoryBadge}> - {item.buyer_name}</Text>
-                    )}
-                    <Text style={styles.rowDetails}>
-                      {formatDate(item.date)}
-                      {item.farm_name ? ` - ${item.farm_name}` : ''}
-                    </Text>
+          <Text style={styles.sectionTitle}>Monthly summary</Text>
+          <View style={styles.summaryTable}>
+            <View style={styles.summaryHeader}>
+              <Text style={[styles.summaryHeaderText, styles.monthColumn]}>Period</Text>
+              <Text style={[styles.summaryHeaderText, styles.amountColumn]}>Income</Text>
+              <Text style={[styles.summaryHeaderText, styles.amountColumn]}>Expenses</Text>
+              <Text style={[styles.summaryHeaderText, styles.amountColumn]}>Net result</Text>
+              <Text style={[styles.summaryHeaderText, styles.transactionColumn]}>Entries</Text>
+            </View>
+            {monthlyStatements.map((month) => {
+              const net = month.income - month.expenses
+              return (
+                <View key={month.key} style={styles.summaryRow}>
+                  <Text style={[styles.tableText, styles.monthColumn]}>{month.label}</Text>
+                  <Text style={[styles.tableAmount, styles.amountColumn, { color: colors.income }]}>{formatZAR(month.income)}</Text>
+                  <Text style={[styles.tableAmount, styles.amountColumn, { color: colors.expense }]}>{formatZAR(month.expenses)}</Text>
+                  <Text style={[styles.tableAmount, styles.amountColumn, { color: net >= 0 ? colors.income : colors.expense }]}>
+                    {net >= 0 ? '+' : '-'}{formatZAR(Math.abs(net))}
                   </Text>
-                  <Text style={[styles.rowAmount, { color: '#16A34A' }]}>
-                    {formatZAR(item.amount)}
-                  </Text>
+                  <Text style={[styles.tableMuted, styles.transactionColumn]}>{month.transactions.length}</Text>
                 </View>
-              ))}
-            </>
-          )}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalText}>Total Income</Text>
-            <Text style={[styles.totalAmount, { color: '#16A34A' }]}>{formatZAR(data.totalIncome)}</Text>
-          </View>
-        </View>
-
-        {/* Expenses Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Expenses ({data.expenses.length} transactions)</Text>
-          {data.expenses.length === 0 ? (
-            <Text style={styles.emptyText}>No expenses recorded in this period</Text>
-          ) : (
-            <>
-              {sortedExpenses.map((item, index) => (
-                <View key={index} style={styles.row}>
-                  <Text style={styles.rowText}>
-                    {truncateText(item.description || 'Unnamed')}
-                    {item.category && (
-                      <Text style={styles.categoryBadge}> {item.category}</Text>
-                    )}
-                    <Text style={styles.rowDetails}>
-                      {formatDate(item.date)}
-                      {item.farm_name ? ` - ${item.farm_name}` : ''}
-                    </Text>
-                  </Text>
-                  <Text style={[styles.rowAmount, { color: '#DC2626' }]}>
-                    {formatZAR(item.amount)}
-                  </Text>
-                </View>
-              ))}
-            </>
-          )}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalText}>Total Expenses</Text>
-            <Text style={[styles.totalAmount, { color: '#DC2626' }]}>{formatZAR(data.totalExpenses)}</Text>
-          </View>
-        </View>
-
-        {/* Net Result */}
-        <View style={[
-          styles.netRow,
-          { backgroundColor: data.isProfit ? '#D8F3DC' : '#FEE2E2' }
-        ]}>
-          <Text style={styles.netText}>
-            NET {data.isProfit ? 'PROFIT' : 'LOSS'}
-            {data.income.length + data.expenses.length > 0 && (
-              <Text style={{ fontSize: 10, fontWeight: 'normal', color: '#6B7280' }}>
-                {' '}({data.income.length} income, {data.expenses.length} expenses)
-              </Text>
-            )}
-          </Text>
-          <Text style={[
-            styles.netAmount,
-            { color: data.isProfit ? '#16A34A' : '#DC2626' }
-          ]}>
-            {data.isProfit ? '+' : '-'}{formatZAR(Math.abs(data.net))}
-          </Text>
-        </View>
-
-        {/* Footer */}
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>Generated by RootBase - {data.farmName}</Text>
-          <Text style={styles.footerText}>
-            {new Date().toLocaleDateString('en-ZA', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
+              )
             })}
-          </Text>
+            <View style={[styles.summaryRow, styles.summaryTotalRow]}>
+              <Text style={[styles.tableText, styles.monthColumn, { fontWeight: 'bold' }]}>Total for period</Text>
+              <Text style={[styles.tableAmount, styles.amountColumn, { color: colors.income }]}>{formatZAR(data.totalIncome)}</Text>
+              <Text style={[styles.tableAmount, styles.amountColumn, { color: colors.expense }]}>{formatZAR(data.totalExpenses)}</Text>
+              <Text style={[styles.tableAmount, styles.amountColumn, { color: data.net >= 0 ? colors.income : colors.expense }]}>
+                {data.net >= 0 ? '+' : '-'}{formatZAR(Math.abs(data.net))}
+              </Text>
+              <Text style={[styles.tableMuted, styles.transactionColumn]}>{allTransactions.length}</Text>
+            </View>
+          </View>
         </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Transaction detail by month</Text>
+          {monthlyStatements.map((month) => {
+            const net = month.income - month.expenses
+            return (
+              <View key={month.key} style={styles.monthSection}>
+                <View style={styles.monthHeader}>
+                  <Text style={styles.monthTitle}>{month.label}</Text>
+                  <Text style={[styles.monthNet, { color: net >= 0 ? colors.income : colors.expense }]}>
+                    Net {net >= 0 ? '+' : '-'}{formatZAR(Math.abs(net))}
+                  </Text>
+                </View>
+                {month.transactions.length === 0 ? (
+                  <Text style={styles.emptyText}>No activity recorded in this month.</Text>
+                ) : (
+                  <>
+                    <View style={styles.detailHeader}>
+                      <Text style={[styles.tableMuted, styles.detailDate]}>Date</Text>
+                      <Text style={[styles.tableMuted, styles.detailDescription]}>Description / category</Text>
+                      <Text style={[styles.tableMuted, styles.detailType]}>Type</Text>
+                      <Text style={[styles.tableMuted, styles.detailAmount]}>Amount</Text>
+                    </View>
+                    {month.transactions.map((transaction, index) => (
+                      <View key={`${month.key}-${index}`} style={styles.detailRow}>
+                        <Text style={styles.detailDate}>{formatDate(transaction.date)}</Text>
+                        <View style={styles.detailDescription}>
+                          <Text>{truncateText(transaction.description || 'Unnamed transaction')}</Text>
+                          <Text style={styles.detailMeta}>
+                            {[transaction.category, transaction.farm_name].filter(Boolean).join(' | ') || 'Uncategorised'}
+                          </Text>
+                        </View>
+                        <Text style={[styles.detailType, { color: transaction.type === 'income' ? colors.income : colors.expense }]}>
+                          {transaction.type === 'income' ? 'Credit' : 'Debit'}
+                        </Text>
+                        <Text style={[styles.detailAmount, { color: transaction.type === 'income' ? colors.income : colors.expense }]}>
+                          {transaction.type === 'income' ? '+' : '-'}{formatZAR(transaction.amount)}
+                        </Text>
+                      </View>
+                    ))}
+                    <View style={styles.monthFooter}>
+                      <Text style={styles.monthFooterText}>Income {formatZAR(month.income)} | Expenses {formatZAR(month.expenses)}</Text>
+                      <Text style={styles.monthFooterText}>Net {net >= 0 ? '+' : '-'}{formatZAR(Math.abs(net))}</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            )
+          })}
+        </View>
+
+        {renderFooter()}
       </Page>
     </Document>
   )
