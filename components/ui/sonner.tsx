@@ -2,7 +2,6 @@
 
 "use client"
 
-import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { 
   CircleCheckIcon, 
@@ -22,13 +21,11 @@ const Toaster = ({
   visibleToasts = 5,
   ...props 
 }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
-
   return (
     // Wrap Sonner in a div to prevent hydration issues
     <div className="fixed z-50 top-0 right-0 w-full pointer-events-none">
       <Sonner
-        theme={theme as ToasterProps["theme"]}
+        theme="light"
         className={cn("toaster group", className)}
         position={position}
         expand={expand}

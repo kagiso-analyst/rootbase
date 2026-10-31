@@ -3,7 +3,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useTheme } from 'next-themes'
 import { 
   Save, User, Bell, Shield, Palette, Import, RefreshCw, 
   CheckCircle, AlertCircle, Eye, EyeOff, Users,
@@ -38,8 +37,6 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
   const [authChecked, setAuthChecked] = useState(false)
   const supabase = createClient()
-  const { theme, setTheme } = useTheme()
-
   // ===== FARM CONTEXT =====
   const { currentFarm, farms, switchFarm, deleteFarm, refreshFarms, loading: farmLoading } = useFarm()
 
@@ -578,23 +575,6 @@ export default function SettingsPage() {
                   <><Save size={15} className="mr-2" /> Save Changes</>
                 )}
               </Button>
-              <div className="mt-4 border-t border-gray-100 pt-4">
-                <Label className="text-sm font-medium text-gray-600">Appearance</Label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(['light', 'dark', 'system'] as const).map((mode) => (
-                    <Button
-                      key={mode}
-                      type="button"
-                      variant={theme === mode ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setTheme(mode)}
-                      className={theme === mode ? 'bg-[#2D6A4F] text-white' : ''}
-                    >
-                      {mode[0].toUpperCase() + mode.slice(1)}
-                    </Button>
-                  ))}
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
